@@ -1,0 +1,11 @@
+include README.md
+include LICENSE
+include requirements.txt
+include requirements-dev.txt
+recursive-include sirf_simind_connection/data *.atn
+recursive-include docs *.rst *.py *.md
+recursive-include tests *.py
+recursive-include examples *.py *.md
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store

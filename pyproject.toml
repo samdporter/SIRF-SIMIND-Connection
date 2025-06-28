@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sirf-simind-spect"
+version = "0.1.0"
+description = "A wrapper for SIRF and SIMIND for Monte Carlo SPECT simulations"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}  # or your chosen license
+authors = [
+    {name = "Sam Porter", email = "sam.porter.18@ucl.ac.uk"},
+    {name = "Efstathios (Stahis) Varzakis", email = "efstathios.varzakis.22@ucl.ac.uk"},
+]
+maintainers = [
+    {name = "Sam Porter", email = "sam.porter.18@ucl.ac.uk"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+keywords = ["SPECT", "Monte Carlo", "medical imaging", "SIMIND", "SIRF", "STIR"]
+
+dependencies = [
+    "numpy>=1.20.0",
+    "pydicom>=2.0.0",
+    "pyyaml>=5.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov",
+    "black",
+    "flake8",
+    "mypy",
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+
+[project.urls]
+Homepage = "https://github.com/samdporter/sirf-simind-spect"
+Documentation = "https://github.com/samdporter/sirf-simind-spect"
+Repository = "https://github.com/samdporter/sirf-simind-spect"
+Issues = "https://github.com/samdporter/sirf-simind-spect/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sirf_simind_connection*"]
+
+[tool.setuptools.package-data]
+sirf_simind_connection = ["data/*.atn"]
