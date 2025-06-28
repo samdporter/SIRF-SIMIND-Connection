@@ -23,6 +23,10 @@ extensions = [
     "sphinx_autodoc_typehints",
     "myst_parser",
 ]
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
@@ -66,7 +70,6 @@ napoleon_type_aliases = None
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
-    "sirf": ("https://sirf.github.io/Synerbi/SIRF/", None),
 }
 
 # MyST parser configuration
