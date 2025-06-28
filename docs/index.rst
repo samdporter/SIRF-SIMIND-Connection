@@ -24,7 +24,7 @@ SIRF-SIMIND-Connection enables researchers and developers to:
 - Run Monte Carlo SPECT simulations using familiar SIRF data types
 - Convert SPECT DICOM files to STIR format for processing
 - Simulate scatter and attenuation effects accurately
-- Implement advanced scatter correction techniques
+- Implement advanced scatter correction techniques (more to come)
 - Create custom scanner configurations
 
 Key Features
@@ -43,7 +43,7 @@ Key Features
    Convert clinical SPECT DICOM data to STIR format automatically
 
 **Pre-configured Templates**
-   Start quickly with templates for common SPECT scanners
+   Start quickly with templates for some common SPECT scanners
 
 Installation
 ------------
@@ -77,8 +77,8 @@ Quick Start
 Getting Help
 ------------
 
-- **Issues**: Report bugs or request features on `GitHub Issues <https://github.com/yourusername/SIRF-SIMIND-Connection/issues>`_
-- **Discussions**: Join conversations on `GitHub Discussions <https://github.com/yourusername/SIRF-SIMIND-Connection/discussions>`_
+- **Issues**: Report bugs or request features on `GitHub Issues <https://github.com/samdporter/SIRF-SIMIND-Connection/issues>`_
+- **Discussions**: Join conversations on `GitHub Discussions <https://github.com/samdporter/SIRF-SIMIND-Connection/discussions>`_
 - **Email**: Contact the maintainers
 
 License
@@ -93,11 +93,11 @@ If you use this software in your research, please cite:
 
 .. code-block:: bibtex
 
-   @software{sirf_simind_spect,
-     author = {Porter, Sam and Varzakis, Efstathios},
-     title = {SIRF-SIMIND-Connection: A Python wrapper for SPECT Monte Carlo simulations},
-     year = {2024},
-     url = {https://github.com/yourusername/SIRF-SIMIND-Connection}
+   @software{sirf_simind_connection,
+   author = {Sam Porter, Rebecca Gillen and Efstathios Varzakis},
+   title = {SIRF-SIMIND-Connection: A Python wrapper for SPECT Monte Carlo simulations},
+   year = {2025},
+   url = {https://github.com/samdporter/SIRF-SIMIND-Connection}
    }
 
 Indices and tables

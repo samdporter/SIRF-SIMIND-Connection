@@ -3,14 +3,15 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sirf-simind-spect"
+name = "SIRF-SIMIND-Connection"
 version = "0.1.0"
 description = "A wrapper for SIRF and SIMIND for Monte Carlo SPECT simulations"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "Apache-2.0"}  # or your chosen license
+license = {text = "Apache-2.0"} 
 authors = [
     {name = "Sam Porter", email = "sam.porter.18@ucl.ac.uk"},
+    {name = "Rebecca Gillen", email = "rebecca.gillen.18@ucl.ac.uk"},
     {name = "Efstathios (Stahis) Varzakis", email = "efstathios.varzakis.22@ucl.ac.uk"},
 ]
 maintainers = [
@@ -39,18 +40,25 @@ dependencies = [
 dev = [
     "pytest>=6.0",
     "pytest-cov",
+    "pytest-mock",
     "black",
-    "flake8",
-    "mypy",
+    "ruff",
+    "isort",
+    "autoflake",
     "sphinx",
     "sphinx-rtd-theme",
+    "sphinx-autodoc-typehints",
+    "myst-parser",
+    "pre-commit",
+    "build",
+    "twine",
 ]
 
 [project.urls]
-Homepage = "https://github.com/samdporter/sirf-simind-spect"
-Documentation = "https://github.com/samdporter/sirf-simind-spect"
-Repository = "https://github.com/samdporter/sirf-simind-spect"
-Issues = "https://github.com/samdporter/sirf-simind-spect/issues"
+Homepage = "https://github.com/samdporter/SIRF-SIMIND-Connection"
+Documentation = "https://github.com/samdporter/SIRF-SIMIND-Connection"
+Repository = "https://github.com/samdporter/SIRF-SIMIND-Connection"
+Issues = "https://github.com/samdporter/SIRF-SIMIND-Connection/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

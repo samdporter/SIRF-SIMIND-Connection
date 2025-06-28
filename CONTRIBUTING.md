@@ -44,26 +44,24 @@ git checkout -b feature/your-feature-name
 
 We use several tools to maintain code quality:
 
+- **autoflake** for cleaning unused imports and variables
 - **Black** for code formatting
 - **isort** for import sorting
-- **flake8** for linting
-- **mypy** for type checking
+- **Ruff** for line checking
 
 Run all checks:
 ```bash
-# Format code
-black sirf_simind_connection tests
-isort sirf_simind_connection tests
-
-# Check style
-flake8 sirf_simind_connection tests
-mypy sirf_simind_connection
+# Use the handy script
+chmod +x ./scripts/fix.sh
+./fix.sh
 
 # Or use pre-commit to run all checks
 pre-commit run --all-files
 ```
 
 ### 4. Testing
+
+At the moment, I don't have any tests (whoops!) But the minimal example files do a decent job of testing some of the main functionality. This will come soon.
 
 Write tests for new functionality:
 
@@ -75,7 +73,7 @@ pytest
 pytest --cov=sirf_simind_connection --cov-report=html
 
 # Run specific test file
-pytest tests/test_simulator.py
+pytest tests/test_example.py
 
 # Run with verbose output
 pytest -v
@@ -87,6 +85,7 @@ Test categories:
 - End-to-end tests: Test complete workflows
 
 ### 5. Documentation
+Again, this is a bit poor at the moment but improvements will follow
 
 - Update docstrings using NumPy style
 - Update relevant .md files
@@ -207,13 +206,17 @@ logger.setLevel(logging.DEBUG)
 
 ## Code Organization
 
-- `core/`: Core functionality (simulator, projector, config)
-- `converters/`: File format converters
-- `builders/`: STIR object builders
-- `utils/`: Utility functions
-- `tests/`: Test files (mirror source structure)
+- `sirf_simind_connection/`
+   - `builders/`: STIR object builders
+   - `configs/`: Example configurations files
+   - `core/`: Core functionality (simulator, projector, config)
+   - `converters/`: File format converters
+   - `data/`: Data used for SIMIND simulations (just attenuation correction at the moment)
+   - `utils/`: Utility functions
+
 - `examples/`: Usage examples
 - `docs/`: Documentation source
+- `tests/`: Currently empty. Will contain everything soon (I hope)
 
 ## Release Process
 
