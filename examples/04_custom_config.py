@@ -10,9 +10,7 @@ from pathlib import Path
 
 from sirf_simind_connection import SimulationConfig, configs
 
-TEMPLATE_PATH = configs.get(
-    "Discovery670.yaml"
-)  # Path to a template configuration file
+TEMPLATE_PATH = configs.get("input.smc")  # Path to a template configuration file
 
 
 def create_custom_lehr_config():

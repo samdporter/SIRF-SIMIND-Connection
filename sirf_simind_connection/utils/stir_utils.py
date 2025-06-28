@@ -854,3 +854,53 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
     os.remove(raw_file_path)
 
     return template_acqdata
+
+
+def create_simple_phantom():
+    """Create a simple cylindrical phantom with a hot sphere."""
+    # Create a 64x64x64 image with 4.42mm voxels
+    matrix_dim = [64, 64, 64]
+    voxel_size = [4.42, 4.42, 4.42]  # mm
+
+    # Create empty image
+    phantom = create_stir_image(matrix_dim, voxel_size)
+    phantom_array = phantom.as_array()
+
+    # Add cylindrical background (body)
+    center = [32, 32, 32]
+    radius = 10  # pixels
+    height = 20  # pixels
+
+    for z in range(center[0] - height // 2, center[0] + height // 2):
+        for y in range(matrix_dim[1]):
+            for x in range(matrix_dim[2]):
+                if (x - center[1]) ** 2 + (y - center[2]) ** 2 <= radius**2:
+                    phantom_array[z, y, x] = 10  # Background activity
+
+    # Add hot sphere (tumor)
+    sphere_center = [32, 32, 36]
+    sphere_radius = 3  # pixels
+
+    for z in range(matrix_dim[0]):
+        for y in range(matrix_dim[1]):
+            for x in range(matrix_dim[2]):
+                if (x - sphere_center[2]) ** 2 + (y - sphere_center[1]) ** 2 + (
+                    z - sphere_center[0]
+                ) ** 2 <= sphere_radius**2:
+                    phantom_array[z, y, x] = 40  # Hot spot activity
+
+    phantom.fill(phantom_array)
+    return phantom
+
+
+def create_attenuation_map(phantom):
+    """Create a simple attenuation map from the phantom."""
+    # For simplicity, use uniform attenuation where phantom > 0
+    mu_water_140keV = 0.15  # cm^-1 approximate for 140 keV
+
+    attn_array = phantom.as_array().copy()
+    attn_array[attn_array > 0] = mu_water_140keV
+
+    mu_map = phantom.clone()
+    mu_map.fill(attn_array)
+    return mu_map

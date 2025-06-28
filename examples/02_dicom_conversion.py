@@ -59,7 +59,7 @@ def analyze_acquisition(acq_data):
     print("\nKey Parameters:")
     print(f"  Total counts: {acq_data.sum():.0f}")
     print(f"  Max counts per pixel: {acq_data.max():.0f}")
-    print(f"  Mean counts per pixel: {acq_data.sum() / acq_data.size():.2f}")
+    print(f"  Mean counts per pixel: {acq_data.sum() / acq_data.size:.2f}")
 
 
 def main():
