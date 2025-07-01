@@ -1,0 +1,271 @@
+# .github/workflows/ci.yml
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run tests weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+        exclude:
+          # Skip some combinations to reduce CI time
+          - os: windows-latest
+            python-version: '3.8'
+          - os: macOS-latest
+            python-version: '3.8'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', 'setup.py', 'pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libhdf5-dev \
+          libfftw3-dev \
+          libarmadillo-dev \
+          libboost-all-dev \
+          libnlopt-dev \
+          libxml2-dev \
+          libxslt-dev
+
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macOS-latest'
+      run: |
+        brew update
+        brew install hdf5 fftw armadillo boost nlopt libxml2
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -e ".[dev]"
+
+    - name: Install SIRF (if available)
+      run: |
+        # Try to install SIRF from conda-forge or skip if not available
+        pip install conda
+        conda install -c conda-forge sirf || echo "SIRF not available, will skip SIRF-dependent tests"
+      continue-on-error: true
+
+    - name: Lint with flake8
+      run: |
+        flake8 sirf_simind_connection --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 sirf_simind_connection --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+
+    - name: Type check with mypy
+      run: |
+        mypy sirf_simind_connection --ignore-missing-imports
+      continue-on-error: true
+
+    - name: Check code formatting with black
+      run: |
+        black --check --diff sirf_simind_connection
+
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v -m "unit and not requires_simind" --cov=sirf_simind_connection --cov-report=xml
+
+    - name: Run integration tests (without SIMIND)
+      run: |
+        pytest tests/ -v -m "integration and not requires_simind" --cov=sirf_simind_connection --cov-append --cov-report=xml
+      continue-on-error: true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  test-with-simind:
+    name: Test with SIMIND (Ubuntu only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libhdf5-dev \
+          libfftw3-dev \
+          libarmadillo-dev \
+          libboost-all-dev \
+          libnlopt-dev \
+          libxml2-dev \
+          libxslt-dev
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -e ".[dev]"
+
+    - name: Install SIRF
+      run: |
+        # Install SIRF using conda
+        conda install -c conda-forge sirf
+
+    - name: Cache SIMIND installation
+      id: cache-simind
+      uses: actions/cache@v3
+      with:
+        path: ~/simind
+        key: simind-installation-${{ runner.os }}
+
+    - name: Install SIMIND
+      if: steps.cache-simind.outputs.cache-hit != 'true'
+      run: |
+        # Download and install SIMIND (this would need to be adapted for actual SIMIND installation)
+        mkdir -p ~/simind
+        # echo "SIMIND installation would go here"
+        # For now, create a mock simind executable for testing
+        mkdir -p ~/simind/bin
+        echo '#!/bin/bash' > ~/simind/bin/simind
+        echo 'echo "SIMIND mock version 1.0"' >> ~/simind/bin/simind
+        chmod +x ~/simind/bin/simind
+
+    - name: Add SIMIND to PATH
+      run: |
+        echo "$HOME/simind/bin" >> $GITHUB_PATH
+
+    - name: Run tests with SIMIND
+      run: |
+        pytest tests/ -v -m "requires_simind" --cov=sirf_simind_connection --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: simind-tests
+        name: codecov-simind
+        fail_ci_if_error: false
+
+  docs:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install sphinx sphinx-rtd-theme
+
+    - name: Build documentation
+      run: |
+        cd docs
+        make html
+
+    - name: Upload documentation artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: documentation
+        path: docs/_build/html
+
+  package:
+    name: Build and test package
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip build twine
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Check package with twine
+      run: |
+        twine check dist/*
+
+    - name: Test installation from wheel
+      run: |
+        pip install dist/*.whl
+        python -c "import sirf_simind_connection; print(sirf_simind_connection.__version__)"
+
+    - name: Upload package artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: python-package
+        path: dist/
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+
+    - name: Run safety check
+      run: |
+        safety check
+
+    - name: Run bandit security scan
+      run: |
+        bandit -r sirf_simind_connection

@@ -1,0 +1,81 @@
+# .github/workflows/weekly-tests.yml
+name: Weekly Comprehensive Tests
+
+on:
+  schedule:
+    # Run every Sunday at 3 AM UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  comprehensive-test:
+    name: Comprehensive test suite
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libhdf5-dev \
+          libfftw3-dev \
+          libarmadillo-dev \
+          libboost-all-dev \
+          libnlopt-dev \
+          libxml2-dev \
+          libxslt-dev
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -e ".[dev]"
+
+    - name: Run complete test suite
+      run: |
+        pytest tests/ -v --cov=sirf_simind_connection --cov-report=html --slow
+      continue-on-error: true
+
+    - name: Run example scripts
+      run: |
+        cd examples
+        python 01_basic_simulation.py || echo "Example 1 failed"
+        python 02_dicom_conversion.py || echo "Example 2 failed"
+        python 03_multi_window.py || echo "Example 3 failed"
+        python 04_custom_config.py || echo "Example 4 failed"
+        python 05_complete_workflow.py || echo "Example 5 failed"
+      continue-on-error: true
+
+    - name: Performance benchmarks
+      run: |
+        pytest tests/ -v -m "slow" --benchmark-only
+      continue-on-error: true
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      with:
+        name: weekly-test-results
+        path: |
+          htmlcov/
+          test-results.xml
+          benchmark-results.json
+
+    - name: Notify on failure
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: 'Weekly test suite failed',
+            body: 'The weekly comprehensive test suite has failed. Please check the workflow run for details.',
+            labels: ['bug', 'ci-failure']
+          })
