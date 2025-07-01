@@ -1,0 +1,39 @@
+# Dockerfile.test-without-simind
+# Testing container without SIMIND for basic testing
+# This is for CI/CD where SIMIND isn't available
+
+FROM synerbi/sirf:latest
+
+USER root
+
+# Install testing dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Switch to sirfuser
+USER sirfuser
+WORKDIR /home/sirfuser
+
+# Install Python testing packages
+RUN python -m pip install --user --upgrade pip && \
+    python -m pip install --user \
+    pytest>=6.0 \
+    pytest-cov>=2.10.0 \
+    pytest-mock>=3.6.0 \
+    pytest-xdist \
+    black>=21.0.0 \
+    flake8>=3.8.0 \
+    mypy>=0.910 \
+    psutil
+
+# Copy project
+COPY --chown=sirfuser:sirfuser . /home/sirfuser/workspace/
+WORKDIR /home/sirfuser/workspace
+
+# Install package
+RUN python -m pip install --user -e . || python -m pip install --user -e ".[dev]"
+
+# Default command runs tests without SIMIND
+CMD ["pytest", "tests/", "-m", "not requires_simind", "-v", "--tb=short"]

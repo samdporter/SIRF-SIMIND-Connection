@@ -1,0 +1,146 @@
+# Dockerfile.sirf-simind
+# Docker container with SIRF and SIMIND for SIRF-SIMIND-Connection testing
+#
+# Based on official SIRF Docker image with SIMIND installation
+# Usage:
+#   docker build -f Dockerfile.sirf-simind -t sirf-simind-connection .
+#   docker run -it --rm sirf-simind-connection
+
+# Use the official SIRF Docker image as base
+# See: https://github.com/SyneRBI/SIRF-SuperBuild/blob/master/docker/README.md
+ARG SIRF_TAG=latest
+FROM synerbi/sirf:${SIRF_TAG}
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Switch to root for installation
+USER root
+
+# Update system and install additional dependencies needed for SIMIND and testing
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    unzip \
+    gfortran \
+    build-essential \
+    git \
+    vim \
+    htop \
+    tree \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create directory for SIMIND installation
+RUN mkdir -p /opt/simind
+
+# Download and install SIMIND
+# Note: SIMIND requires registration at https://simind.blogg.lu.se/downloads/
+# For automated builds, you would need to provide the SIMIND archive
+# Here we'll set up the structure and provide instructions
+COPY docker/install_simind.sh /tmp/install_simind.sh
+RUN chmod +x /tmp/install_simind.sh
+
+# Alternative: If you have SIMIND archive available, uncomment and modify:
+# COPY simind_linux.tar.gz /tmp/
+# RUN cd /tmp && \
+#     tar -xzf simind_linux.tar.gz && \
+#     mv simind* /opt/simind/ && \
+#     chmod +x /opt/simind/bin/* && \
+#     rm -rf /tmp/simind*
+
+# Set up SIMIND environment
+ENV SIMIND_HOME=/opt/simind
+ENV PATH="${SIMIND_HOME}/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${SIMIND_HOME}/lib:${LD_LIBRARY_PATH}"
+
+# Create simind user directory for configuration
+RUN mkdir -p /home/sirfuser/.simind && \
+    chown -R sirfuser:sirfuser /home/sirfuser/.simind
+
+# Switch back to sirfuser (the default SIRF user)
+USER sirfuser
+WORKDIR /home/sirfuser
+
+# Upgrade pip and install additional Python packages for testing
+RUN python -m pip install --user --upgrade pip setuptools wheel
+
+# Install comprehensive testing dependencies
+RUN python -m pip install --user \
+    pytest>=6.0 \
+    pytest-cov>=2.10.0 \
+    pytest-mock>=3.6.0 \
+    pytest-xdist \
+    pytest-benchmark \
+    black>=21.0.0 \
+    flake8>=3.8.0 \
+    mypy>=0.910 \
+    isort>=5.0.0 \
+    bandit>=1.7.0 \
+    pre-commit>=2.15.0 \
+    psutil \
+    memory-profiler \
+    line-profiler
+
+# Create workspace directory
+RUN mkdir -p /home/sirfuser/workspace
+WORKDIR /home/sirfuser/workspace
+
+# Copy the project files
+COPY --chown=sirfuser:sirfuser . /home/sirfuser/workspace/
+
+# Install the package in development mode
+RUN python -m pip install --user -e ".[dev]" || python -m pip install --user -e .
+
+# Generate test data
+RUN python scripts/generate_test_data.py --output-dir test_data 2>/dev/null || echo "Test data generation skipped (dependencies may be missing)"
+
+# Set up environment for SIRF
+ENV PYTHONPATH="/home/sirfuser/workspace:${PYTHONPATH}"
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+echo "==============================================="\n\
+echo "SIRF-SIMIND-Connection Docker Environment"\n\
+echo "==============================================="\n\
+echo "SIRF version: $(python -c \"try: import sirf; print(sirf.__version__); except: print(\\\"Unknown\\\")\")"\n\
+echo "Python: $(python --version)"\n\
+echo "Workspace: /home/sirfuser/workspace"\n\
+echo ""\n\
+echo "SIMIND status:"\n\
+if command -v simind >/dev/null 2>&1; then\n\
+    echo "  ✅ SIMIND executable found at: $(which simind)"\n\
+    simind --version 2>/dev/null || echo "  ℹ️  SIMIND version check failed (may be normal)"\n\
+else\n\
+    echo "  ❌ SIMIND not found in PATH"\n\
+    echo "  📋 To install SIMIND:"\n\
+    echo "     1. Download from https://simind.blogg.lu.se/downloads/"\n\
+    echo "     2. Run: /tmp/install_simind.sh <path_to_simind_archive>"\n\
+fi\n\
+echo ""\n\
+echo "Available commands:"\n\
+echo "  make test-quick    - Run quick tests"\n\
+echo "  make test          - Run all tests"\n\
+echo "  make validate      - Validate installation"\n\
+echo "  python examples/05_complete_workflow.py - Run complete example"\n\
+echo ""\n\
+echo "Testing without SIMIND:"\n\
+echo "  pytest tests/ -m \"not requires_simind\" -v"\n\
+echo ""\n\
+if [ \"$1\" = \"bash\" ] || [ \"$1\" = \"sh\" ] || [ -z \"$1\" ]; then\n\
+    exec /bin/bash\n\
+else\n\
+    exec \"$@\"\n\
+fi\n\
+' > /home/sirfuser/startup.sh && chmod +x /home/sirfuser/startup.sh
+
+# Set default command
+CMD ["/home/sirfuser/startup.sh"]
+
+# Expose ports for Jupyter and documentation
+EXPOSE 8888 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sirf; import sirf_simind_connection; print('OK')" || exit 1
