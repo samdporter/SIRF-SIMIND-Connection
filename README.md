@@ -59,7 +59,7 @@ SIMIND is a Monte Carlo simulation program for SPECT imaging. You need to downlo
 #### From source (recommended during development):
 
 ```bash
-git clone https://github.com/yourusername/SIRF-SIMIND-Connection.git
+git clone https://github.com/samdporter/SIRF-SIMIND-Connection.git
 cd SIRF-SIMIND-Connection
 pip install -e ".[dev]"  # Install with development dependencies
 ```
@@ -154,7 +154,7 @@ Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) 
 ### Development setup
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/SIRF-SIMIND-Connection.git
+git clone https://github.com/samdporter/SIRF-SIMIND-Connection.git
 cd SIRF-SIMIND-Connection
 
 # Create a virtual environment
