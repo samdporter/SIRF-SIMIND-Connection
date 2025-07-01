@@ -1,25 +1,119 @@
+# .pre-commit-config.yaml
+# Pre-commit hooks configuration for SIRF-SIMIND-Connection
+# 
+# To install: pip install pre-commit && pre-commit install
+# To run manually: pre-commit run --all-files
+
 repos:
-- repo: https://github.com/pre-commit/mirrors-autoflake
-  rev: v1.4
-  hooks:
-    - id: autoflake
-      args: [--in-place, --recursive, --remove-all-unused-imports, --remove-unused-variables]
+  # Basic file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.md$
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-executables-have-shebangs
+      - id: check-added-large-files
+        args: ['--maxkb=10000']  # 10MB limit
+      - id: mixed-line-ending
+      - id: requirements-txt-fixer
 
-- repo: https://github.com/psf/black
-  rev: 24.1.0
-  hooks:
-    - id: black
-      args: [--line-length=88]
+  # Python code formatting
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        language_version: python3
+        args: ['--line-length=88']
 
-- repo: https://github.com/PyCQA/isort
-  rev: 5.13.0
-  hooks:
-    - id: isort
-      args: [--profile=black]
+  # Import sorting
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ['--profile', 'black', '--line-length=88']
 
-- repo: https://github.com/pre-commit/mirrors-ruff
-  rev: 0.0.277
-  hooks:
-    - id: ruff
-      args: [--exit-zero]   # checks only
+  # Linting
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        args: ['--max-line-length=88', '--extend-ignore=E203,W503']
 
+  # Security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: ['-r', 'sirf_simind_connection']
+        exclude: tests/
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.4.1
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-PyYAML, types-requests]
+        args: ['--ignore-missing-imports']
+
+  # Documentation
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        match: '^sirf_simind_connection/.*\.py$'
+        args: ['--convention=numpy']
+
+  # Jupyter notebooks (if any)
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.7.0
+    hooks:
+      - id: nbqa-black
+        additional_dependencies: [black]
+      - id: nbqa-flake8
+        additional_dependencies: [flake8]
+
+  # YAML formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.0.0
+    hooks:
+      - id: prettier
+        types: [yaml]
+
+  # Custom hooks for this project
+  - repo: local
+    hooks:
+      # Run quick tests
+      - id: pytest-quick
+        name: pytest-quick
+        entry: pytest
+        args: ['-v', '-m', 'not slow and not requires_simind', '--tb=short']
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [commit]
+
+      # Check example scripts syntax
+      - id: check-examples
+        name: check-examples
+        entry: python
+        args: ['-m', 'py_compile']
+        language: system
+        files: '^examples/.*\.py$'
+
+      # Validate package imports
+      - id: validate-imports
+        name: validate-imports
+        entry: python
+        args: ['-c', 'import sirf_simind_connection; print("✓ Package imports successfully")']
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [push]
