@@ -1,0 +1,313 @@
+# docker-compose.yml
+# Complete Docker Compose setup for SIRF-SIMIND-Connection
+# Fixed version with escaped shell variables
+
+version: '3.9'
+
+# =============================================================================
+# Shared configuration
+# =============================================================================
+x-common-variables: &common-env
+  PYTHONPATH: /home/sirfuser/workspace
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+x-workspace-volume: &workspace-volume
+  type: bind
+  source: .
+  target: /home/sirfuser/workspace
+
+# X11 config for Windows (disabled by default)
+x-x11-config: &x11-config
+  environment:
+    - DISPLAY=${DISPLAY:-host.docker.internal:0}
+  # X11 volumes disabled for Windows compatibility
+  # volumes:
+  #   - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+# =============================================================================
+# Services
+# =============================================================================
+services:
+  
+  # ---------------------------------------------------------------------------
+  # Development Environment
+  # ---------------------------------------------------------------------------
+  sirf-simind-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: development
+      args:
+        SIRF_TAG: ${SIRF_TAG:-latest}
+    image: sirf-simind-connection:dev
+    container_name: sirf-simind-dev
+    profiles: ["dev", "all"]
+    volumes:
+      - <<: *workspace-volume
+      - sirf-simind-data:/home/sirfuser/data
+      - dev-cache:/home/sirfuser/.cache
+      - dev-local:/home/sirfuser/.local
+      - jupyter-config:/home/sirfuser/.jupyter
+    <<: *x11-config
+    environment:
+      <<: *common-env
+      JUPYTER_ENABLE_LAB: "yes"
+      JUPYTER_PORT: "8888"
+    ports:
+      - "${JUPYTER_PORT:-8888}:8888"
+      - "${DOCS_PORT:-8000}:8000"
+      - "${DEBUG_PORT:-5000}:5000"
+    stdin_open: true
+    tty: true
+    working_dir: /home/sirfuser/workspace
+    command: /home/sirfuser/startup.sh
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sirf; import sirf_simind_connection"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Testing Services
+  # ---------------------------------------------------------------------------
+  
+  # Quick validation (always available)
+  validate:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: testing
+    image: sirf-simind-connection:test
+    volumes:
+      - <<: *workspace-volume
+    environment:
+      <<: *common-env
+    command: ["/home/sirfuser/validate.sh"]
+
+  # Unit tests without SIMIND
+  test-unit:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: testing
+    image: sirf-simind-connection:test
+    profiles: ["test", "ci", "all"]
+    volumes:
+      - <<: *workspace-volume
+      - test-results:/home/sirfuser/workspace/test-results
+    environment:
+      <<: *common-env
+    command: ["/home/sirfuser/run_tests.sh", "--markers", "not requires_simind"]
+
+  # Integration tests (requires SIMIND)
+  test-integration:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: development
+    image: sirf-simind-connection:dev
+    profiles: ["test-integration", "all"]
+    volumes:
+      - <<: *workspace-volume
+      - test-results:/home/sirfuser/workspace/test-results
+      - sirf-simind-data:/home/sirfuser/data
+    environment:
+      <<: *common-env
+    command: ["/home/sirfuser/run_tests.sh", "--markers", "requires_simind"]
+
+  # Performance benchmarks
+  benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: testing
+    image: sirf-simind-connection:test
+    profiles: ["benchmark", "all"]
+    volumes:
+      - <<: *workspace-volume
+      - benchmark-results:/home/sirfuser/workspace/benchmark-results
+    environment:
+      <<: *common-env
+    command: ["pytest", "tests/", "--benchmark-only", "--benchmark-json=benchmark-results/benchmark.json", "-v"]
+
+  # Code quality checks
+  lint:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: testing
+    image: sirf-simind-connection:test
+    profiles: ["lint", "ci", "all"]
+    volumes:
+      - <<: *workspace-volume
+      - lint-results:/home/sirfuser/workspace/lint-results
+    environment:
+      <<: *common-env
+    command: ["/home/sirfuser/run_lint.sh"]
+
+  # ---------------------------------------------------------------------------
+  # Documentation and Examples
+  # ---------------------------------------------------------------------------
+  
+  # Documentation building
+  docs:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: development
+    image: sirf-simind-connection:dev
+    profiles: ["docs", "all"]
+    volumes:
+      - <<: *workspace-volume
+      - docs-build:/home/sirfuser/workspace/docs/_build
+    environment:
+      <<: *common-env
+    ports:
+      - "${DOCS_PORT:-8000}:8000"
+    command: 
+      - /bin/bash
+      - -c
+      - |
+        echo '📚 Building documentation...'
+        if [ -d docs ]; then
+          cd docs
+          make html
+          echo '📖 Documentation built successfully!'
+          echo '🌐 Starting documentation server...'
+          cd _build/html
+          python -m http.server 8000 --bind 0.0.0.0
+        else
+          echo '⚠️ docs/ directory not found - creating basic documentation'
+          mkdir -p docs
+          echo 'Documentation will be available once properly set up.'
+        fi
+
+  # Example validation (FIXED - escaped shell variables)
+  examples:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: development
+    image: sirf-simind-connection:dev
+    profiles: ["examples", "all"]
+    volumes:
+      - <<: *workspace-volume
+    environment:
+      <<: *common-env
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo '📋 Validating example scripts...'
+        if [ -d examples ]; then
+          echo '→ Syntax checking examples...'
+          for example in examples/*.py; do
+            echo "Checking: $$example"
+            python -m py_compile "$$example" || echo "❌ Syntax error in $$example"
+          done
+          
+          echo '→ Running non-SIMIND examples...'
+          for example in examples/0[1-2]*.py; do
+            if [ -f "$$example" ]; then
+              echo "Running: $$example"
+              timeout 60s python "$$example" || echo "⚠️ Example failed or timed out: $$example"
+            fi
+          done
+          
+          echo '✅ Example validation completed!'
+        else
+          echo '⚠️ examples/ directory not found'
+        fi
+
+  # ---------------------------------------------------------------------------
+  # Utilities
+  # ---------------------------------------------------------------------------
+  
+  # Shell access for debugging
+  shell:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: development
+    image: sirf-simind-connection:dev
+    profiles: ["debug"]
+    volumes:
+      - <<: *workspace-volume
+      - sirf-simind-data:/home/sirfuser/data
+    <<: *x11-config
+    environment:
+      <<: *common-env
+    stdin_open: true
+    tty: true
+    working_dir: /home/sirfuser/workspace
+    command: /bin/bash
+
+  # Jupyter Lab standalone
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.sirf-simind
+      target: development
+    image: sirf-simind-connection:dev
+    profiles: ["jupyter"]
+    volumes:
+      - <<: *workspace-volume
+      - jupyter-config:/home/sirfuser/.jupyter
+      - sirf-simind-data:/home/sirfuser/data
+    environment:
+      <<: *common-env
+      JUPYTER_ENABLE_LAB: "yes"
+    ports:
+      - "${JUPYTER_PORT:-8888}:8888"
+    command:
+      - /bin/bash
+      - -c
+      - |
+        echo '🚀 Starting Jupyter Lab...'
+        jupyter lab \
+          --ip=0.0.0.0 \
+          --port=8888 \
+          --no-browser \
+          --allow-root \
+          --NotebookApp.token='' \
+          --NotebookApp.password=''
+
+# =============================================================================
+# Volumes (Windows-compatible)
+# =============================================================================
+volumes:
+  # Simple named volumes (Windows compatible)
+  sirf-simind-data:
+    driver: local
+
+  test-results:
+    driver: local
+
+  benchmark-results:
+    driver: local
+
+  lint-results:
+    driver: local
+
+  docs-build:
+    driver: local
+
+  dev-cache:
+    driver: local
+    
+  dev-local:
+    driver: local
+    
+  jupyter-config:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: sirf-simind-network
+    driver: bridge
