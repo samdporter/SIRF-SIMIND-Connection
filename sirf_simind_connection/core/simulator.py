@@ -257,11 +257,10 @@ class SimindSimulator:
 
     def read_orbit_file(self, orbit_file):
         orbits = []
-        with open(orbit_file, "r") as f:
+        with open(orbit_file, 'r') as f:
             for line in f:
                 orbit, _ = line.split()
-                orbits.append(orbit)
-        return orbits
+                orbits.append(float(orbit) * 10)
 
     def set_template_sinogram(self, template_sinogram):
         """Set the template sinogram for the simulation.
