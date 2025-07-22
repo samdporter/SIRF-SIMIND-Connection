@@ -28,27 +28,7 @@ SIMIND is a Monte Carlo simulation program for SPECT imaging. You need to downlo
    - Download the appropriate version for your system (Windows, Linux, or macOS)
 
 2. **Installation**:
-   
-   **Linux/macOS**:
-   ```bash
-   # Extract the archive
-   tar -xzf simind_*.tar.gz
-   cd simind_*
-   
-   # Add SIMIND to your PATH
-   echo 'export PATH=$PATH:/path/to/simind/bin' >> ~/.bashrc
-   source ~/.bashrc
-   
-   # Verify installation
-   simind --version
-   ```
-   
-   **Windows**:
-   - Extract the ZIP file to a directory (e.g., `C:\simind`)
-   - Add `C:\simind\bin` to your system PATH:
-     - Right-click "This PC" → Properties → Advanced system settings
-     - Environment Variables → Edit PATH → Add the SIMIND bin directory
-   - Open a new command prompt and verify: `simind --version`
+   - Follow installation instructions for your specific OS
 
 #### 3. Python Requirements
 - Python 3.8 or higher
