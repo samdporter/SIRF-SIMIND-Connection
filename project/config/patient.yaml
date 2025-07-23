@@ -1,0 +1,57 @@
+# General Project Settings
+project:
+  base_dir: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND"
+  scripts_dir: "/home/sam/working/sirf_simind_connection/project/scripts"
+  python_executable: "python3"
+
+# Data and Output Settings (can be overridden for specific runs)
+data:
+  # Default DATA_DIR for phantom data. This will be overridden for patient data runs.
+  base_input_dir: "/home/sporter/synergistic_Y90/prepared_data/phantom_data/oxford_patient_data/sirt3/SPECT"
+  mu_map_filename: "umap_zoomed.hv"
+  measured_data_filename: "peak.hs"
+  input_smc_filename: "input/input.smc" # Relative to base_dir
+
+output:
+  base_output_dir: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND/output"
+  suffix: "sirt3" # Will be appended to output path. Can be changed per run (e.g., patient ID)
+  
+# OSEM Reconstruction Settings
+osem:
+  initial_subsets: 12
+  initial_epochs: 5
+  smoothing: true
+
+# Simulation Settings
+simulation:
+  total_activity: 100 # Default. This will be overridden.
+  photon_multiplier: 100
+  num_iterations: 5
+  num_array_jobs: 1 # For SGE array jobs
+  window_lower: 50 # Default for phantom, note: 50 for patients
+  window_upper: 150 # Default for phantom, note: 150 for patients
+  photon_energy: 100 # Default for phantom, note: 100 for patients
+  time_per_projection: 20
+  source_type: "y90_frey"
+  collimator: "g8-megp"
+  kev_per_channel: 10
+  max_energy: 2080
+  scoring_routine: 1
+  collimator_routine: 1
+  photon_direction: 3
+  crystal_thickness: 9.5
+  crystal_half_length_radius: 200
+  crystal_half_width: 270
+  half_life: 64.6
+
+# Sum Scatter Settings
+sum_scatter:
+  scatter_pattern: "*_iter%ITER%_*_sca_w1.hs" # %ITER% is a placeholder for iteration
+  total_pattern: "*_iter%ITER%_*_tot_w1.hs"   # %ITER% is a placeholder for iteration
+  image_pattern: "recon_osem_i*_s*_smoothed_%PREV_ITER%.hv" # %PREV_ITER% is a placeholder
+
+# Specific Patient Data Processing
+patient_processing:
+  patient_data_root: "/home/sporter/synergistic_Y90/prepared_data" # Where to find 'oxford_patient_data'
+  activities_csv_filename: "activities.csv"
+  spect_activity_column_index: 2 # 1-based index for the column (SPECT Activity)
