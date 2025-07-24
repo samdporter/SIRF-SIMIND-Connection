@@ -43,6 +43,7 @@ simulation:
   crystal_half_length_radius: 195
   crystal_half_width: 265
   half_life: 64.6
+  dual_collimator_simulation: true  # <-- Add this line for bremsstrahlung correction
 
 # Sum Scatter Settings
 sum_scatter:

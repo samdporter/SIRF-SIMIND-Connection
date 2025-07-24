@@ -8,6 +8,8 @@ generate simulated sinograms and compare with measured data.
 import os
 import argparse
 import time
+import subprocess
+import yaml
 
 import numpy as np
 import pandas as pd
@@ -20,6 +22,53 @@ from sirf_simind_connection import SimindSimulator
 
 
 msg = MessageRedirector()
+
+
+def get_config_value(config_file, key_path):
+    """Get a value from YAML config using yq-style path notation."""
+    try:
+        result = subprocess.run(
+            ['yq', 'e', key_path, config_file],
+            capture_output=True, text=True, check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Failed to get config value {key_path}: {e}")
+
+
+def load_config_values(config_file):
+    """Load all simulation parameters from config file."""
+    def get_val(path):
+        val = get_config_value(config_file, path)
+        # Convert to appropriate type
+        try:
+            if '.' in val:
+                return float(val)
+            else:
+                return int(val)
+        except ValueError:
+            return val
+
+    return {
+        'photon_multiplier': get_val('.simulation.photon_multiplier'),
+        'photon_energy': get_val('.simulation.photon_energy'),
+        'window_lower': get_val('.simulation.window_lower'),
+        'window_upper': get_val('.simulation.window_upper'),
+        'time_per_projection': get_val('.simulation.time_per_projection'),
+        'source_type': get_val('.simulation.source_type'),
+        'collimator': get_val('.simulation.collimator'),
+        'kev_per_channel': get_val('.simulation.kev_per_channel'),
+        'max_energy': get_val('.simulation.max_energy'),
+        'scoring_routine': get_val('.simulation.scoring_routine'),
+        'collimator_routine': get_val('.simulation.collimator_routine'),
+        'photon_direction': get_val('.simulation.photon_direction'),
+        'crystal_thickness': get_val('.simulation.crystal_thickness'),
+        'crystal_half_length_radius': get_val('.simulation.crystal_half_length_radius'),
+        'crystal_half_width': get_val('.simulation.crystal_half_width'),
+        'half_life': get_val('.simulation.half_life'),
+        'mu_map_filename': get_val('.data.mu_map_filename'),
+        'measured_data_filename': get_val('.data.measured_data_filename')
+    }
 
 
 def get_acquisition_model(measured_data, additive_data, image, mu_map_stir):
@@ -173,57 +222,63 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
     plt.close()
 
 
-
 def main(args):
-    # Read images and data.
+    # Load configuration
+    config = load_config_values(args.config_file)
+    
+    # Read images and data - using config for filenames
     image = ImageData(args.image_path)
     image = lower_threshold_image(image, 0.01 * image.max())
-    mu_map = ImageData(args.mu_map_path)
-    measured_data = AcquisitionData(args.measured_data_path)
+    
+    mu_map_path = os.path.join(args.data_dir, config['mu_map_filename'])
+    measured_data_path = os.path.join(args.data_dir, config['measured_data_filename'])
+    
+    mu_map = ImageData(mu_map_path)
+    measured_data = AcquisitionData(measured_data_path)
 
-    # Change working directory if needed.
+    # Change working directory if needed
     os.chdir(args.simind_parent_dir)
 
-    # Set up simulator.
+    # Set up simulator
     simulator = SimindSimulator(
         template_smc_file_path=args.input_smc_file_path,
         output_dir=args.output_dir,
         output_prefix=args.output_prefix,
         source=image,
         mu_map=mu_map,
-        template_sinogram=args.measured_data_path,
+        template_sinogram=measured_data_path,
     )
 
     simulator.add_comment("Demonstration of SIMIND simulation")
-    simulator.set_windows(args.window_lower, args.window_upper, 0)
-    simulator.add_index("photon_energy", args.photopeak_energy)
-    simulator.add_index("scoring_routine", args.scoring_routine)
-    simulator.add_index("collimator_routine", args.collimator_routine)
-    simulator.add_index("photon_direction", args.photon_direction)
-    simulator.add_index("source_activity", args.total_activity * args.time_per_projection)
-    simulator.add_index("crystal_thickness", args.crystal_thickness / 10)
-    simulator.add_index("crystal_half_length_radius", args.crystal_half_length_radius / 10)
-    simulator.add_index("crystal_half_width", args.crystal_half_width / 10)
-    simulator.config.set_flag(11, args.flag_11)
+    simulator.set_windows(config['window_lower'], config['window_upper'], 0)
+    simulator.add_index("photon_energy", config['photon_energy'])
+    simulator.add_index("scoring_routine", config['scoring_routine'])
+    simulator.add_index("collimator_routine", config['collimator_routine'])
+    simulator.add_index("photon_direction", config['photon_direction'])
+    simulator.add_index("source_activity", args.total_activity * config['time_per_projection'])
+    simulator.add_index("crystal_thickness", config['crystal_thickness'] / 10)
+    simulator.add_index("crystal_half_length_radius", config['crystal_half_length_radius'] / 10)
+    simulator.add_index("crystal_half_width", config['crystal_half_width'] / 10)
+    simulator.config.set_flag(11, True)  # Use collimator flag
     simulator.add_index("step_size_photon_path_simulation",
                         min(*image.voxel_sizes()) / 10)
     simulator.add_index("energy_resolution", 9.5)
     simulator.add_index("intrinsic_resolution", 0.28)
-    simulator.add_index("cutoff_energy_terminate_photon_history", args.window_lower * 0.5)
+    simulator.add_index("cutoff_energy_terminate_photon_history", config['window_lower'] * 0.5)
 
-    simulator.add_runtime_switch("CC", args.collimator)
-    simulator.add_runtime_switch("NN", args.photon_multiplier)
-    simulator.add_runtime_switch("FI", args.source_type)
+    simulator.add_runtime_switch("CC", config['collimator'])
+    simulator.add_runtime_switch("NN", config['photon_multiplier'])
+    simulator.add_runtime_switch("FI", config['source_type'])
 
     simulator.run_simulation()
 
-    # Process simulation outputs.
+    # Process simulation outputs
     simind_total = simulator.get_output_total()
     simind_scatter = simulator.get_output_scatter()
     simind_true = simind_total - simind_scatter
 
-    base_output_filename = (f"NN{args.photon_multiplier}_CC{args.collimator}_"
-                            f"FI{args.source_type}_")
+    base_output_filename = (f"NN{config['photon_multiplier']}_CC{config['collimator']}_"
+                            f"FI{config['source_type']}_")
 
     counts = {
         "simind_total": simind_total.sum(),
@@ -233,17 +288,17 @@ def main(args):
     pd.DataFrame([counts]).to_csv(
         os.path.join(args.output_dir, base_output_filename + ".csv"))
 
-    # Prepare data for plotting.
+    # Prepare data for plotting
     data_list = [
         (simind_total.as_array(), "simind total"),
         (measured_data.as_array(), "measured"),
         (simind_true.as_array(), "simind true"),
         (simind_scatter.as_array(), "simind scatter"),
     ]
-    # Filter out None values.
+    # Filter out None values
     data_list = [(data, title) for data, title in data_list if data is not None]
 
-    # Plot axial slice comparisons.
+    # Plot axial slice comparisons
     plot_comparison(
         data_list, args.axial_slice,
         orientation='axial',
@@ -256,7 +311,7 @@ def main(args):
         base_output_filename=base_output_filename, output_dir=args.output_dir,
         profile_method='index', profile_index=60, font_size=14, colormap='viridis'
     )
-    # Plot coronal slice comparisons.
+    # Plot coronal slice comparisons
     plot_comparison(
         data_list, args.axial_slice,
         orientation='coronal',
@@ -275,79 +330,37 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Run a simulation using SIMIND and STIR'
     )
-    parser.add_argument('--total_activity', type=float, default=258.423,
-                        help='Total activity in MBq')
-    parser.add_argument('--time_per_projection', type=int, default=43,
-                        help='Time per projection in seconds')
-    parser.add_argument('--photon_multiplier', type=float, default=10.,
-                        help=('Number of photons simulated is calculated based on source '
-                              'map. This number multiplies the calculated number of photons'))
-    parser.add_argument('--photopeak_energy', type=float, default=208,
-                        help='Photopeak energy in keV')
-    parser.add_argument('--window_lower', type=float, default=187.56,
-                        help='Lower window in keV')
-    parser.add_argument('--window_upper', type=float, default=229.24,
-                        help='Upper window in keV')
-    parser.add_argument('--source_type', type=str, default='lu177',
-                        help='Source type')
-    parser.add_argument('--collimator', type=str, default='G8-MEGP',
-                        help='Collimator')
-    parser.add_argument('--kev_per_channel', type=float, default=10.,
-                        help='keV per channel')
-    parser.add_argument('--max_energy', type=float, default=498.3,
-                        help='Max energy in keV')
-    parser.add_argument('--mu_map_path', type=str,
-                        default='data/Lu177/registered_CTAC.hv',
-                        help='Path to mu map')
-    parser.add_argument('--image_path', type=str,
-                        default='data/Lu177/osem_image.hv',
-                        help='Path to image')
-    parser.add_argument('--simind_parent_dir', type=str, default='.',
-                        help='Parent directory for SIMIND simulation')
-    parser.add_argument('--measured_data_path', type=str,
-                        default='data/Lu177/SPECTCT_NEMA_128_EM001_DS_en_1_Lu177_EM.hdr',
-                        help='Path to measured data')
-    parser.add_argument('--output_dir', type=str, default='simind_output',
+    
+    # Core required arguments
+    parser.add_argument('--config_file', type=str, required=True,
+                        help='Path to YAML configuration file')
+    parser.add_argument('--total_activity', type=float, required=True,
+                        help='Total activity in MBq (overrides config)')
+    parser.add_argument('--data_dir', type=str, required=True,
+                        help='Directory containing input data files')
+    parser.add_argument('--image_path', type=str, required=True,
+                        help='Path to source image')
+    parser.add_argument('--output_dir', type=str, required=True,
                         help='Output directory')
-    parser.add_argument('--output_prefix', type=str, default='output',
+    parser.add_argument('--output_prefix', type=str, required=True,
                         help='Output prefix')
-    parser.add_argument('--input_smc_file_path', type=str,
-                        default='input/input.smc',
+    parser.add_argument('--input_smc_file_path', type=str, required=True,
                         help='Path to input smc file')
-    parser.add_argument('--scoring_routine', type=int, default=1,
-                        help='Scoring routine')
-    parser.add_argument('--collimator_routine', type=int, default=0,
-                        help='Collimator routine')
-    parser.add_argument('--photon_direction', type=int, default=2,
-                        help='Photon direction')
-    parser.add_argument('--crystal_thickness', type=float, default=7.25,
-                        help='Crystal thickness in mm')
-    parser.add_argument('--crystal_half_length_radius', type=float,
-                        default=393.6 / 2,
-                        help='Crystal half length radius in mm')
-    parser.add_argument('--crystal_half_width', type=float,
-                        default=511.7 / 2,
-                        help='Crystal half width in mm')
-    parser.add_argument('--flag_11', type=bool, default=True,
-                        help='Flag 11 - use collimator')
-    parser.add_argument('--half_life', type=float,
-                        default=6.647 * 24,
-                        help='Half life of the isotope in hours')
+    parser.add_argument('--simind_parent_dir', type=str, required=True,
+                        help='Parent directory for SIMIND simulation')
+    
+    # Optional plotting argument
     parser.add_argument('--axial_slice', type=int, default=65,
                         help='Axial slice to plot')
 
     args = parser.parse_args()
 
     try:
-
         start_time = time.time()
-
         main(args)
-
         print(
-            "Simulation completed successfully!" 
-            "Time taken: {:.2f} seconds".format(
-            time.time() - start_time)
+            f"Simulation completed successfully! "
+            f"Time taken: {time.time() - start_time:.2f} seconds"
         )
     except Exception as e:
         print(e)
