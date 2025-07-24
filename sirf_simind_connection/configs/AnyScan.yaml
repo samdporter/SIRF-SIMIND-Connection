@@ -127,7 +127,7 @@ parameters:
   detector_crystal:
     crystal_half_length_radius:
       index: 8
-      value: 23.5
+      value: 21.25
       description: Crystal half-length/radius in cm (circular detectors use radius)
     crystal_thickness:
       index: 9
@@ -135,19 +135,23 @@ parameters:
       description: 'Crystal thickness in cm (NaI(Tl) typical: 0.95cm)'
     crystal_half_width:
       index: 10
-      value: 29.25
+      value: 27.0
       description: Crystal half-width in cm (for rectangular crystals)
+    backscatter_thickness:
+      index: 11
+      value: 0.16
+      description: Backscatter thickness in cm (for backscatter material)
     height_to_detector_surface:
       index: 12
       value: 25.0
       description: Height from collimator to detector surface (cm)
     cover_thickness:
       index: 13
-      value: 0.12
+      value: 0.1
       description: Cover thickness in cm (typically Al or Be window)
     energy_resolution:
       index: 22
-      value: 9.5
+      value: 9.2
       description: Energy resolution FWHM (%) at reference energy (9-12% typical at
         140keV)
     intrinsic_resolution:
@@ -202,7 +206,7 @@ parameters:
     hole_size_x:
       index: 46
       value: 0.25
-      description: 'Collimator hole diameter (cm) - LEHR: 0.111cm, HEGP: 0.24cm'
+      description: 'Collimator hole diameter (cm)'
     hole_size_y:
       index: 47
       value: 0.25
@@ -211,11 +215,11 @@ parameters:
     distance_between_holes_x:
       index: 48
       value: 0.12
-      description: 'Distance between hole centers (cm) - LEHR: 0.16cm septal thickness'
+      description: 'Distance between hole centers (cm)'
     distance_between_holes_y:
       index: 49
       value: 0.12
-      description: Distance between hole centers (cm) - hexagonal pattern spacing
+      description: Distance between hole centers (cm)'
     shift_center_hole_x:
       index: 50
       value: 0.13
@@ -227,7 +231,7 @@ parameters:
     collimator_thickness:
       index: 52
       value: 3.5
-      description: 'Collimator thickness (cm) - LEHR: 2.405cm, HEGP: 5.9cm'
+      description: 'Collimator thickness (cm)'
     collimator_routine:
       index: 53
       value: 1
@@ -255,7 +259,7 @@ parameters:
       description: Lower energy window threshold (keV) - set to -100 for automatic
     kev_per_channel:
       index: 27
-      value: 0.5
+      value: 4
       description: keV per channel for energy spectrum binning
     energy_spectra_channels:
       index: 80
@@ -273,7 +277,7 @@ parameters:
     spect_no_projections:
       index: 29
       value: 64.0
-      description: Number of SPECT projections (64, 120, 128 typical)
+      description: Number of SPECT projections (60, 120, 180 typical)
     spect_rotation:
       index: 30
       value: 0.0
@@ -362,7 +366,7 @@ simulation_flags:
     enabled: false
   include_interactions_in_cover:
     index: 10
-    enabled: false
+    enabled: true
   include_interactions_in_phantom:
     index: 11
     enabled: true
@@ -371,7 +375,7 @@ simulation_flags:
     enabled: true
   include_forced_interactions_in_crystal:
     index: 13
-    enabled: false
+    enabled: true
   write_interfile_header_files:
     index: 14
     enabled: false
