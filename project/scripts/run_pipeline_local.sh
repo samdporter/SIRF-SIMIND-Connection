@@ -36,6 +36,7 @@ SCRIPTS_DIR=$(get_config_value '.project.scripts_dir')
 DEFAULT_DATA_DIR_FROM_CONFIG=$(get_config_value '.data.base_input_dir')
 DEFAULT_OUTPUT_SUFFIX_FROM_CONFIG=$(get_config_value '.output.suffix')
 BASE_OUTPUT_DIR=$(get_config_value '.output.base_output_dir')
+SIMIND_INPUT_SMC=${BASE_DIR}/sirf_simind_connection/configs/input.smc
 
 INITIAL_SUBSETS=$(get_config_value '.osem.initial_subsets')
 INITIAL_EPOCHS=$(get_config_value '.osem.initial_epochs')
@@ -77,8 +78,11 @@ mkdir -p "${OUTPUT_DIR}"
 rm -rf "${OUTPUT_DIR:?}/"*
 
 echo "Configuration loaded from: ${CONFIG_FILE}"
+echo "Base directory: ${BASE_DIR}"
+echo "Scripts directory: ${SCRIPTS_DIR}"
 echo "Data directory: ${DATA_DIR}"
 echo "Output directory: ${OUTPUT_DIR}"
+echo "SIMIND input SMC: ${SIMIND_INPUT_SMC}"
 echo "Running ${NUM_ITERATIONS} iterations with ${NUM_ARRAY_JOBS} array jobs each"
 
 # === Initial OSEM ===
@@ -115,7 +119,9 @@ for (( i=1; i<=NUM_ITERATIONS; i++ )); do
       WINDOW_LOWER="${WINDOW_LOWER}" \
       WINDOW_UPPER="${WINDOW_UPPER}" \
       PHOTON_ENERGY="${PHOTON_ENERGY}" \
+      SCRIPTS_DIR="${SCRIPTS_DIR}" \
       CONFIG_FILE="${CONFIG_FILE}" \
+      SIMIND_INPUT_SMC="${SIMIND_INPUT_SMC}"\
       "${SCRIPTS_DIR}/run_simulation_array.sh"
   done
 
@@ -127,6 +133,7 @@ for (( i=1; i<=NUM_ITERATIONS; i++ )); do
     PYTHON="${PYTHON}" \
     DATA_DIR="${DATA_DIR}" \
     BASE_DIR="${BASE_DIR}" \
+    SCRIPTS_DIR="${SCRIPTS_DIR}" \
     CONFIG_FILE="${CONFIG_FILE}" \
     "${SCRIPTS_DIR}/run_sum_scatter.sh"
 

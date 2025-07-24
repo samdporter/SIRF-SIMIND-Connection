@@ -1,6 +1,6 @@
 # General Project Settings
 project:
-  base_dir: "home/sam/working/sirf_simind_connection"
+  base_dir: "/home/sam/working/sirf_simind_connection"
   scripts_dir: "/home/sam/working/sirf_simind_connection/project/scripts"
   python_executable: "python3"
 
@@ -25,7 +25,7 @@ osem:
 # Simulation Settings
 simulation:
   total_activity: 160.8 # Default for phantom. This will be overridden for patient data.
-  photon_multiplier: 100
+  photon_multiplier: 1
   num_iterations: 5
   num_array_jobs: 1 # For SGE array jobs
   window_lower: 75 # Default for phantom, note: 50 for patients
@@ -37,11 +37,11 @@ simulation:
   kev_per_channel: 10
   max_energy: 2080
   scoring_routine: 1
-  collimator_routine: 1
-  photon_direction: 3
+  collimator_routine: 0
+  photon_direction: 2
   crystal_thickness: 9.5
-  crystal_half_length_radius: 195
-  crystal_half_width: 265
+  crystal_half_length_radius: 230
+  crystal_half_width: 600
   half_life: 64.6
 
 # Sum Scatter Settings

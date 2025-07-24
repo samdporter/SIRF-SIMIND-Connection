@@ -1,6 +1,6 @@
 metadata:
   comment: Test simulation
-  source_file: /home/sam/working/STIR_users_MIC2023/input/input.smc
+  source_file: input.smc
 parameters:
   source:
     photon_energy:

@@ -31,6 +31,7 @@ ITERATION="${ITERATION}"
 OUTPUT_DIR="${OUTPUT_DIR}"
 PYTHON="${PYTHON}"
 DATA_DIR="${DATA_DIR}"
+SCRIPTS_DIR="${SCRIPTS_DIR}"
 
 echo "Summing scatter outputs for iteration ${ITERATION}..."
 echo "Input directory: ${OUTPUT_DIR}"
@@ -48,7 +49,7 @@ TOTAL_PATTERN="${TOTAL_PATTERN//%ITER%/${ITERATION}}"
 IMAGE_PATTERN="${IMAGE_PATTERN//%PREV_ITER%/${ITERATION_MINUS_ONE}}"
 
 
-$PYTHON ${BASE_DIR}/scripts/project_scripts/sum_scatter.py \
+$PYTHON ${SCRIPTS_DIR}/sum_scatter.py \
     --input_dir="${OUTPUT_DIR}" \
     --scatter_pattern="${SCATTER_PATTERN}" \
     --total_pattern="${TOTAL_PATTERN}" \

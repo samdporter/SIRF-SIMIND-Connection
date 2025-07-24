@@ -32,6 +32,7 @@ ITERATION="${ITERATION}"
 DATA_DIR="${DATA_DIR}" # This will be the patient-specific DATA_DIR
 OUTPUT_DIR="${OUTPUT_DIR}"
 BASE_DIR="${BASE_DIR}"
+SCRIPTS_DIR="${SCRIPTS_DIR}"
 TOTAL_ACTIVITY="${TOTAL_ACTIVITY}" # This is the dynamically set SPECT activity
 PYTHON="${PYTHON}"
 INITIAL_SUBSETS="${INITIAL_SUBSETS}"
@@ -70,7 +71,7 @@ else
     INPUT_IMAGE="${OUTPUT_DIR}/recon_osem_i${INITIAL_EPOCHS}_s${INITIAL_SUBSETS}_smoothed_${PREV_ITER}.hv"
 fi
 
-$PYTHON ${BASE_DIR}/simulation_script.py \
+$PYTHON ${BASE_DIR}/scripts/simulation.py \
     --total_activity="${TOTAL_ACTIVITY}" \
     --time_per_projection="${TIME_PER_PROJECTION}" \
     --photon_multiplier="${PHOTON_MULTIPLIER}" \

@@ -30,6 +30,7 @@ ITERATION="${ITERATION:-}" # Optional
 DATA_DIR="${DATA_DIR}" # This will be the patient-specific DATA_DIR
 OUTPUT_DIR="${OUTPUT_DIR}"
 BASE_DIR="${BASE_DIR}"
+SCRIPTS_DIR="${SCRIPTS_DIR}"
 PYTHON="${PYTHON}"
 
 # --- Load static parameters from YAML ---
@@ -46,7 +47,7 @@ else
     ADDITIVE="--additive_path=${OUTPUT_DIR}/mean_iter${ITERATION}_scatter.hs"
 fi
 
-$PYTHON "${BASE_DIR}/scripts/project_scripts/osem.py" \
+$PYTHON "${SCRIPTS_DIR}/osem.py" \
     --num_subsets="${INITIAL_SUBSETS}" \
     --num_epochs="${INITIAL_EPOCHS}" \
     --data_path="${DATA_DIR}" \
