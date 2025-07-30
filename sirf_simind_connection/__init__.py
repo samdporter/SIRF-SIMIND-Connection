@@ -11,8 +11,7 @@ try:  # installed (pip/poetry)
 except _meta.PackageNotFoundError:  # editable / source checkout
     __version__ = "0.1.0"
 
-from . import core  # re-export namespaces  # noqa: F401
-from . import builders, configs, data, utils
+from . import builders, configs, data, utils, core
 # Re-export key objects so users can do:
 #   from sirf_simind_connection import SimindSimulator
 from .core import SimindSimulator  # noqa: F401
