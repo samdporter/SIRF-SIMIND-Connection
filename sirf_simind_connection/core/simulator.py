@@ -211,35 +211,26 @@ class SimindSimulator:
         self.runtime_switches.set_switch("PX", vox_xy)
         self.runtime_switches.set_switch("TH", vox_z)
 
-    def set_rotation_in_stir_geometry(
-        self, rotation_angle: Number, start_angle: Number, direction: str
-    ):
+    def set_rotation_in_stir_geometry(self, rotation_angle: Number, start_angle: Number, direction: str):
+        # Determine rotation switch based on direction and extent
         if direction.lower() == "ccw":
-            # SIMIND needs angles to be negative for CCW rotation
-            rotation_angle = -rotation_angle
-            start_angle = -start_angle
+            if np.isclose(abs(rotation_angle), 360, rtol=0, atol=1e-1):
+                rotation_switch = 0  # CCW 360°
+            elif np.isclose(abs(rotation_angle), 180, rtol=0, atol=1e-1):
+                rotation_switch = 1  # CCW 180°
+            else:
+                raise ValueError("rotation_angle must be 180 or 360")
         elif direction.lower() == "cw":
-            rotation_angle = rotation_angle
-            start_angle = start_angle
+            if np.isclose(abs(rotation_angle), 360, rtol=0, atol=1e-1):
+                rotation_switch = 2  # CW 360°
+            elif np.isclose(abs(rotation_angle), 180, rtol=0, atol=1e-1):
+                rotation_switch = 3  # CW 180°
+            else:
+                raise ValueError("rotation_angle must be 180 or 360")
         else:
             raise ValueError("direction must be 'CW' or 'CCW'")
 
-        # SIMIND requires a specific number for each direction and amount of rotation.
-        # STIR can handle any number, but SIMIND can't.
-        # STIR sinograms can contain floats for start_angle and extent_of_rotation,
-        # SIMIND sinograms can only contain integers - so we need to convert.
-        if np.isclose(rotation_angle, -360, rtol=0, atol=1e-1):
-            rotation_switch = 0
-        elif np.isclose(rotation_angle, -180, rtol=0, atol=1e-1):
-            rotation_switch = 1
-        elif np.isclose(rotation_angle, 360, rtol=0, atol=1e-1):
-            rotation_switch = 2
-        elif np.isclose(rotation_angle, 180, rtol=0, atol=1e-1):
-            rotation_switch = 3
-        else:
-            raise ValueError("rotation_angle must be -360, -180, 180 or 360")
-
-        # Start angles in SIMIND and STIR are opposite
+        # Start angles in SIMIND and STIR are opposite (180° reference shift)
         start_angle += 180
         if start_angle >= 360:
             start_angle -= 360
@@ -370,7 +361,7 @@ class SimindSimulator:
 
         mu_map_arr = mu_map_arr.astype(np.uint16)
         mu_map_arr.tofile(self.output_filepath.name + "_dns.dmi")
-        self.config.set_data_file(11, self.output_filepath.name + "_dns")
+        self.config.set_data_file(5, self.output_filepath.name + "_dns")  # image_file_phantom
 
         # Make dynamic range of source 0-100
         source_arr = self.source.as_array()
@@ -378,7 +369,7 @@ class SimindSimulator:
         source_arr *= 100
         source_arr = np.round(source_arr).astype(np.uint16)
         source_arr.tofile(self.output_filepath.name + "_src.smi")
-        self.config.set_data_file(12, self.output_filepath.name + "_src")
+        self.config.set_data_file(6, self.output_filepath.name + "_src")  # image_file_source
 
         # Write SMC file
         self.config.save_file(self.output_filepath)
