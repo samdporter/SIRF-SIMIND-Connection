@@ -3,6 +3,9 @@
 """
 Run a simulation using SIMIND and STIR,
 generate simulated sinograms and compare with measured data.
+python script.py --simulation_config simulation_config.yaml --scanner_config scanner_config.yaml
+
+Updated to work with the refactored SimindSimulator architecture.
 """
 
 import os
@@ -17,8 +20,9 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 from sirf.STIR import (ImageData, AcquisitionData, SPECTUBMatrix,
-                       AcquisitionModelUsingMatrix, MessageRedirector)
-from sirf_simind_connection import SimindSimulator
+                       AcquisitionModelUsingMatrix, MessageRedirector,
+                       SeparableGaussianImageFilter)
+from sirf_simind_connection import SimindSimulator, SimulationConfig
 
 
 msg = MessageRedirector()
@@ -36,118 +40,316 @@ def get_config_value(config_file, key_path):
         raise ValueError(f"Failed to get config value {key_path}: {e}")
 
 
-def load_config_values(config_file):
-    """Load all simulation parameters from config file."""
+def convert_config_value(val):
+    """Convert string config values to appropriate types."""
+    if val.lower() == 'false':
+        return False
+    elif val.lower() == 'true':
+        return True
+    # Try to convert to number (int first, then float)
+    try:
+        if '.' in val:
+            return float(val)
+        else:
+            return int(val)
+    except ValueError:
+        return val
+
+
+def load_simulation_config(config_file):
+    """Load simulation parameters from config file."""
     def get_val(path):
         val = get_config_value(config_file, path)
-        # Convert to appropriate type
-        try:
-            if '.' in val:
-                return float(val)
-            else:
-                return int(val)
-        except ValueError:
-            return val
+        return convert_config_value(val)
 
-    return {
-        'photon_multiplier': get_val('.simulation.photon_multiplier'),
+    config = {
+        # Project settings
+        'data_dir': get_val('.project.data_dir'),
+        'image_path': get_val('.project.image_path'),
+        'output_dir': get_val('.project.output_dir'),
+        'output_prefix': get_val('.project.output_prefix'),
+        'simind_parent_dir': get_val('.project.simind_parent_dir'),
+        'axial_slice': get_val('.project.axial_slice'),
+        
+        # Data files
+        'mu_map_filename': get_val('.data.mu_map_filename'),
+        'measured_data_filename': get_val('.data.measured_data_filename'),
+
+        # Simulation parameters
+        'total_activity': get_val('.project.total_activity'),
         'photon_energy': get_val('.simulation.photon_energy'),
         'window_lower': get_val('.simulation.window_lower'),
         'window_upper': get_val('.simulation.window_upper'),
-        'time_per_projection': get_val('.simulation.time_per_projection'),
-        'source_type': get_val('.simulation.source_type'),
-        'collimator': get_val('.simulation.collimator'),
-        'kev_per_channel': get_val('.simulation.kev_per_channel'),
-        'max_energy': get_val('.simulation.max_energy'),
         'scoring_routine': get_val('.simulation.scoring_routine'),
         'collimator_routine': get_val('.simulation.collimator_routine'),
         'photon_direction': get_val('.simulation.photon_direction'),
-        'crystal_thickness': get_val('.simulation.crystal_thickness'),
-        'crystal_half_length_radius': get_val('.simulation.crystal_half_length_radius'),
-        'crystal_half_width': get_val('.simulation.crystal_half_width'),
-        'half_life': get_val('.simulation.half_life'),
-        'mu_map_filename': get_val('.data.mu_map_filename'),
-        'measured_data_filename': get_val('.data.measured_data_filename')
+        'source_type': get_val('.simulation.source_type'),
+        'collimator': get_val('.simulation.collimator'),
+        'photon_multiplier': get_val('.simulation.photon_multiplier'),
+        'time_per_projection': get_val('.simulation.time_per_projection'),
     }
+    
+    print(f"Loaded configuration with {len(config)} parameters")
+    return config
 
 
-def get_acquisition_model(measured_data, additive_data, image, mu_map_stir):
+def prepare_image_data(image_path, threshold_fraction=0.01):
     """
-    Create and set up the SPECT acquisition model.
-
+    Load and prepare image data for simulation.
+    
     Parameters
     ----------
-    measured_data : AcquisitionData
-    additive_data : AcquisitionData
-    image : ImageData
-    mu_map_stir : ImageData
-
+    image_path : str
+        Path to the image file
+    threshold_fraction : float
+        Fraction of max value to use as threshold for zeroing low values
+        
     Returns
     -------
-    AcquisitionModelUsingMatrix
+    ImageData
+        Prepared image with low values set to zero
     """
-    acq_matrix = SPECTUBMatrix()
-    acq_matrix.set_attenuation_image(mu_map_stir)
-    acq_matrix.set_keep_all_views_in_cache(True)
-    acq_matrix.set_resolution_model(0.9323, 0.03, True)
-    acq_model = AcquisitionModelUsingMatrix(acq_matrix)
-    try:
-        acq_model.set_additive_term(additive_data)
-    except Exception as e:
-        print(e)
-        print("Could not set additive data")
-    acq_model.set_up(measured_data, image)
-    return acq_model
+    print(f"Loading image from: {image_path}")
+    image = ImageData(image_path)
+    
+    # Zero out low values to save simulation time
+    image_array = image.as_array()
+    threshold = threshold_fraction * image.max()
+    low_value_count = np.sum(image_array < threshold)
+    
+    image_array[image_array < threshold] = 0
+    image.fill(image_array)
+    
+    print(f"Set {low_value_count} voxels below threshold ({threshold:.3f}) to zero")
+    print(f"Image dimensions: {image.dimensions()}, max value: {image.max():.2f}")
+    
+    return image
 
 
-def lower_threshold_image(image, threshold):
+def prepare_mu_map(mu_map_filename, data_dir, reference_image):
     """
-    Zero out image values below the threshold to save simulation time.
+    Load or create attenuation map.
+    
+    Parameters
+    ----------
+    mu_map_filename : str or None
+        Filename of mu map, or None to create uniform zero map
+    data_dir : str
+        Directory containing data files
+    reference_image : ImageData
+        Reference image for creating uniform mu map
+        
+    Returns
+    -------
+    ImageData
+        Attenuation map
+    """
+    if mu_map_filename:
+        mu_map_path = os.path.join(data_dir, mu_map_filename)
+        print(f"Loading mu map from: {mu_map_path}")
+        mu_map = ImageData(mu_map_path)
+        print(f"Mu map max value: {mu_map.max():.4f}")
+    else:
+        print("Creating uniform zero mu map")
+        mu_map = reference_image.get_uniform_copy(0)
+    
+    return mu_map
+
+
+def blur_image(image, fwhms=(6.7, 6.7, 6.7)):
+    """
+    Apply a Gaussian blur to the image.
 
     Parameters
     ----------
     image : ImageData
-    threshold : float
+        The input image to be blurred.
+    fwhms : tuple of float, optional
+        Full width at half maximum for the Gaussian kernel in each dimension.
+        Default is (6.7, 6.7, 6.7).
 
     Returns
     -------
     ImageData
-        Modified image with low values set to zero.
+        Blurred image.
     """
-    image_array = image.as_array()
-    image_array[image_array < threshold] = 0
-    image.fill(image_array)
+    filter = SeparableGaussianImageFilter()
+    filter.set_fwhms(fwhms)
+    filter.apply(image)
     return image
+
+
+def setup_simulator(sim_config, scanner_config_path, image, mu_map, measured_data):
+    """
+    Set up the SIMIND simulator with all configuration parameters.
+    
+    Parameters
+    ----------
+    sim_config : dict
+        Simulation configuration dictionary
+    scanner_config_path : str
+        Path to scanner configuration file
+    image : ImageData
+        Source image
+    mu_map : ImageData
+        Attenuation map
+    measured_data : AcquisitionData
+        Template sinogram data
+        
+    Returns
+    -------
+    SimindSimulator
+        Configured simulator
+    """
+    print("Setting up SIMIND simulator...")
+    
+    # Create scanner config file in output directory
+    scanner_config = SimulationConfig(scanner_config_path)
+    # Add comment
+    scanner_config.set_comment("Demonstration of SIMIND simulation with refactored architecture")
+
+    # Initialize simulator with the new architecture
+    simulator = SimindSimulator(
+        config_source=scanner_config,
+        output_dir=sim_config['output_dir'],
+        output_prefix=sim_config['output_prefix'],
+        photon_multiplier=sim_config['photon_multiplier']  # Set directly in constructor
+    )
+
+    # Set basic inputs using the new API
+    simulator.set_source(image)
+    simulator.set_mu_map(mu_map)
+    simulator.set_template_sinogram(measured_data)
+    
+    # Set energy windows using the new API
+    simulator.set_energy_windows(
+        lower_bounds=sim_config['window_lower'],
+        upper_bounds=sim_config['window_upper'],
+        scatter_orders=0
+    )
+    
+    # Add configuration parameters using the new API names
+    simulator.add_config_value("photon_energy", sim_config['photon_energy'])
+    simulator.add_config_value("scoring_routine", sim_config['scoring_routine'])
+    simulator.add_config_value("collimator_routine", sim_config['collimator_routine'])
+    simulator.add_config_value("photon_direction", sim_config['photon_direction'])
+    
+    # Calculate source activity
+    total_source_activity = sim_config['total_activity'] * sim_config['time_per_projection']
+    simulator.add_config_value("source_activity", total_source_activity)
+    
+    # Set step size based on image resolution
+    min_voxel_size = min(image.voxel_sizes())
+    step_size = min_voxel_size / 5
+    simulator.add_config_value("step_size_photon_path_simulation", step_size)
+    
+    # Set cutoff energy
+    cutoff_energy = sim_config['window_lower'] * 0.75
+    simulator.add_config_value("cutoff_energy_terminate_photon_history", cutoff_energy)
+    
+    # Add runtime switches using the updated API
+    simulator.add_runtime_switch("CC", sim_config['collimator'])
+    simulator.add_runtime_switch("FI", sim_config['source_type'])
+    # Note: NN (photon_multiplier) is already set in constructor
+
+    
+    print(f"Simulator configured with:")
+    print(f"  - Energy window: {sim_config['window_lower']}-{sim_config['window_upper']} keV")
+    print(f"  - Photon multiplier: {sim_config['photon_multiplier']}")
+    print(f"  - Collimator: {sim_config['collimator']}")
+    print(f"  - Source activity: {total_source_activity:.2e}")
+    print(f"  - Step size: {step_size:.3f} mm")
+    
+    return simulator
+
+
+def run_simulation_with_error_handling(simulator):
+    """
+    Run simulation with proper error handling for the new architecture.
+    
+    Parameters
+    ----------
+    simulator : SimindSimulator
+        Configured simulator
+        
+    Returns
+    -------
+    dict
+        Dictionary with simulation outputs
+    """
+    print("Running SIMIND simulation...")
+    
+    try:
+        # Run simulation using the new API
+        simulator.run_simulation()
+        print("SIMIND simulation completed successfully")
+        
+        # Get outputs using the new API method names
+        simind_total = simulator.get_total_output(window=1)
+        simind_scatter = simulator.get_scatter_output(window=1)
+        
+        # Calculate true (primary) counts
+        simind_true = simind_total - simind_scatter
+        
+        outputs = {
+            'total': simind_total,
+            'scatter': simind_scatter,
+            'true': simind_true
+        }
+        
+        # Log count statistics
+        print(f"Simulation results:")
+        for key, data in outputs.items():
+            print(f"  - {key.capitalize()} counts: {data.sum():.0f}")
+        
+        return outputs
+        
+    except ValueError as e:
+        print(f"Configuration/validation error: {e}")
+        raise
+    except subprocess.CalledProcessError as e:
+        print(f"SIMIND execution failed: {e}")
+        raise
+    except FileNotFoundError as e:
+        print(f"Required file not found: {e}")
+        raise
+    except Exception as e:
+        print(f"Unexpected error during simulation: {e}")
+        raise
+
+
+def save_count_statistics(outputs, measured_data, base_filename, output_dir):
+    """Save count statistics to CSV file."""
+    counts = {
+        "simind_total": outputs['total'].sum(),
+        "simind_true": outputs['true'].sum(),
+        "simind_scatter": outputs['scatter'].sum(),
+        "measured_total": measured_data.sum(),
+    }
+    
+    # Calculate scatter fraction
+    if counts["simind_total"] > 0:
+        counts["scatter_fraction"] = counts["simind_scatter"] / counts["simind_total"]
+    else:
+        counts["scatter_fraction"] = 0
+    
+    # Save to CSV
+    csv_path = os.path.join(output_dir, base_filename + ".csv")
+    pd.DataFrame([counts]).to_csv(csv_path, index=False)
+    print(f"Count statistics saved to: {csv_path}")
+    
+    return counts
 
 
 def plot_comparison(data_list, slice_index, orientation, base_output_filename, output_dir,
                     profile_method='index', profile_index=60, font_size=14, colormap='viridis'):
     """
     Plot slice comparisons of the sinograms (axial or coronal) with an image grid and a line plot.
-
-    Parameters
-    ----------
-    data_list : list of tuple
-        List of tuples (data_array, title) for each dataset. data_array is a 3D numpy array.
-    slice_index : int
-        Slice index along the chosen orientation to display (axial or coronal).
-    orientation : str
-        Either 'axial' or 'coronal'. If 'axial', slices are taken as data[:, slice_index, :];
-        if 'coronal', slices are taken as data[:, :, slice_index].
-    base_output_filename : str
-        Base string to prepend to the output filename.
-    output_dir : str
-        Directory where the output image is saved.
-    profile_method : {'index', 'sum'}, optional
-        If 'index', extract a single‐row profile at profile_index; 
-        if 'sum', sum across the first axis of the 2D slice to get a profile vs. projection angle.
-    profile_index : int, optional
-        Row index at which to extract a 1D profile when profile_method='index'.
-    font_size : int, optional
-        Font size for titles and labels.
-    colormap : str, optional
-        Colormap to use for the images.
     """
+    # Convert to int in case it's a float from config
+    slice_index = int(slice_index)
+    profile_index = int(profile_index)
+
     # Determine vmax over all datasets for consistent color scaling
     if orientation == 'axial':
         vmax = max(data[0][slice_index].max() for data, _ in data_list)
@@ -171,7 +373,7 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
 
         im = ax_images[i].imshow(slice_img, vmin=0, vmax=vmax, cmap=colormap)
         total_counts = np.trunc(arr.sum())
-        ax_images[i].set_title(f"{title}: {total_counts}", fontsize=font_size)
+        ax_images[i].set_title(f"{title}: {total_counts:.0f}", fontsize=font_size)
         ax_images[i].axis('off')
 
     # Colorbar spanning entire row
@@ -180,22 +382,22 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
     cbar_ax.set_xlabel('Counts', fontsize=font_size)
     cbar_ax.xaxis.set_label_position('top')
 
-    # Line‐plot row
+    # Line plot row
     ax_line = fig.add_subplot(gs[2, :])
     colours = plt.cm.get_cmap(colormap)(np.linspace(0, 1, n))
     for i, (data, title) in enumerate(data_list):
         arr = data[0]
         if orientation == 'axial':
             slice_img = arr[slice_index, :, :]
-            # slice_img shape: (num_rows, num_angles)
         else:
             slice_img = arr[:, :, slice_index]
-            # slice_img shape: (num_rows, num_angles)
 
         if profile_method == 'index':
             profile = slice_img[profile_index, :]
+            ylabel = f'Intensity (row {profile_index})'
         elif profile_method == 'sum':
             profile = slice_img.sum(axis=0)
+            ylabel = 'Summed Intensity'
         else:
             raise ValueError("profile_method must be 'index' or 'sum'")
 
@@ -203,165 +405,142 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
                      label=title)
 
     ax_line.set_xlabel('Projection angle', fontsize=font_size)
-    ax_line.set_ylabel('Intensity', fontsize=font_size)
-    ax_line.set_title('Profile Through Sinogram', fontsize=font_size + 2)
+    ax_line.set_ylabel(ylabel, fontsize=font_size)
+    ax_line.set_title(f'Profile Through Sinogram ({profile_method})', fontsize=font_size + 2)
     ax_line.grid(True, which='both', linestyle='--', linewidth=0.5)
     ax_line.legend(loc='upper left', fontsize=font_size)
     ax_line.set_xlim(0, slice_img.shape[1])
 
     plt.tight_layout()
 
-    # Choose filename based on orientation
-    if orientation == 'axial':
-        fname = f"comparison_axial_{profile_method}_{base_output_filename}.png"
-    else:
-        fname = f"comparison_coronal_{profile_method}_{base_output_filename}.png"
+    # Save plot
+    fname = f"comparison_{orientation}_{profile_method}_{base_output_filename}.png"
     filename_full = os.path.join(output_dir, fname)
-
-    plt.savefig(filename_full)
+    plt.savefig(filename_full, dpi=150, bbox_inches='tight')
     plt.close()
+    
+    print(f"Plot saved: {fname}")
+
+
+def generate_plots(outputs, measured_data, sim_config, base_filename):
+    """Generate all comparison plots."""
+    print("Generating comparison plots...")
+    
+    # Prepare data for plotting
+    data_list = [
+        (outputs['total'].as_array(), "simind total"),
+        (measured_data.as_array(), "measured"),
+        (outputs['true'].as_array(), "simind true"),
+        (outputs['scatter'].as_array(), "simind scatter"),
+    ]
+    
+    # Filter out None values
+    data_list = [(data, title) for data, title in data_list if data is not None]
+    
+    slice_index = sim_config['axial_slice']
+    
+    # Generate all plot combinations
+    orientations = ['axial', 'coronal']
+    methods = ['sum', 'index']
+    
+    for orientation in orientations:
+        for method in methods:
+            plot_comparison(
+                data_list, slice_index,
+                orientation=orientation,
+                base_output_filename=base_filename,
+                output_dir=sim_config['output_dir'],
+                profile_method=method,
+                profile_index=60,
+                font_size=14,
+                colormap='viridis'
+            )
+    
+    print(f"Generated {len(orientations) * len(methods)} comparison plots")
 
 
 def main(args):
-    # Load configuration
-    config = load_config_values(args.config_file)
+    """Main simulation workflow."""
+    print("Starting SIMIND simulation workflow...")
     
-    # Read images and data - using config for filenames
-    image = ImageData(args.image_path)
-    image = lower_threshold_image(image, 0.01 * image.max())
+    # Load configurations
+    print(f"Loading simulation config: {args.simulation_config}")
+    sim_config = load_simulation_config(args.simulation_config)
     
-    mu_map_path = os.path.join(args.data_dir, config['mu_map_filename'])
-    measured_data_path = os.path.join(args.data_dir, config['measured_data_filename'])
+    # Ensure output directory exists
+    os.makedirs(sim_config['output_dir'], exist_ok=True)
     
-    mu_map = ImageData(mu_map_path)
+    # Prepare data
+    image = prepare_image_data(sim_config['image_path'])
+    mu_map = prepare_mu_map(
+        sim_config['mu_map_filename'], 
+        sim_config['data_dir'], 
+        image
+    )
+    
+    measured_data_path = os.path.join(
+        sim_config['data_dir'], sim_config['measured_data_filename']
+    )
+    print(f"Loading measured data: {measured_data_path}")
     measured_data = AcquisitionData(measured_data_path)
-
-    # Change working directory if needed
-    os.chdir(args.simind_parent_dir)
-
-    # Set up simulator
-    simulator = SimindSimulator(
-        template_smc_file_path=args.input_smc_file_path,
-        output_dir=args.output_dir,
-        output_prefix=args.output_prefix,
-        source=image,
-        mu_map=mu_map,
-        template_sinogram=measured_data_path,
-    )
-
-    simulator.add_comment("Demonstration of SIMIND simulation")
-    simulator.set_windows(config['window_lower'], config['window_upper'], 0)
-    simulator.add_index("photon_energy", config['photon_energy'])
-    simulator.add_index("scoring_routine", config['scoring_routine'])
-    simulator.add_index("collimator_routine", config['collimator_routine'])
-    simulator.add_index("photon_direction", config['photon_direction'])
-    simulator.add_index("source_activity", args.total_activity * config['time_per_projection'])
-    simulator.add_index("crystal_thickness", config['crystal_thickness'] / 10)
-    simulator.add_index("crystal_half_length_radius", config['crystal_half_length_radius'] / 10)
-    simulator.add_index("crystal_half_width", config['crystal_half_width'] / 10)
-    simulator.config.set_flag(11, True)  # Use collimator flag
-    simulator.add_index("step_size_photon_path_simulation",
-                        min(*image.voxel_sizes()) / 10)
-    simulator.add_index("energy_resolution", 9.5)
-    simulator.add_index("intrinsic_resolution", 0.28)
-    simulator.add_index("cutoff_energy_terminate_photon_history", config['window_lower'] * 0.5)
-
-    simulator.add_runtime_switch("CC", config['collimator'])
-    simulator.add_runtime_switch("NN", config['photon_multiplier'])
-    simulator.add_runtime_switch("FI", config['source_type'])
-
-    simulator.run_simulation()
-
-    # Process simulation outputs
-    simind_total = simulator.get_output_total()
-    simind_scatter = simulator.get_output_scatter()
-    simind_true = simind_total - simind_scatter
-
-    base_output_filename = (f"NN{config['photon_multiplier']}_CC{config['collimator']}_"
-                            f"FI{config['source_type']}_")
-
-    counts = {
-        "simind_total": simind_total.sum(),
-        "simind_true": simind_true.sum(),
-        "simind_scatter": simind_scatter.sum(),
-    }
-    pd.DataFrame([counts]).to_csv(
-        os.path.join(args.output_dir, base_output_filename + ".csv"))
-
-    # Prepare data for plotting
-    data_list = [
-        (simind_total.as_array(), "simind total"),
-        (measured_data.as_array(), "measured"),
-        (simind_true.as_array(), "simind true"),
-        (simind_scatter.as_array(), "simind scatter"),
-    ]
-    # Filter out None values
-    data_list = [(data, title) for data, title in data_list if data is not None]
-
-    # Plot axial slice comparisons
-    plot_comparison(
-        data_list, args.axial_slice,
-        orientation='axial',
-        base_output_filename=base_output_filename, output_dir=args.output_dir,
-        profile_method='sum', font_size=14, colormap='viridis'
-    )
-    plot_comparison(
-        data_list, args.axial_slice,
-        orientation='axial',
-        base_output_filename=base_output_filename, output_dir=args.output_dir,
-        profile_method='index', profile_index=60, font_size=14, colormap='viridis'
-    )
-    # Plot coronal slice comparisons
-    plot_comparison(
-        data_list, args.axial_slice,
-        orientation='coronal',
-        base_output_filename=base_output_filename, output_dir=args.output_dir,
-        profile_method='sum', font_size=14, colormap='viridis'
-    )
-    plot_comparison(
-        data_list, args.axial_slice,
-        orientation='coronal',
-        base_output_filename=base_output_filename, output_dir=args.output_dir,
-        profile_method='index', profile_index=60, font_size=14, colormap='viridis'
-    )
     
+    # Change working directory if needed
+    original_cwd = os.getcwd()
+    if sim_config['simind_parent_dir']:
+        print(f"Changing to SIMIND directory: {sim_config['simind_parent_dir']}")
+        os.chdir(sim_config['simind_parent_dir'])
+    
+    try:
+        # Set up and run simulation
+        simulator = setup_simulator(
+            sim_config, args.scanner_config, 
+            image, mu_map, measured_data
+        )
+        
+        outputs = run_simulation_with_error_handling(simulator)
+        
+        # Generate output filename base
+        base_filename = (f"NN{sim_config['photon_multiplier']}_"
+                        f"CC{sim_config['collimator']}_"
+                        f"FI{sim_config['source_type']}")
+        
+        # Save statistics and generate plots
+        counts = save_count_statistics(
+            outputs, measured_data, base_filename, sim_config['output_dir']
+        )
+        
+        generate_plots(outputs, measured_data, sim_config, base_filename)
+        
+        print(f"\nSimulation completed successfully!")
+        print(f"Output directory: {sim_config['output_dir']}")
+        print(f"Scatter fraction: {counts['scatter_fraction']:.3f}")
+        
+    finally:
+        # Restore original working directory
+        os.chdir(original_cwd)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Run a simulation using SIMIND and STIR'
+        description='Run a simulation using SIMIND and STIR (updated for refactored architecture)'
     )
     
-    # Core required arguments
-    parser.add_argument('--config_file', type=str, required=True,
-                        help='Path to YAML configuration file')
-    parser.add_argument('--total_activity', type=float, required=True,
-                        help='Total activity in MBq (overrides config)')
-    parser.add_argument('--data_dir', type=str, required=True,
-                        help='Directory containing input data files')
-    parser.add_argument('--image_path', type=str, required=True,
-                        help='Path to source image')
-    parser.add_argument('--output_dir', type=str, required=True,
-                        help='Output directory')
-    parser.add_argument('--output_prefix', type=str, required=True,
-                        help='Output prefix')
-    parser.add_argument('--input_smc_file_path', type=str, required=True,
-                        help='Path to input smc file')
-    parser.add_argument('--simind_parent_dir', type=str, required=True,
-                        help='Parent directory for SIMIND simulation')
-    
-    # Optional plotting argument
-    parser.add_argument('--axial_slice', type=int, default=65,
-                        help='Axial slice to plot')
+    parser.add_argument('--simulation_config', type=str, required=True,
+                        help='Path to simulation YAML configuration file')
+    parser.add_argument('--scanner_config', type=str, required=True,
+                        help='Path to scanner YAML configuration file')
 
     args = parser.parse_args()
 
     try:
         start_time = time.time()
         main(args)
-        print(
-            f"Simulation completed successfully! "
-            f"Time taken: {time.time() - start_time:.2f} seconds"
-        )
+        elapsed_time = time.time() - start_time
+        print(f"\nTotal execution time: {elapsed_time:.2f} seconds")
+        
+    except (ValueError, FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(f"Simulation error: {e}")
+        exit(1)
     except Exception as e:
-        print(e)
-        raise e
+        print(f"Unexpected error: {e}")
+        raise
