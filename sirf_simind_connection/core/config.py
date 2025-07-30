@@ -139,14 +139,18 @@ class SimulationConfig:
             15: "save_aligned_phantom_images",
         }
         self.data_file_dict = {
-            7: "phantom_soft_tissue",
-            8: "phantom_bone",
-            9: "cover_material",
-            10: "crystal_material",
-            11: "image_file_phantom",
-            12: "image_file_source",
-            13: "backscatter_material",
-            14: "energy_resolution_file",
+            1: "phantom_soft_tissue",
+            2: "phantom_bone",
+            3: "cover_material",
+            4: "crystal_material",
+            5: "image_file_phantom",
+            6: "image_file_source",
+            7: "backscatter_material",
+            8: "energy_resolution_file",
+            9: "unknown_file_1",
+            10: "unknown_file_2",
+            11: "unknown_file_3",
+            12: "unknown_file_4",
         }
 
         # Create organized parameter groups for better YAML structure
@@ -185,13 +189,36 @@ class SimulationConfig:
         self.text_variables = {}
         self.data_files = {}
         self.comment = None
-        self.read_file()
 
-    def read_file(self):
+        print(str(filepath))
+
+        # Detect file type and load accordingly
+        if str(filepath).endswith('.yaml') or str(filepath).endswith('.yml'):
+            # Initialize with default values first
+            self._initialise_yaml_defaults()
+            self.import_yaml(filepath)
+        else:
+            # Assume .smc format
+            self.import_smc(filepath)
+
+    def _initialise_yaml_defaults(self):
+        """Initialize with default values for YAML loading."""
+        # Set up defaults for when loading from YAML
+        self.data = [0.0] * 101  # Initialize with 101 zeros
+        self.flags = 'F' * 15    # Initialize with 15 False flags
+        self.text_variables = {i: 'none' for i in range(1, 13)}
+        self.data_files = {}
+        self.comment = "Loaded from YAML"
+
+    def _initialise_sms_defaults(self):
+        """Initialize with default values for SMC loading."""
+        self.comment = "Loaded from SMC"
+
+    def import_smc(self, filepath):
         """
         Parse the simulation configuration file and populate attributes.
         """
-        with open(self.filepath, "r") as file:
+        with open(filepath, "r") as file:
             lines = file.readlines()
             self.comment = lines[1].strip()
 
@@ -226,7 +253,7 @@ class SimulationConfig:
                 data_files_start + 1 : data_files_start + 1 + data_files_count
             ]
             self.data_files = {
-                i + 7: data_files_lines[i].strip() for i in range(data_files_count)
+                i + 1: data_files_lines[i].strip() for i in range(data_files_count)  # Start from 1, not 7
             }
 
     def to_yaml_dict(self):
@@ -442,15 +469,15 @@ class SimulationConfig:
             for file_desc, file_data in yaml_dict["data_files"].items():
                 if "index" in file_data and "filepath" in file_data:
                     idx = file_data["index"]
-                    filepath = file_data["filepath"]
+                    f = file_data["filepath"]
                     if idx in self.data_file_dict:
-                        self.data_files[idx] = filepath
+                        self.data_files[idx] = f
 
         # Update text variables
         if "text_variables" in yaml_dict:
             self.text_variables = yaml_dict["text_variables"]
 
-        print(f"Configuration imported from {filepath}")
+        print(f"Configuration imported from {f}")
 
     def validate_parameters(self):
         """
@@ -651,22 +678,24 @@ class SimulationConfig:
     def save_file(self, filepath):
         # Ensure filepath is a Path object
         filepath = Path(filepath)
-
+        
         # Check if the file has the correct suffix, add it if missing
         if filepath.suffix != ".smc":
             filepath = filepath.with_suffix(".smc")
-
-        # Proceed with saving the file
-        # Your file-saving logic here, using the updated `filepath`
 
         with open(filepath, "w") as file:
             comment = self.comment + " " * (70 - len(self.comment))
             file.write(f"SMCV2\n{comment}\n")
             file.write("   120  # Basic Change data\n")
 
-            for i in range(0, len(self.data), 5):
+            for i in range(0, 120, 5):  # Force exactly 120 values
                 line = ""
-                for val in self.data[i : i + 5]:
+                for j in range(5):
+                    if i + j < len(self.data):
+                        val = self.data[i + j]
+                    else:
+                        val = 0.0  # Pad with zeros if needed
+                    
                     # Format the value in scientific notation with 5 decimal places
                     formatted_val = f"{val:.5E}"
                     if val != 0:
@@ -690,7 +719,8 @@ class SimulationConfig:
                     else:
                         # If the value is 0, we don't need to format it
                         formatted_val = f" {val:.5E}"
-                    # Add the formatted value to the line with padding to ensure consistent spacing
+                    
+                    # Add the formatted value to the line
                     line += f"{formatted_val}"
 
                 # Write the formatted line to the file
@@ -701,12 +731,10 @@ class SimulationConfig:
             for i in range(1, len(self.text_variables) + 1):
                 file.write(f"{self.text_variables[i]}\n")
             file.write(f"    {len(self.data_files)} # Data files\n")
-            for i in range(7, 7 + len(self.data_files)):
-                # needs to be 60 long including spaces
-                data_file = self.data_files[i] + " " * (60 - len(self.data_files[i]))
-                file.write(f"{data_file}\n")
+            for i in range(1, 13):
+                filename = self.data_files.get(i, 'none')
+                file.write(f"{filename:<60}\n")
 
-        # return filepath with .smc
         return filepath.with_suffix(".smc")
 
 
