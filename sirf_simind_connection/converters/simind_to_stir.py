@@ -4,6 +4,9 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Dict, Tuple, Optional, List, Any, Union
+from dataclasses import dataclass
+from contextlib import contextmanager
 
 from sirf.STIR import AcquisitionData
 
@@ -11,255 +14,438 @@ from sirf.STIR import AcquisitionData
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
-class Converter:
-    """
-    Class to convert SIMIND header files to STIR header files.
-    """
+@dataclass
+class ConversionConfig:
+    """Configuration for SIMIND to STIR conversion."""
+    radius_scale_factor: float = 10.0  # cm to mm
+    angle_offset: float = 180.0  # degrees
+    default_number_format: str = "float"
+    ignored_patterns: List[str] = None
+    
+    def __post_init__(self):
+        if self.ignored_patterns is None:
+            self.ignored_patterns = [
+                "program", "patient", "institution", "contact", "ID",
+                "exam type", "detector head", "number of images/energy window",
+                "time per projection", "data description", "total number of images",
+                "acquisition mode"
+            ]
 
-    @staticmethod
-    def convert_line(line, dir_switch):
-        """
-        Converts a single line from SIMIND to STIR format.
-        This basically adds a semicolon to the beginning of irrelevant lines
-        and converts relevant lines to STIR naming conventions.
-        It also adjusts the direction of the angles and the start angle.
-        """
-        patterns = {
-            "program",
-            "patient",
-            "institution",
-            "contact",
-            "ID",
-            "exam type",
-            "detector head",
-            "number of images/energy window",
-            "time per projection",
-            "data description",
-            "total number of images",
-            "acquisition mode",
-        }
 
-        if any(pattern in line for pattern in patterns):
-            return ";" + line, dir_switch
+class ConversionRule:
+    """Base class for conversion rules."""
+    
+    def matches(self, line: str) -> bool:
+        """Check if this rule applies to the given line."""
+        raise NotImplementedError
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        """Convert the line and return new line plus updated context."""
+        raise NotImplementedError
 
-        if "Radius" in line:
-            return f"Radius := {float(line.split()[-1])}", dir_switch
-        elif "orbit" in line and "noncircular" in line:
-            return "orbit := non-circular", dir_switch
-        elif "!number format := short float" in line:
-            return "!number format := float", dir_switch
-        elif "image duration" in line:
+
+class RadiusConversionRule(ConversionRule):
+    """Convert radius values with scaling."""
+    
+    def __init__(self, scale_factor: float = 10.0):
+        self.scale_factor = scale_factor
+    
+    def matches(self, line: str) -> bool:
+        return "Radius" in line and ":=" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        try:
+            radius_value = float(line.split()[-1]) * self.scale_factor
+            return f"Radius := {radius_value}", context
+        except (ValueError, IndexError) as e:
+            logging.warning(f"Failed to convert radius line '{line}': {e}")
+            return line, context
+
+
+class StartAngleConversionRule(ConversionRule):
+    """Convert start angle with offset."""
+    
+    def __init__(self, angle_offset: float = 180.0):
+        self.angle_offset = angle_offset
+    
+    def matches(self, line: str) -> bool:
+        return "start angle" in line and ":=" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        try:
+            angle = float(line.split()[3]) + self.angle_offset
+            return f"start angle := {angle % 360}", context
+        except (ValueError, IndexError) as e:
+            logging.warning(f"Failed to convert start angle line '{line}': {e}")
+            return line, context
+
+
+class RotationDirectionRule(ConversionRule):
+    """Track rotation direction for context."""
+    
+    def matches(self, line: str) -> bool:
+        return "CCW" in line or "CW" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        if "CCW" in line:
+            context["rotation_direction"] = "CCW"
+        elif "CW" in line:
+            context["rotation_direction"] = "CW"
+        return line, context
+
+
+class NumberFormatRule(ConversionRule):
+    """Convert number format specifications."""
+    
+    def matches(self, line: str) -> bool:
+        return "!number format := short float" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        return "!number format := float", context
+
+
+class OrbitConversionRule(ConversionRule):
+    """Convert orbit specifications."""
+    
+    def matches(self, line: str) -> bool:
+        return "orbit" in line and "noncircular" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        return "orbit := non-circular", context
+
+
+class ImageDurationRule(ConversionRule):
+    """Convert image duration to STIR format."""
+    
+    def matches(self, line: str) -> bool:
+        return "image duration" in line and ":=" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        try:
             parts = line.split()
-            return (
-                f"number of time frames := 1\nimage duration (sec) [1] := {parts[4]}",
-                dir_switch,
-            )
-        elif ";energy window lower level" in line:
-            return f"energy window lower level[1] := {line.split()[-1]}", dir_switch
-        elif ";energy window upper level" in line:
-            return f"energy window upper level[1] := {line.split()[-1]}", dir_switch
-        elif "CCW" in line:
-            return line, -1
-        elif "start angle" in line:
-            angle = dir_switch * float(line.split()[3]) + 180
-            return f"start angle := {angle % 360}", dir_switch
-        elif "!name of data file" in line:
+            duration = parts[4]
+            return f"number of time frames := 1\nimage duration (sec) [1] := {duration}", context
+        except (IndexError, ValueError) as e:
+            logging.warning(f"Failed to convert image duration line '{line}': {e}")
+            return line, context
+
+
+class EnergyWindowRule(ConversionRule):
+    """Convert energy window specifications."""
+    
+    def __init__(self, window_type: str):
+        self.window_type = window_type  # "lower" or "upper"
+    
+    def matches(self, line: str) -> bool:
+        return f";energy window {self.window_type} level" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        try:
+            value = line.split()[-1]
+            return f"energy window {self.window_type} level[1] := {value}", context
+        except IndexError as e:
+            logging.warning(f"Failed to convert energy window line '{line}': {e}")
+            return line, context
+
+
+class DataFileNameRule(ConversionRule):
+    """Convert data file name references."""
+    
+    def matches(self, line: str) -> bool:
+        return "!name of data file" in line
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        try:
             file = Path(line.split()[5])
-            return f"!name of data file := {file.stem + file.suffix}", dir_switch
+            return f"!name of data file := {file.stem + file.suffix}", context
+        except IndexError as e:
+            logging.warning(f"Failed to convert data file name line '{line}': {e}")
+            return line, context
 
-        return line, dir_switch
 
-    def edit_line(line, parameter, value):
-        """
-        Edit a parameter in a line.
-        """
-        if parameter in line:
-            return f"{parameter} := {value}"
-        return line
+class IgnorePatternRule(ConversionRule):
+    """Add semicolon to ignored pattern lines."""
+    
+    def __init__(self, patterns: List[str]):
+        self.patterns = patterns
+    
+    def matches(self, line: str) -> bool:
+        return any(pattern in line for pattern in self.patterns)
+    
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        return ";" + line, context
 
-    def read_line(line):
-        """
-        Read a line and return the parameter and value.
-        """
-        if ":=" in line:
-            key, _, value = line.partition(":=")
+
+class SimindToStirConverter:
+    """Enhanced SIMIND to STIR converter with configurable rules and editing capabilities."""
+    
+    def __init__(self, config: Optional[ConversionConfig] = None):
+        self.config = config or ConversionConfig()
+        self.rules = self._create_rules()
+        self.logger = logging.getLogger(__name__)
+    
+    def _create_rules(self) -> List[ConversionRule]:
+        """Create conversion rules in order of priority."""
+        return [
+            IgnorePatternRule(self.config.ignored_patterns),
+            RadiusConversionRule(self.config.radius_scale_factor),
+            StartAngleConversionRule(self.config.angle_offset),
+            RotationDirectionRule(),
+            NumberFormatRule(),
+            OrbitConversionRule(),
+            ImageDurationRule(),
+            EnergyWindowRule("lower"),
+            EnergyWindowRule("upper"),
+            DataFileNameRule(),
+        ]
+    
+    def convert_line(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        """Convert a single line using the first matching rule."""
+        line = line.strip()
+        
+        for rule in self.rules:
+            if rule.matches(line):
+                return rule.convert(line, context)
+        
+        return line, context
+    
+    @contextmanager
+    def _safe_file_operation(self, input_file: str, output_file: str):
+        """Context manager for safe file operations with cleanup."""
+        temp_file = output_file + ".tmp"
+        try:
+            with open(input_file, "r") as f_in, open(temp_file, "w") as f_out:
+                yield f_in, f_out
+            
+            # Only replace original if conversion succeeded
+            if os.path.exists(temp_file):
+                if os.path.exists(output_file):
+                    os.remove(output_file)
+                os.rename(temp_file, output_file)
+        except Exception:
+            # Clean up temp file if something went wrong
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+            raise
+    
+    @staticmethod
+    def _parse_interfile_line(line: str) -> Tuple[Optional[str], Optional[str]]:
+        """Parse an interfile line and return parameter and value."""
+        line = line.strip()
+        
+        # Skip comments, empty lines, and section headers
+        if (not line or 
+            line.startswith(';') or 
+            line.startswith('#') or 
+            line.endswith(':=')):
+            return None, None
+        
+        # Handle := separator (preferred)
+        if ':=' in line:
+            key, _, value = line.partition(':=')
             return key.strip(), value.strip()
+        
         return None, None
-
-    @staticmethod
-    def convert(filename, return_object=False):
-        """
-        Converts a SIMIND header file to a STIR header file.
-        """
-        if not filename.endswith(".h00"):
-            logging.error("USAGE: script filename.h00")
-            sys.exit(1)
-
-        stirfilename = filename.replace(".h00", ".hs")
-        dir_switch = 1
-
-        with open(filename, "r") as f_in, open(stirfilename, "w") as f_out:
-            for line in f_in:
-                write_line, dir_switch = Converter.convert_line(
-                    line.strip(), dir_switch
-                )
-                f_out.write(write_line + "\n")
-
-        logging.info(f"Output written to {stirfilename}")
-        return AcquisitionData(stirfilename) if return_object else None
-
-    @staticmethod
-    def edit_parameter(filename, parameter, value, return_object=False):
-        """
-        Edit a parameter in a header file.
-        """
-        if not filename.endswith((".hs", ".h00")):
-            logging.error("USAGE: script filename.hs")
-            sys.exit(1)
-
-        with open(filename, "r") as f_in, open("tmp.hs", "w") as f_out:
-            for line in f_in:
-                f_out.write(Converter.edit_line(line.strip(), parameter, value) + "\n")
-
-        os.remove(filename)
-        os.rename("tmp.hs", filename)
-        logging.info(f"Parameter {parameter} set to {value}")
-
-        return AcquisitionData(filename) if return_object else None
-
-    @staticmethod
-    def read_parameter(filename, parameter):
-        """
-        Read a parameter from a header file.
-        """
-        if not filename.endswith((".hs", ".h00")):
-            logging.error("USAGE: script filename.hs")
-            sys.exit(1)
-
-        with open(filename, "r") as f:
-            for line in f:
-                key, value = Converter.read_line(line.strip())
-                if key == parameter:
-                    return value
+    
+    def convert_file(self, input_filename: str, output_filename: Optional[str] = None, 
+                    return_object: bool = False) -> Optional[AcquisitionData]:
+        """Convert a SIMIND header file to STIR format."""
+        
+        if not input_filename.endswith(".h00"):
+            raise ValueError("Input file must have .h00 extension")
+        
+        if output_filename is None:
+            output_filename = input_filename.replace(".h00", ".hs")
+        
+        context = {"rotation_direction": None}
+        
+        try:
+            with self._safe_file_operation(input_filename, output_filename) as (f_in, f_out):
+                for line_num, line in enumerate(f_in, 1):
+                    try:
+                        converted_line, context = self.convert_line(line, context)
+                        f_out.write(converted_line + "\n")
+                    except Exception as e:
+                        self.logger.error(f"Error converting line {line_num}: {line.strip()}")
+                        self.logger.error(f"Error details: {e}")
+                        # Write original line as fallback
+                        f_out.write(line)
+            
+            self.logger.info(f"Successfully converted {input_filename} to {output_filename}")
+            
+            if return_object:
+                return AcquisitionData(output_filename)
+            
+        except Exception as e:
+            self.logger.error(f"Failed to convert {input_filename}: {e}")
+            raise
+        
         return None
-
-    @staticmethod
-    def add_parameter(filename, parameter, value, line_number=0, return_object=False):
-        """
-        Add a parameter at a specific line number in an Interfile header file.
-        """
+    
+    def read_parameter(self, filename: str, parameter: str) -> Optional[str]:
+        """Read a parameter from a header file."""
         if not filename.endswith((".hs", ".h00")):
-            logging.error("USAGE: script filename.hs or filename.h00")
-            sys.exit(1)
+            self.logger.error("File must have .hs or .h00 extension")
+            return None
 
-        # first test if parameter already exists
-        with open(filename, "r") as f:
-            for i, line in enumerate(f):
-                key, _ = Converter.read_line(line.strip())
-                if key == parameter:
-                    Converter.edit_parameter(filename, parameter, value)
+        try:
+            with open(filename, "r") as f:
+                for line in f:
+                    key, value = self._parse_interfile_line(line)
+                    if key == parameter:
+                        return value
+        except FileNotFoundError:
+            self.logger.error(f"File not found: {filename}")
+        except Exception as e:
+            self.logger.error(f"Error reading file {filename}: {e}")
+        
+        return None
+    
+    def edit_parameter(self, filename: str, parameter: str, value: Union[str, float], 
+                      return_object: bool = False) -> Optional[AcquisitionData]:
+        """Edit a parameter in a header file."""
+        if not filename.endswith((".hs", ".h00")):
+            self.logger.error("File must have .hs or .h00 extension")
+            return None
 
-        # temp_filename with correct extension
-        temp_filename = (
-            "tmp"
-            + filename.endswith(".hs") * ".hs"
-            + filename.endswith(".h00") * ".h00"
-        )
+        temp_filename = filename + ".tmp"
+        
+        try:
+            with open(filename, "r") as f_in, open(temp_filename, "w") as f_out:
+                parameter_found = False
+                for line in f_in:
+                    key, current_value = self._parse_interfile_line(line)
+                    if key == parameter:
+                        f_out.write(f"{parameter} := {value}\n")
+                        parameter_found = True
+                    else:
+                        f_out.write(line)
+                
+                if not parameter_found:
+                    self.logger.warning(f"Parameter '{parameter}' not found in {filename}")
+            
+            # Replace original file
+            os.replace(temp_filename, filename)
+            self.logger.info(f"Parameter {parameter} set to {value}")
+            
+            return AcquisitionData(filename) if return_object else None
+            
+        except Exception as e:
+            # Clean up temp file if it exists
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+            self.logger.error(f"Error editing parameter in {filename}: {e}")
+            raise
+    
+    def add_parameter(self, filename: str, parameter: str, value: Union[str, float], 
+                     line_number: int = 0, return_object: bool = False) -> Optional[AcquisitionData]:
+        """Add a parameter at a specific line number in an Interfile header file."""
+        if not filename.endswith((".hs", ".h00")):
+            self.logger.error("File must have .hs or .h00 extension")
+            return None
+
+        # First test if parameter already exists
+        existing_value = self.read_parameter(filename, parameter)
+        if existing_value is not None:
+            self.logger.info(f"Parameter {parameter} already exists, editing instead of adding")
+            return self.edit_parameter(filename, parameter, value, return_object)
+
+        temp_filename = filename + ".tmp"
         parameter_line = f"{parameter} := {value}\n"
 
-        with open(filename, "r") as f_in, open(temp_filename, "w") as f_out:
-            lines = f_in.readlines()
+        try:
+            with open(filename, "r") as f_in:
+                lines = f_in.readlines()
 
-        # Modify content
-        with open(temp_filename, "w") as f_out:
-            for i, line in enumerate(lines):
-                if i == line_number:
+            with open(temp_filename, "w") as f_out:
+                for i, line in enumerate(lines):
+                    if i == line_number:
+                        f_out.write(parameter_line)
+                    f_out.write(line)
+
+                # If line_number is beyond file length, append at end
+                if len(lines) <= line_number:
                     f_out.write(parameter_line)
-                f_out.write(line)
 
-            if len(lines) <= line_number:
-                f_out.write(parameter_line)
+            # Replace original file
+            os.replace(temp_filename, filename)
+            self.logger.info(f"Parameter {parameter} added with value {value} at line {line_number}")
 
-        os.remove(filename)
-        os.rename(temp_filename, filename)
-        logging.info(f"Parameter {parameter} set to {value} at line {line_number}")
+            return AcquisitionData(filename) if return_object else None
 
-        return AcquisitionData(filename) if return_object else None
-
-    ### The below is meant to deal with the case where SIMIND rounds values, meaning they differ from the original values.
-    ### This is not currently used bacause it's crap and doesn't work. It's here for reference and possible future improvement.
-    # TODO: Fix this crap
-    @staticmethod
-    def adjust_values(
-        reference_file, file_to_adjust, threshold=None, output_adjusted_file=None
-    ):
+        except Exception as e:
+            # Clean up temp file if it exists
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+            self.logger.error(f"Error adding parameter to {filename}: {e}")
+            raise
+    
+    def validate_and_fix_scaling_factors(self, filename: str, image_data, tolerance: float = 0.1) -> bool:
         """
-        Adjust values in file_to_adjust based on reference_file, either replacing exactly or within a threshold.
+        Validate scaling factors against image voxel sizes and fix if they differ within tolerance.
+        
+        Args:
+            filename: Path to the header file
+            image_data: SIRF ImageData object to get voxel sizes from
+            tolerance: Maximum allowed difference in mm (default 0.1mm)
+            
+        Returns:
+            bool: True if scaling factors were within tolerance, False if they were corrected
         """
-        if output_adjusted_file is None:
-            output_adjusted_file = file_to_adjust[:-4] + "_adjusted.h00"
+        if not filename.endswith((".hs", ".h00")):
+            self.logger.error("File must have .hs or .h00 extension")
+            return False
+        
+        # Get voxel sizes from image data
+        voxel_sizes = image_data.voxel_sizes()
+        image_voxel_x = voxel_sizes[0]  # mm
+        image_voxel_y = voxel_sizes[1]  # mm
+        
+        # Read current scaling factors from file
+        current_scaling_x = self.read_parameter(filename, "scaling factor (mm/pixel) [1]")
+        current_scaling_y = self.read_parameter(filename, "scaling factor (mm/pixel) [2]")
+        
+        if current_scaling_x is None or current_scaling_y is None:
+            self.logger.warning(f"Could not read scaling factors from {filename}")
+            # Set them to image voxel sizes
+            self.edit_parameter(filename, "scaling factor (mm/pixel) [1]", image_voxel_x)
+            self.edit_parameter(filename, "scaling factor (mm/pixel) [2]", image_voxel_y)
+            self.logger.info(f"Set scaling factors to image voxel sizes: [{image_voxel_x}, {image_voxel_y}]")
+            return False
+        
+        try:
+            current_x = float(current_scaling_x)
+            current_y = float(current_scaling_y)
+            
+            # Check if they're different but within tolerance
+            diff_x = abs(current_x - image_voxel_x)
+            diff_y = abs(current_y - image_voxel_y)
+            
+            if diff_x <= tolerance and diff_y <= tolerance:
+                self.logger.debug(f"Scaling factors are within tolerance: current=[{current_x}, {current_y}], image=[{image_voxel_x}, {image_voxel_y}]")
+                return True
+            else:
+                # Fix the scaling factors to match image voxel sizes
+                self.logger.info(f"Scaling factors differ beyond tolerance ({tolerance}mm)")
+                self.logger.info(f"  Current: [{current_x}, {current_y}]")
+                self.logger.info(f"  Image:   [{image_voxel_x}, {image_voxel_y}]")
+                self.logger.info(f"  Diff:    [{diff_x:.6f}, {diff_y:.6f}]")
+                
+                self.edit_parameter(filename, "scaling factor (mm/pixel) [1]", image_voxel_x)
+                self.edit_parameter(filename, "scaling factor (mm/pixel) [2]", image_voxel_y)
+                self.logger.info("Updated scaling factors to match image voxel sizes")
+                return False
+                
+        except ValueError as e:
+            self.logger.error(f"Error parsing scaling factors: {e}")
+            # Set them to image voxel sizes as fallback
+            self.edit_parameter(filename, "scaling factor (mm/pixel) [1]", image_voxel_x)
+            self.edit_parameter(filename, "scaling factor (mm/pixel) [2]", image_voxel_y)
+            return False
 
-        if isinstance(reference_file, AcquisitionData):
-            reference_file.write("tmp_ref.hs")
-            reference_file = "tmp_ref.hs"
-
-        with open(reference_file, "r") as ref_file, open(
-            file_to_adjust, "r"
-        ) as to_adjust_file:
-            reference_lines = {}
-            for line in ref_file:
-                if ":=" in line:
-                    key, _, value = line.partition(":=")
-                    reference_lines[key.strip()] = value.strip()
-            adjust_lines = to_adjust_file.readlines()
-
-        for i, line in enumerate(adjust_lines):
-            if ":=" in line:
-                key, _, value = line.partition(":=")
-                key, value = key.strip(), value.strip()
-                if key in reference_lines:
-                    try:
-                        ref_value, adj_value = float(reference_lines[key]), float(value)
-                        if threshold is None or abs(ref_value - adj_value) <= threshold:
-                            adjust_lines[i] = f"{key} := {ref_value}\n"
-                    except ValueError:
-                        pass
-
-        with open(output_adjusted_file, "w") as out:
-            out.writelines(adjust_lines)
-
-        if isinstance(reference_file, str) and "tmp_ref.hs" in reference_file:
-            os.remove(reference_file)
-
-    @staticmethod
-    def replace_sinogram_values(reference_sinogram, sinogram_to_adjust):
-        """
-        Replace values in a sinogram file based on a reference sinogram.
-        """
-        ref_filename, adj_filename = "tmp_ref.hs", "tmp_adjust.hs"
-        reference_sinogram.write(ref_filename)
-        sinogram_to_adjust.write(adj_filename)
-        result = Converter.adjust_values(ref_filename, adj_filename)
-        for tmp in [ref_filename, adj_filename, "tmp_ref.s", "tmp_adjust.s"]:
-            os.remove(tmp)
-        return result
-
-    @staticmethod
-    def convert_sinogram_parameter(sinogram, parameter, value):
-        """
-        Modify a sinogram parameter in-place.
-        """
-        filename = "tmp.hs"
-        sinogram.write(filename)
-        pattern = re.compile(rf"^!?{re.escape(parameter)}\s*:=", re.IGNORECASE)
-
-        with fileinput.input(filename, inplace=True) as file:
-            for line in file:
-                if pattern.match(line.strip()):
-                    print(f"{parameter} := {value}")
-                else:
-                    print(line, end="")
-
-        sinogram = AcquisitionData(filename)
-        os.remove(filename)
-        return sinogram
+    def add_custom_rule(self, rule: ConversionRule, priority: int = None):
+        """Add a custom conversion rule."""
+        if priority is None:
+            self.rules.append(rule)
+        else:
+            self.rules.insert(priority, rule)

@@ -38,7 +38,7 @@ parameters:
     photon_direction:
       index: 19
       value: 3
-      description: Photon direction code (2=isotropic typical)
+      description: Photon direction code (see manual for details)
     emitted_photons_per_decay:
       index: 24
       value: 0.879
@@ -235,11 +235,11 @@ parameters:
     collimator_routine:
       index: 53
       value: 1
-      description: Collimator routine code (0=no collimator, 1=parallel holes, etc.)
+      description: Collimator routine code (1= analytical, 2 = septal penetration)
     hole_shape:
       index: 54
       value: 3.0
-      description: Hole shape code (0=round, 1=square, 2=hexagonal)
+      description: Hole shape code (3=hexagonal, 4=rectangular)
     distance_collimator_detector:
       index: 56
       value: 0.0
@@ -252,11 +252,11 @@ parameters:
     upper_window_threshold:
       index: 20
       value: 225
-      description: Upper energy window threshold (keV) - set to -100 for automatic
+      description: Upper energy window threshold (keV)
     lower_window_threshold:
       index: 21
       value: 75
-      description: Lower energy window threshold (keV) - set to -100 for automatic
+      description: Lower energy window threshold (keV)
     kev_per_channel:
       index: 27
       value: 4
@@ -281,11 +281,11 @@ parameters:
     spect_rotation:
       index: 30
       value: 0.0
-      description: "SPECT rotation parameter (2=360\xB0 typical)"
+      description: "SPECT rotation parameter - controls direction and extent"
     spect_starting_angle:
       index: 41
       value: 0.0
-      description: "SPECT starting angle (degrees) - 0\xB0 = anterior"
+      description: "SPECT starting angle (degrees)"
     spect_orbital_rotation_fraction:
       index: 42
       value: 1.0
