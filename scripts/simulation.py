@@ -5,7 +5,7 @@ Run a simulation using SIMIND and STIR,
 generate simulated sinograms and compare with measured data.
 python script.py --simulation_config simulation_config.yaml --scanner_config scanner_config.yaml
 
-Updated to work with the refactored SimindSimulator architecture.
+Updated to work with both scattwin and penetrate scoring routines.
 """
 
 import os
@@ -22,7 +22,8 @@ from matplotlib.gridspec import GridSpec
 from sirf.STIR import (ImageData, AcquisitionData, SPECTUBMatrix,
                        AcquisitionModelUsingMatrix, MessageRedirector,
                        SeparableGaussianImageFilter)
-from sirf_simind_connection import SimindSimulator, SimulationConfig
+from sirf_simind_connection import (SimindSimulator, SimulationConfig)
+from sirf_simind_connection.core import ScoringRoutine
 
 
 msg = MessageRedirector()
@@ -156,29 +157,6 @@ def prepare_mu_map(mu_map_filename, data_dir, reference_image):
     return mu_map
 
 
-def blur_image(image, fwhms=(6.7, 6.7, 6.7)):
-    """
-    Apply a Gaussian blur to the image.
-
-    Parameters
-    ----------
-    image : ImageData
-        The input image to be blurred.
-    fwhms : tuple of float, optional
-        Full width at half maximum for the Gaussian kernel in each dimension.
-        Default is (6.7, 6.7, 6.7).
-
-    Returns
-    -------
-    ImageData
-        Blurred image.
-    """
-    filter = SeparableGaussianImageFilter()
-    filter.set_fwhms(fwhms)
-    filter.apply(image)
-    return image
-
-
 def setup_simulator(sim_config, scanner_config_path, image, mu_map, measured_data):
     """
     Set up the SIMIND simulator with all configuration parameters.
@@ -201,38 +179,60 @@ def setup_simulator(sim_config, scanner_config_path, image, mu_map, measured_dat
     SimindSimulator
         Configured simulator
     """
-    print("Setting up SIMIND simulator...")
+    # Determine scoring routine
+    scoring_routine_value = sim_config['scoring_routine']
+    if isinstance(scoring_routine_value, int):
+        scoring_routine = ScoringRoutine(scoring_routine_value)
+    else:
+        # Try to match by name
+        scoring_routine_map = {
+            'scattwin': ScoringRoutine.SCATTWIN,
+            'penetrate': ScoringRoutine.PENETRATE,
+            'list_mode': ScoringRoutine.LIST_MODE,
+            'forced_collimation': ScoringRoutine.FORCED_COLLIMATION,
+            'dummy': ScoringRoutine.DUMMY
+        }
+        scoring_routine = scoring_routine_map.get(scoring_routine_value.lower(), ScoringRoutine.SCATTWIN)
     
-    # Create scanner config file in output directory
+    print(f"Setting up SIMIND simulator for {scoring_routine.name.lower()} routine...")
+    
+    # Create scanner config
     scanner_config = SimulationConfig(scanner_config_path)
-    # Add comment
     scanner_config.set_comment("Demonstration of SIMIND simulation with refactored architecture")
 
-    # Initialize simulator with the new architecture
+    # Initialize simulator with scoring routine
     simulator = SimindSimulator(
         config_source=scanner_config,
         output_dir=sim_config['output_dir'],
         output_prefix=sim_config['output_prefix'],
-        photon_multiplier=sim_config['photon_multiplier']  # Set directly in constructor
+        photon_multiplier=sim_config['photon_multiplier'],
+        scoring_routine=scoring_routine
     )
 
-    # Set basic inputs using the new API
+    # Set basic inputs
     simulator.set_source(image)
     simulator.set_mu_map(mu_map)
     simulator.set_template_sinogram(measured_data)
     
-    # Set energy windows using the new API
-    simulator.set_energy_windows(
-        lower_bounds=sim_config['window_lower'],
-        upper_bounds=sim_config['window_upper'],
-        scatter_orders=0
-    )
+    # Set energy windows only for scattwin routine
+    if scoring_routine == ScoringRoutine.SCATTWIN:
+        simulator.set_energy_windows(
+            lower_bounds=sim_config['window_lower'],
+            upper_bounds=sim_config['window_upper'],
+            scatter_orders=0
+        )
+        print(f"  - Energy window: {sim_config['window_lower']}-{sim_config['window_upper']} keV")
+    else:
+        print(f"  - Energy windows not applicable for {scoring_routine.name.lower()} routine")
     
-    # Add configuration parameters using the new API names
+    # Add configuration parameters
     simulator.add_config_value("photon_energy", sim_config['photon_energy'])
-    simulator.add_config_value("scoring_routine", sim_config['scoring_routine'])
     simulator.add_config_value("collimator_routine", sim_config['collimator_routine'])
     simulator.add_config_value("photon_direction", sim_config['photon_direction'])
+
+    # Set window thresholds for reference (may not be used by penetrate)
+    simulator.add_config_value("lower_window_threshold", sim_config['window_lower'])
+    simulator.add_config_value("upper_window_threshold", sim_config['window_upper'])
     
     # Calculate source activity
     total_source_activity = sim_config['total_activity'] * sim_config['time_per_projection']
@@ -247,14 +247,12 @@ def setup_simulator(sim_config, scanner_config_path, image, mu_map, measured_dat
     cutoff_energy = sim_config['window_lower'] * 0.75
     simulator.add_config_value("cutoff_energy_terminate_photon_history", cutoff_energy)
     
-    # Add runtime switches using the updated API
+    # Add runtime switches
     simulator.add_runtime_switch("CC", sim_config['collimator'])
     simulator.add_runtime_switch("FI", sim_config['source_type'])
-    # Note: NN (photon_multiplier) is already set in constructor
-
     
     print(f"Simulator configured with:")
-    print(f"  - Energy window: {sim_config['window_lower']}-{sim_config['window_upper']} keV")
+    print(f"  - Scoring routine: {scoring_routine.name}")
     print(f"  - Photon multiplier: {sim_config['photon_multiplier']}")
     print(f"  - Collimator: {sim_config['collimator']}")
     print(f"  - Source activity: {total_source_activity:.2e}")
@@ -265,7 +263,7 @@ def setup_simulator(sim_config, scanner_config_path, image, mu_map, measured_dat
 
 def run_simulation_with_error_handling(simulator):
     """
-    Run simulation with proper error handling for the new architecture.
+    Run simulation with proper error handling for both routines.
     
     Parameters
     ----------
@@ -280,61 +278,86 @@ def run_simulation_with_error_handling(simulator):
     print("Running SIMIND simulation...")
     
     try:
-        # Run simulation using the new API
+        # Run simulation
         simulator.run_simulation()
         print("SIMIND simulation completed successfully")
         
-        # Get outputs using the new API method names
-        simind_total = simulator.get_total_output(window=1)
-        simind_scatter = simulator.get_scatter_output(window=1)
+        # Get outputs based on scoring routine
+        scoring_routine = simulator.get_scoring_routine()
         
-        # Calculate true (primary) counts
-        simind_true = simind_total - simind_scatter
+        if scoring_routine == ScoringRoutine.SCATTWIN:
+            # Scattwin outputs
+            simind_total = simulator.get_total_output(window=1)
+            simind_scatter = simulator.get_scatter_output(window=1)
+            simind_true = simind_total - simind_scatter
+            
+            outputs = {
+                'total': simind_total,
+                'scatter': simind_scatter,
+                'true': simind_true,
+                'air': simulator.get_air_output(window=1)
+            }
+            
+        elif scoring_routine == ScoringRoutine.PENETRATE:
+            # Penetrate outputs - get all available components
+            all_outputs = simulator.get_outputs()
+            outputs = {}
+            
+            # Map key penetrate components for analysis
+            key_components = {
+                'all_interactions': 'All interactions',
+                'geom_coll_primary': 'Geometrically collimated primary',
+                'septal_pen_primary': 'Septal penetration (primary)',
+                'coll_scatter_primary': 'Collimator scatter (primary)',
+                'geom_coll_scattered': 'Geometrically collimated scattered',
+                'unscattered_unattenuated': 'Unscattered/unattenuated'
+            }
+            
+            for key, description in key_components.items():
+                if key in all_outputs:
+                    outputs[key] = all_outputs[key]
+            
+            # If no key components found, use first few available
+            if not outputs:
+                available_keys = list(all_outputs.keys())[:6]  # Take first 6
+                for key in available_keys:
+                    outputs[key] = all_outputs[key]
         
-        outputs = {
-            'total': simind_total,
-            'scatter': simind_scatter,
-            'true': simind_true
-        }
+        else:
+            raise ValueError(f"Unsupported scoring routine: {scoring_routine}")
         
         # Log count statistics
         print(f"Simulation results:")
         for key, data in outputs.items():
-            print(f"  - {key.capitalize()} counts: {data.sum():.0f}")
+            print(f"  - {key}: {data.sum():.0f} counts")
         
         return outputs
         
-    except ValueError as e:
-        print(f"Configuration/validation error: {e}")
-        raise
-    except subprocess.CalledProcessError as e:
-        print(f"SIMIND execution failed: {e}")
-        raise
-    except FileNotFoundError as e:
-        print(f"Required file not found: {e}")
-        raise
     except Exception as e:
-        print(f"Unexpected error during simulation: {e}")
+        print(f"Simulation failed: {e}")
         raise
 
 
-def save_count_statistics(outputs, measured_data, base_filename, output_dir):
+def save_count_statistics(outputs, measured_data, scoring_routine, base_filename, output_dir):
     """Save count statistics to CSV file."""
-    counts = {
-        "simind_total": outputs['total'].sum(),
-        "simind_true": outputs['true'].sum(),
-        "simind_scatter": outputs['scatter'].sum(),
-        "measured_total": measured_data.sum(),
-    }
+    counts = {"measured_total": measured_data.sum()}
     
-    # Calculate scatter fraction
-    if counts["simind_total"] > 0:
-        counts["scatter_fraction"] = counts["simind_scatter"] / counts["simind_total"]
-    else:
-        counts["scatter_fraction"] = 0
+    # Add routine-specific counts
+    for key, data in outputs.items():
+        counts[f"{scoring_routine.name.lower()}_{key}"] = data.sum()
+    
+    # Calculate derived metrics for scattwin
+    if scoring_routine == ScoringRoutine.SCATTWIN:
+        if "total" in outputs and "scatter" in outputs:
+            total_counts = outputs["total"].sum()
+            scatter_counts = outputs["scatter"].sum()
+            if total_counts > 0:
+                counts["scatter_fraction"] = scatter_counts / total_counts
+            else:
+                counts["scatter_fraction"] = 0
     
     # Save to CSV
-    csv_path = os.path.join(output_dir, base_filename + ".csv")
+    csv_path = os.path.join(output_dir, f"{base_filename}_{scoring_routine.name.lower()}.csv")
     pd.DataFrame([counts]).to_csv(csv_path, index=False)
     print(f"Count statistics saved to: {csv_path}")
     
@@ -346,15 +369,14 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
     """
     Plot slice comparisons of the sinograms (axial or coronal) with an image grid and a line plot.
     """
-    # Convert to int in case it's a float from config
     slice_index = int(slice_index)
     profile_index = int(profile_index)
 
     # Determine vmax over all datasets for consistent color scaling
     if orientation == 'axial':
-        vmax = max(data[0][slice_index].max() for data, _ in data_list)
+        vmax = max(data[0][slice_index].max() for data, _ in data_list if data[0] is not None)
     elif orientation == 'coronal':
-        vmax = max(data[0][:, :, slice_index].max() for data, _ in data_list)
+        vmax = max(data[0][:, :, slice_index].max() for data, _ in data_list if data[0] is not None)
     else:
         raise ValueError("orientation must be 'axial' or 'coronal'")
 
@@ -365,6 +387,9 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
     # Row of images
     ax_images = [fig.add_subplot(gs[0, i]) for i in range(n)]
     for i, (data, title) in enumerate(data_list):
+        if data[0] is None:
+            continue
+            
         arr = data[0]
         if orientation == 'axial':
             slice_img = arr[slice_index, :, :]
@@ -386,6 +411,9 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
     ax_line = fig.add_subplot(gs[2, :])
     colours = plt.cm.get_cmap(colormap)(np.linspace(0, 1, n))
     for i, (data, title) in enumerate(data_list):
+        if data[0] is None:
+            continue
+            
         arr = data[0]
         if orientation == 'axial':
             slice_img = arr[slice_index, :, :]
@@ -422,24 +450,44 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
     print(f"Plot saved: {fname}")
 
 
-def generate_plots(outputs, measured_data, sim_config, base_filename):
-    """Generate all comparison plots."""
+def generate_plots(outputs, measured_data, scoring_routine, sim_config, base_filename):
+    """Generate comparison plots based on scoring routine."""
     print("Generating comparison plots...")
     
-    # Prepare data for plotting
-    data_list = [
-        (outputs['total'].as_array(), "simind total"),
-        (measured_data.as_array(), "measured"),
-        (outputs['true'].as_array(), "simind true"),
-        (outputs['scatter'].as_array(), "simind scatter"),
-    ]
+    if scoring_routine == ScoringRoutine.SCATTWIN:
+        # Traditional scattwin plots
+        data_list = [
+            (outputs['total'].as_array(), "simind total"),
+            (measured_data.as_array(), "measured"),
+            (outputs['true'].as_array(), "simind true"),
+            (outputs['scatter'].as_array(), "simind scatter"),
+        ]
+        
+    elif scoring_routine == ScoringRoutine.PENETRATE:
+        # Penetrate component plots - show up to 6 most important
+        data_list = [(measured_data.as_array(), "measured")]
+        
+        # Add available penetrate components
+        for key, data in list(outputs.items())[:5]:  # Limit to 5 to keep plots manageable
+            if data is not None:
+                display_name = key.replace('_', ' ').title()
+                data_list.append((data.as_array(), display_name))
+    
+    else:
+        # Default: just show available outputs
+        data_list = [(measured_data.as_array(), "measured")]
+        for key, data in list(outputs.items())[:5]:
+            if data is not None:
+                display_name = key.replace('_', ' ').title()
+                data_list.append((data.as_array(), display_name))
     
     # Filter out None values
-    data_list = [(data, title) for data, title in data_list if data is not None]
+    data_list = [(data, title) for data, title in data_list if data[0] is not None]
     
     slice_index = sim_config['axial_slice']
+    routine_name = scoring_routine.name.lower()
     
-    # Generate all plot combinations
+    # Generate plot combinations
     orientations = ['axial', 'coronal']
     methods = ['sum', 'index']
     
@@ -448,15 +496,15 @@ def generate_plots(outputs, measured_data, sim_config, base_filename):
             plot_comparison(
                 data_list, slice_index,
                 orientation=orientation,
-                base_output_filename=base_filename,
+                base_output_filename=f"{base_filename}_{routine_name}",
                 output_dir=sim_config['output_dir'],
                 profile_method=method,
                 profile_index=60,
                 font_size=14,
-                colormap='viridis'
+                colormap='viridis' if scoring_routine == ScoringRoutine.SCATTWIN else 'plasma'
             )
     
-    print(f"Generated {len(orientations) * len(methods)} comparison plots")
+    print(f"Generated {len(orientations) * len(methods)} comparison plots for {routine_name}")
 
 
 def main(args):
@@ -499,6 +547,9 @@ def main(args):
         
         outputs = run_simulation_with_error_handling(simulator)
         
+        # Get scoring routine for file naming
+        scoring_routine = simulator.get_scoring_routine()
+        
         # Generate output filename base
         base_filename = (f"NN{sim_config['photon_multiplier']}_"
                         f"CC{sim_config['collimator']}_"
@@ -506,14 +557,19 @@ def main(args):
         
         # Save statistics and generate plots
         counts = save_count_statistics(
-            outputs, measured_data, base_filename, sim_config['output_dir']
+            outputs, measured_data, scoring_routine, base_filename, sim_config['output_dir']
         )
         
-        generate_plots(outputs, measured_data, sim_config, base_filename)
+        generate_plots(outputs, measured_data, scoring_routine, sim_config, base_filename)
         
         print(f"\nSimulation completed successfully!")
+        print(f"Scoring routine: {scoring_routine.name}")
         print(f"Output directory: {sim_config['output_dir']}")
-        print(f"Scatter fraction: {counts['scatter_fraction']:.3f}")
+        
+        if scoring_routine == ScoringRoutine.SCATTWIN and 'scatter_fraction' in counts:
+            print(f"Scatter fraction: {counts['scatter_fraction']:.3f}")
+        
+        print(f"Generated outputs: {list(outputs.keys())}")
         
     finally:
         # Restore original working directory
@@ -522,13 +578,13 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Run a simulation using SIMIND and STIR (updated for refactored architecture)'
+        description='Run a simulation using SIMIND and STIR with configurable scoring routines'
     )
     
     parser.add_argument('--simulation_config', type=str, required=True,
                         help='Path to simulation YAML configuration file')
     parser.add_argument('--scanner_config', type=str, required=True,
-                        help='Path to scanner YAML configuration file')
+                        help='Path to scanner configuration file (.smc or .yaml)')
 
     args = parser.parse_args()
 

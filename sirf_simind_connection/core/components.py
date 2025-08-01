@@ -1,5 +1,5 @@
 """
-Refactored SimindSimulator with better separation of concerns.
+Refactored SimindSimulator components with better separation of concerns and penetrate support.
 Each component has a single responsibility, making the code easier to maintain and test.
 """
 
@@ -56,9 +56,47 @@ class ScatterType(Enum):
     AIR = "air"
 
 
+class ScoringRoutine(Enum):
+    """Enum for different SIMIND scoring routines."""
+    DUMMY = 0
+    SCATTWIN = 1
+    LIST_MODE = 2
+    FORCED_COLLIMATION = 3
+    PENETRATE = 4
+
+
+class PenetrateOutputType(Enum):
+    """Enum for different penetrate routine output components."""
+    ALL_INTERACTIONS = 1  # *.b01
+    GEOM_COLL_PRIMARY_ATT = 2  # *.b02
+    SEPTAL_PENETRATION_PRIMARY_ATT = 3  # *.b03
+    COLL_SCATTER_PRIMARY_ATT = 4  # *.b04
+    COLL_XRAY_PRIMARY_ATT = 5  # *.b05
+    GEOM_COLL_SCATTERED = 6  # *.b06
+    SEPTAL_PENETRATION_SCATTERED = 7  # *.b07
+    COLL_SCATTER_SCATTERED = 8  # *.b08
+    COLL_XRAY_SCATTERED = 9  # *.b09
+    # With backscatter (*.b10-*.b17)
+    GEOM_COLL_PRIMARY_ATT_BACK = 10  # *.b10
+    SEPTAL_PENETRATION_PRIMARY_ATT_BACK = 11  # *.b11
+    COLL_SCATTER_PRIMARY_ATT_BACK = 12  # *.b12
+    COLL_XRAY_PRIMARY_ATT_BACK = 13  # *.b13
+    GEOM_COLL_SCATTERED_BACK = 14  # *.b14
+    SEPTAL_PENETRATION_SCATTERED_BACK = 15  # *.b15
+    COLL_SCATTER_SCATTERED_BACK = 16  # *.b16
+    COLL_XRAY_SCATTERED_BACK = 17  # *.b17
+    ALL_UNSCATTERED_UNATTENUATED = 18  # *.b18
+    ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL = 19  # *.b19
+
+
 # Constants
 SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
-MAX_UINT16 = 6553.5
+# Maximum normalised value of source image
+# You would have expected this to be 65535, but it is not
+# I have no understanding why, but it is the case
+# 500 seems a reasonable value that maximises precision
+# whilst not exceeding the maximum value (weird things happen)
+MAX_SOURCE = 500 
 ORBIT_FILE_EXTENSION = ".cor"
 OUTPUT_EXTENSIONS = [".h00", ".a00", ".hs"]
 
@@ -259,7 +297,7 @@ class DataFileManager:
         # Normalize to uint16 range
         source_max = source.max()
         if source_max > 0:
-            source_arr = source_arr / source_max * MAX_UINT16
+            source_arr = source_arr / source_max * MAX_SOURCE
         
         source_arr = np.round(source_arr).astype(np.uint16)
         
@@ -368,43 +406,90 @@ class SimindExecutor:
 
 
 # =============================================================================
-# OUTPUT PROCESSOR  
+# ENHANCED OUTPUT PROCESSOR  
 # =============================================================================
 
 class OutputProcessor:
-    """Processes SIMIND output files."""
+    """Enhanced output processor that handles both scattwin and penetrate outputs."""
     
     def __init__(self, converter, output_dir: Path):
+        """
+        Initialize the output processor.
+        
+        Args:
+            converter: SIMIND to STIR converter instance
+            output_dir: Directory containing simulation outputs
+        """
         self.converter = converter
-        self.output_dir = output_dir
+        self.output_dir = Path(output_dir)
         self.logger = logging.getLogger(__name__)
     
     def process_outputs(self, output_prefix: str, template_sinogram: Optional[AcquisitionData] = None,
-                       source: Optional[ImageData] = None) -> Dict[str, AcquisitionData]:
-        """Process all SIMIND output files."""
-        h00_files = self._find_output_files(output_prefix)
+                       source: Optional[ImageData] = None, scoring_routine: ScoringRoutine = ScoringRoutine.SCATTWIN) -> Dict[str, AcquisitionData]:
+        """
+        Process outputs based on the scoring routine used.
+        
+        Args:
+            output_prefix: Prefix used for output files
+            template_sinogram: Template sinogram for geometry
+            source: Source image for geometry reference
+            scoring_routine: Scoring routine that was used
+            
+        Returns:
+            Dictionary of output name -> AcquisitionData
+        """
+        
+        if scoring_routine == ScoringRoutine.SCATTWIN:
+            return self._process_scattwin_outputs(output_prefix, template_sinogram, source)
+        elif scoring_routine == ScoringRoutine.PENETRATE:
+            return self._process_penetrate_outputs(output_prefix, template_sinogram, source)
+        else:
+            raise ValueError(f"Unsupported scoring routine for output processing: {scoring_routine}")
+    
+    def _process_scattwin_outputs(self, output_prefix: str, template_sinogram: Optional[AcquisitionData], 
+                                 source: Optional[ImageData]) -> Dict[str, AcquisitionData]:
+        """Process scattwin routine outputs (existing functionality)."""
+        
+        h00_files = self._find_scattwin_output_files(output_prefix)
         
         if not h00_files:
-            raise OutputError("No SIMIND output files found")
+            raise OutputError("No SIMIND scattwin output files found")
         
         # Process each file
         for h00_file in h00_files:
-            self._process_single_file(h00_file, template_sinogram, source)
+            self._process_single_scattwin_file(h00_file, template_sinogram, source)
         
         # Load and organize converted files
-        return self._load_converted_files(output_prefix)
+        return self._load_converted_scattwin_files(output_prefix)
     
-    def _find_output_files(self, output_prefix: str) -> List[Path]:
-        """Find SIMIND output files."""
+    def _process_penetrate_outputs(self, output_prefix, template_sinogram, source):
+        # Find the single .h00 file from penetrate routine  
+        h00_file = self.converter.find_penetrate_h00_file(output_prefix, str(self.output_dir))
+        
+        if not h00_file:
+            raise OutputError("No penetrate .h00 file found")
+        
+        # Create multiple .hs files, one for each .bXX file
+        outputs = self.converter.create_penetrate_headers_from_template(
+            h00_file, output_prefix, str(self.output_dir)
+        )
+        
+        if not outputs:
+            raise OutputError("No penetrate output files found")
+        
+        return outputs
+    
+    def _find_scattwin_output_files(self, output_prefix: str) -> List[Path]:
+        """Find SIMIND scattwin output files."""
         scatter_types = ["_air_w", "_sca_w", "_tot_w", "_pri_w"]
         return [
             f for f in self.output_dir.glob("*.h00")
             if any(s in f.name for s in scatter_types) and output_prefix in f.name
         ]
     
-    def _process_single_file(self, h00_file: Path, template_sinogram: Optional[AcquisitionData],
+    def _process_single_scattwin_file(self, h00_file: Path, template_sinogram: Optional[AcquisitionData],
                            source: Optional[ImageData]) -> None:
-        """Process a single output file with corrections."""
+        """Process a single scattwin output file with corrections."""
         try:
             # Apply template-based corrections
             if template_sinogram:
@@ -490,8 +575,8 @@ class OutputProcessor:
         except Exception as e:
             self.logger.warning(f"Failed to validate scaling factors for {h00_file}: {e}")
     
-    def _load_converted_files(self, output_prefix: str) -> Dict[str, AcquisitionData]:
-        """Load all converted .hs files."""
+    def _load_converted_scattwin_files(self, output_prefix: str) -> Dict[str, AcquisitionData]:
+        """Load all converted scattwin .hs files."""
         output = {}
         hs_files = list(self.output_dir.glob(f"*{output_prefix}*.hs"))
         
@@ -505,9 +590,9 @@ class OutputProcessor:
                 continue
         
         if not output:
-            raise OutputError("No valid output files could be loaded")
+            raise OutputError("No valid scattwin output files could be loaded")
         
-        self.logger.info(f"Loaded {len(output)} output files")
+        self.logger.info(f"Loaded {len(output)} scattwin output files")
         return output
     
     def _extract_output_key(self, filename: str) -> str:
@@ -519,3 +604,75 @@ class OutputProcessor:
             window = parts[-1].split(".")[0]
             return f"{scatter_type}_{window}"
         return filename
+    
+    def _get_penetrate_output_name(self, component: PenetrateOutputType) -> str:
+        """Get descriptive name for penetrate output component."""
+        name_mapping = {
+            PenetrateOutputType.ALL_INTERACTIONS: "all_interactions",
+            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT: "geom_coll_primary",
+            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT: "septal_pen_primary",
+            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT: "coll_scatter_primary",
+            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT: "coll_xray_primary",
+            PenetrateOutputType.GEOM_COLL_SCATTERED: "geom_coll_scattered",
+            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED: "septal_pen_scattered",
+            PenetrateOutputType.COLL_SCATTER_SCATTERED: "coll_scatter_scattered",
+            PenetrateOutputType.COLL_XRAY_SCATTERED: "coll_xray_scattered",
+            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK: "geom_coll_primary_back",
+            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT_BACK: "septal_pen_primary_back",
+            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK: "coll_scatter_primary_back",
+            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT_BACK: "coll_xray_primary_back",
+            PenetrateOutputType.GEOM_COLL_SCATTERED_BACK: "geom_coll_scattered_back",
+            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED_BACK: "septal_pen_scattered_back",
+            PenetrateOutputType.COLL_SCATTER_SCATTERED_BACK: "coll_scatter_scattered_back",
+            PenetrateOutputType.COLL_XRAY_SCATTERED_BACK: "coll_xray_scattered_back",
+            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED: "unscattered_unattenuated",
+            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL: "unscattered_unattenuated_geom_coll",
+        }
+        return name_mapping.get(component, f"component_{component.value}")
+    
+    def get_penetrate_component_description(self, component: PenetrateOutputType) -> str:
+        """Get detailed description for penetrate output component."""
+        descriptions = {
+            PenetrateOutputType.ALL_INTERACTIONS: "All type of interactions",
+            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT: "Geometrically collimated primary attenuated photons from phantom",
+            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT: "Septal penetration from primary attenuated photons from phantom",
+            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT: "Collimator scatter from primary attenuated photons from phantom",
+            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT: "X-rays from collimator from primary attenuated photons from phantom",
+            PenetrateOutputType.GEOM_COLL_SCATTERED: "Geometrically collimated from scattered photons from phantom",
+            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED: "Septal penetration from scattered photons from phantom",
+            PenetrateOutputType.COLL_SCATTER_SCATTERED: "Collimator scatter from scattered photons from phantom",
+            PenetrateOutputType.COLL_XRAY_SCATTERED: "X-rays from collimator from scattered photons from phantom",
+            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK: "Geometrically collimated primary attenuated photons (with backscatter)",
+            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT_BACK: "Septal penetration from primary attenuated photons (with backscatter)",
+            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK: "Collimator scatter from primary attenuated photons (with backscatter)",
+            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT_BACK: "X-rays from collimator from primary attenuated photons (with backscatter)",
+            PenetrateOutputType.GEOM_COLL_SCATTERED_BACK: "Geometrically collimated scattered photons (with backscatter)",
+            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED_BACK: "Septal penetration from scattered photons (with backscatter)",
+            PenetrateOutputType.COLL_SCATTER_SCATTERED_BACK: "Collimator scatter from scattered photons (with backscatter)",
+            PenetrateOutputType.COLL_XRAY_SCATTERED_BACK: "X-rays from collimator from scattered photons (with backscatter)",
+            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED: "Photons without scattering and attenuation in phantom",
+            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL: "Photons without scattering and attenuation, geometrically collimated",
+        }
+        return descriptions.get(component, f"Component {component.value} - see SIMIND manual for details")
+    
+    def list_expected_files(self, output_prefix: str, scoring_routine: ScoringRoutine) -> List[str]:
+        """List expected output files for a given scoring routine."""
+        if scoring_routine == ScoringRoutine.SCATTWIN:
+            # Scattwin files for window 1 (most common case)
+            return [
+                f"{output_prefix}_tot_w1.a00",
+                f"{output_prefix}_sca_w1.a00", 
+                f"{output_prefix}_pri_w1.a00",
+                f"{output_prefix}_air_w1.a00"
+            ]
+        elif scoring_routine == ScoringRoutine.PENETRATE:
+            # All possible penetrate files
+            return [f"{output_prefix}.b{i:02d}" for i in range(1, 20)]
+        else:
+            return []
+    
+    def cleanup_temp_files(self) -> None:
+        """Clean up any temporary files created during processing."""
+        # This could be extended to clean up converter temporary files
+        # For now, just log that cleanup was called
+        self.logger.debug("Output processor cleanup completed")
