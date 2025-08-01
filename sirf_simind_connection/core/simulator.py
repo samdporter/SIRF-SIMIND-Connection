@@ -1,13 +1,13 @@
 """
-Main SimindSimulator class - now much simpler and focused on orchestration.
-Enhanced to accept different configuration sources.
+Simind Simulator Class.
 """
 
 import logging
 import os
 import yaml
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Literal
+from enum import Enum
 
 from sirf.STIR import AcquisitionData, ImageData
 
@@ -23,37 +23,29 @@ from .components import (
     # Managers and processors
     ImageValidator, GeometryManager, AcquisitionManager,
     DataFileManager, OrbitFileManager, SimindExecutor, OutputProcessor,
+    ScoringRoutine, PenetrateOutputType,
     # Constants
-    SIMIND_VOXEL_UNIT_CONVERSION
+    SIMIND_VOXEL_UNIT_CONVERSION,
 )
 
 
 class SimindSimulator:
     """
-    Simplified SIMIND simulator that orchestrates the simulation process.
-    
-    This class now focuses on high-level coordination rather than low-level details.
-    Individual responsibilities are delegated to specialized components.
-    
-    The simulator can be initialized with:
-    - An existing .smc template file path
-    - A SimulationConfig object directly
-    - A YAML configuration file path
+    Enhanced SIMIND simulator with support for both scattwin and penetrate scoring routines.
     """
     
     def __init__(self, config_source: Union[str, SimulationConfig], output_dir: str, 
-                 output_prefix: str = "output", photon_multiplier: int = 1):
+                 output_prefix: str = "output", photon_multiplier: int = 1,
+                 scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN):
         """
         Initialize the simulator with flexible configuration source.
         
         Args:
-            config_source: Can be:
-                - String path to .smc template file
-                - String path to .yaml/.yml configuration file  
-                - SimulationConfig object directly
+            config_source: Can be string path to .smc/.yaml file or SimulationConfig object
             output_dir: Directory for simulation outputs
             output_prefix: Prefix for output files
             photon_multiplier: Photon multiplier for NN runtime switch
+            scoring_routine: Scoring routine to use (SCATTWIN or PENETRATE)
         """
         self.logger = logging.getLogger(__name__)
         
@@ -62,6 +54,12 @@ class SimindSimulator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_prefix = output_prefix
         
+        # Handle scoring routine
+        if isinstance(scoring_routine, int):
+            self.scoring_routine = ScoringRoutine(scoring_routine)
+        else:
+            self.scoring_routine = scoring_routine
+        
         # Initialize configuration based on source type
         self.config, self.template_path = self._initialize_config(config_source)
         
@@ -69,7 +67,7 @@ class SimindSimulator:
         self.runtime_switches = RuntimeSwitches()
         self.runtime_switches.set_switch("NN", photon_multiplier)
         
-        # Initialize components
+        # Initialize components with enhanced output processor
         self.converter = SimindToStirConverter()
         self.geometry_manager = GeometryManager(self.config)
         self.acquisition_manager = AcquisitionManager(self.config, self.runtime_switches)
@@ -80,6 +78,9 @@ class SimindSimulator:
         
         # Set up for voxelised phantom simulation
         self._configure_voxelised_phantom()
+        
+        # Configure scoring routine
+        self._configure_scoring_routine()
         
         # Simulation state
         self.source: Optional[ImageData] = None
@@ -92,6 +93,20 @@ class SimindSimulator:
         
         # Results
         self._outputs: Optional[Dict[str, AcquisitionData]] = None
+        
+        self.logger.info(f"Simulator initialized with {self.scoring_routine.name} scoring routine")
+    
+    def _configure_scoring_routine(self) -> None:
+        """Configure the scoring routine in the simulation config."""
+        self.config.set_value(84, self.scoring_routine.value)  # Index 84 = scoring routine
+        
+        # Set appropriate flags based on scoring routine
+        if self.scoring_routine == ScoringRoutine.PENETRATE:
+            # Penetrate routine may need specific configuration
+            self.logger.info("Configured for penetrate scoring routine")
+        else:
+            # Default scattwin configuration
+            self.logger.info("Configured for scattwin scoring routine")
     
     def _initialize_config(self, config_source: Union[str, SimulationConfig]) -> tuple[SimulationConfig, Optional[Path]]:
         """
@@ -119,7 +134,7 @@ class SimindSimulator:
             elif config_path.suffix.lower() in ['.yaml', '.yml']:
                 # YAML configuration file
                 self.logger.info(f"Loading YAML configuration file: {config_path}")
-                return self._load_config_from_yaml(config_path), config_path
+                return SimulationConfig(str(config_path)), config_path
                 
             else:
                 raise ValueError(f"Unsupported configuration file type: {config_path.suffix}")
@@ -127,70 +142,7 @@ class SimindSimulator:
         else:
             raise TypeError(f"config_source must be string path or SimulationConfig object, got {type(config_source)}")
     
-    def _load_config_from_yaml(self, yaml_path: Path) -> SimulationConfig:
-        """
-        Load configuration from YAML file.
-        
-        Expected YAML structure:
-        ```yaml
-        template_smc: path/to/template.smc  # Optional base template
-        config_values:
-          1: some_value
-          2: another_value
-        config_flags:
-          5: true
-          11: false
-        data_files:
-          5: path/to/attenuation.dat
-          6: path/to/source.dat
-        ```
-        """
-        try:
-            with open(yaml_path, 'r') as f:
-                yaml_config = yaml.safe_load(f)
-            
-            # Create base config from template if specified
-            if 'template_smc' in yaml_config:
-                template_path = yaml_path.parent / yaml_config['template_smc']
-                if not template_path.exists():
-                    raise FileNotFoundError(f"Template SMC file not found: {template_path}")
-                config = SimulationConfig(str(template_path))
-                self.logger.info(f"Base configuration loaded from template: {template_path}")
-            else:
-                # Create empty config (would need a default constructor)
-                config = SimulationConfig()
-                self.logger.info("Creating configuration from YAML without template")
-            
-            # Apply config values
-            if 'config_values' in yaml_config:
-                for index, value in yaml_config['config_values'].items():
-                    config.set_value(int(index), value)
-                    self.logger.debug(f"Set config value {index} = {value}")
-            
-            # Apply config flags
-            if 'config_flags' in yaml_config:
-                for flag, value in yaml_config['config_flags'].items():
-                    config.set_flag(int(flag), bool(value))
-                    self.logger.debug(f"Set config flag {flag} = {value}")
-            
-            # Apply data files
-            if 'data_files' in yaml_config:
-                for index, filepath in yaml_config['data_files'].items():
-                    # Resolve path relative to YAML file location
-                    if not Path(filepath).is_absolute():
-                        filepath = yaml_path.parent / filepath
-                    config.set_data_file(int(index), str(filepath))
-                    self.logger.debug(f"Set data file {index} = {filepath}")
-            
-            # Apply any other specific configurations
-            if 'photon_energy' in yaml_config:
-                config.set_value('photon_energy', yaml_config['photon_energy'])
-            
-            return config
-            
-        except Exception as e:
-            raise ValueError(f"Failed to load YAML configuration from {yaml_path}: {e}")
-    
+   
     def _configure_voxelised_phantom(self) -> None:
         """Configure settings for voxelised phantom simulation."""
         self.config.set_flag(5, True)   # SPECT study
@@ -262,6 +214,11 @@ class SimindSimulator:
                           upper_bounds: Union[float, List[float]],
                           scatter_orders: Union[int, List[int]]) -> None:
         """Set energy windows for the simulation."""
+        
+        if self.scoring_routine == ScoringRoutine.PENETRATE:
+            self.logger.warning("Energy windows configuration is not applicable for penetrate routine")
+            self.logger.warning("Penetrate routine analyzes all interactions regardless of energy windows")
+        
         # Convert single values to lists
         if not isinstance(lower_bounds, list):
             lower_bounds = [lower_bounds]
@@ -373,23 +330,35 @@ class SimindSimulator:
     
     def _validate_simulation_inputs(self) -> None:
         """Validate all inputs before simulation."""
-        if not self.energy_windows:
-            raise ValidationError("Energy windows must be set before simulation")
         
+        # Common validation
         if self.source is None or self.mu_map is None:
             raise ValidationError("Both source and mu_map must be set")
         
         # Check image compatibility
         ImageValidator.validate_compatibility(self.source, self.mu_map)
+        
+        # Routine-specific validation
+        if self.scoring_routine == ScoringRoutine.SCATTWIN:
+            if not self.energy_windows:
+                raise ValidationError("Energy windows must be set for scattwin routine")
+        elif self.scoring_routine == ScoringRoutine.PENETRATE:
+            # Penetrate routine doesn't need energy windows but may have other requirements
+            pass
     
     def _prepare_simulation(self) -> None:
         """Prepare all files and configuration for simulation."""
-        # Configure energy windows
-        self.acquisition_manager.configure_energy_windows(
-            self.energy_windows, str(self.output_dir / self.output_prefix)
-        )
         
-        # Prepare data files
+        # Configure energy windows only for scattwin
+        if self.scoring_routine == ScoringRoutine.SCATTWIN:
+            if not self.energy_windows:
+                raise ValidationError("Energy windows must be set for scattwin routine")
+            
+            self.acquisition_manager.configure_energy_windows(
+                self.energy_windows, str(self.output_dir / self.output_prefix)
+            )
+        
+        # Prepare data files (same for both routines)
         source_file = self.file_manager.prepare_source_file(self.source, self.output_prefix)
         attenuation_file = self.file_manager.prepare_attenuation_file(
             self.mu_map, self.output_prefix, 
@@ -402,17 +371,17 @@ class SimindSimulator:
         self.config.set_data_file(6, source_file)      # source file
         self.config.set_data_file(5, attenuation_file) # attenuation file
 
-        # need to add PX runtime switch with source voxel size
+        # Add PX runtime switch with source voxel size
         if self.source:
             voxel_size = self.source.voxel_sizes()[-1]
             self.runtime_switches.set_switch("PX", voxel_size / SIMIND_VOXEL_UNIT_CONVERSION)
             self.logger.info(f"Set PX runtime switch to {voxel_size} cm")
 
-        
-        # CRITICAL: Always save configuration as .smc file for SIMIND execution
+        # Save configuration as .smc file for SIMIND execution
         output_path = self.output_dir / self.output_prefix
         self.config.save_file(output_path)
         self.logger.info(f"Configuration saved as SMC file: {output_path}.smc")
+    
     
     def _execute_simulation(self) -> None:
         """Execute the SIMIND simulation."""
@@ -451,12 +420,16 @@ class SimindSimulator:
         """Get all simulation outputs."""
         if self._outputs is None:
             self._outputs = self.output_processor.process_outputs(
-                self.output_prefix, self.template_sinogram, self.source
+                self.output_prefix, self.template_sinogram, self.source, self.scoring_routine
             )
         return self._outputs
     
+    # Scattwin-specific output methods (existing)
     def get_total_output(self, window: int = 1) -> AcquisitionData:
-        """Get total output for specified window."""
+        """Get total output for specified window (scattwin only)."""
+        if self.scoring_routine != ScoringRoutine.SCATTWIN:
+            raise OutputError("get_total_output() is only available for scattwin routine")
+        
         outputs = self.get_outputs()
         key = f"tot_w{window}"
         if key not in outputs:
@@ -464,7 +437,10 @@ class SimindSimulator:
         return outputs[key]
     
     def get_scatter_output(self, window: int = 1) -> AcquisitionData:
-        """Get scatter output for specified window."""
+        """Get scatter output for specified window (scattwin only)."""
+        if self.scoring_routine != ScoringRoutine.SCATTWIN:
+            raise OutputError("get_scatter_output() is only available for scattwin routine")
+        
         outputs = self.get_outputs()
         key = f"sca_w{window}"
         if key not in outputs:
@@ -472,7 +448,10 @@ class SimindSimulator:
         return outputs[key]
     
     def get_primary_output(self, window: int = 1) -> AcquisitionData:
-        """Get primary output for specified window."""
+        """Get primary output for specified window (scattwin only)."""
+        if self.scoring_routine != ScoringRoutine.SCATTWIN:
+            raise OutputError("get_primary_output() is only available for scattwin routine")
+        
         outputs = self.get_outputs()
         key = f"pri_w{window}"
         if key not in outputs:
@@ -480,82 +459,132 @@ class SimindSimulator:
         return outputs[key]
     
     def get_air_output(self, window: int = 1) -> AcquisitionData:
-        """Get air output for specified window."""
+        """Get air output for specified window (scattwin only)."""
+        if self.scoring_routine != ScoringRoutine.SCATTWIN:
+            raise OutputError("get_air_output() is only available for scattwin routine")
+        
         outputs = self.get_outputs()
         key = f"air_w{window}"
         if key not in outputs:
             raise OutputError(f"Air output for window {window} not found")
         return outputs[key]
+    
+    # Penetrate-specific output methods (new)
+    def get_penetrate_output(self, component: Union[PenetrateOutputType, str]) -> AcquisitionData:
+        """Get penetrate output for specified component."""
+        if self.scoring_routine != ScoringRoutine.PENETRATE:
+            raise OutputError("get_penetrate_output() is only available for penetrate routine")
+        
+        outputs = self.get_outputs()
+        
+        if isinstance(component, PenetrateOutputType):
+            component_name = self.output_processor._get_penetrate_output_name(component)
+        else:
+            component_name = component
+        
+        if component_name not in outputs:
+            available = list(outputs.keys())
+            raise OutputError(f"Penetrate component '{component_name}' not found. Available: {available}")
+        
+        return outputs[component_name]
+    
+    def get_all_interactions(self) -> AcquisitionData:
+        """Get all interactions output (penetrate routine)."""
+        return self.get_penetrate_output(PenetrateOutputType.ALL_INTERACTIONS)
+    
+    def get_geometrically_collimated_primary(self, with_backscatter: bool = False) -> AcquisitionData:
+        """Get geometrically collimated primary photons."""
+        component = (PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK if with_backscatter 
+                    else PenetrateOutputType.GEOM_COLL_PRIMARY_ATT)
+        return self.get_penetrate_output(component)
+    
+    def get_septal_penetration(self, primary: bool = True, with_backscatter: bool = False) -> AcquisitionData:
+        """Get septal penetration component."""
+        if primary:
+            component = (PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT_BACK if with_backscatter 
+                        else PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT)
+        else:
+            component = (PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED_BACK if with_backscatter 
+                        else PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED)
+        return self.get_penetrate_output(component)
+    
+    def get_collimator_scatter(self, primary: bool = True, with_backscatter: bool = False) -> AcquisitionData:
+        """Get collimator scatter component."""
+        if primary:
+            component = (PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK if with_backscatter 
+                        else PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT)
+        else:
+            component = (PenetrateOutputType.COLL_SCATTER_SCATTERED_BACK if with_backscatter 
+                        else PenetrateOutputType.COLL_SCATTER_SCATTERED)
+        return self.get_penetrate_output(component)
+    
+    def list_available_outputs(self) -> List[str]:
+        """List all available output components for the current scoring routine."""
+        outputs = self.get_outputs()
+        return list(outputs.keys())
+    
+    def get_scoring_routine(self) -> ScoringRoutine:
+        """Get the current scoring routine."""
+        return self.scoring_routine
 
 
 # =============================================================================
 # CONVENIENCE FACTORY FUNCTIONS
 # =============================================================================
 
-def create_simulator_from_template(template_smc_path: str, output_dir: str, 
+def create_simulator_from_template(config_source: Union[str, SimulationConfig], output_dir: str, 
                                   template_sinogram: Union[str, AcquisitionData],
                                   source: Union[str, ImageData],
                                   mu_map: Union[str, ImageData],
-                                  energy_windows: Dict,
+                                  scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+                                  energy_windows: Optional[Dict] = None,
                                   **kwargs) -> SimindSimulator:
     """Factory function to create a fully configured simulator from SMC template."""
     
     simulator = SimindSimulator(
-        template_smc_path, output_dir, 
+        config_source, output_dir, 
         output_prefix=kwargs.get("output_prefix", "output"),
-        photon_multiplier=kwargs.get("photon_multiplier", 1)
+        photon_multiplier=kwargs.get("photon_multiplier", 1),
+        scoring_routine=scoring_routine
     )
     
     # Set all inputs
     simulator.set_source(source)
     simulator.set_mu_map(mu_map)
     simulator.set_template_sinogram(template_sinogram)
-    simulator.set_energy_windows(**energy_windows)
+    
+    # Set energy windows only for scattwin
+    if scoring_routine == ScoringRoutine.SCATTWIN and energy_windows:
+        simulator.set_energy_windows(**energy_windows)
     
     return simulator
 
 
-def create_simulator_from_yaml(yaml_config_path: str, output_dir: str,
-                                template_sinogram: Union[str, AcquisitionData],
-                                source: Union[str, ImageData],
-                                mu_map: Union[str, ImageData],
-                                energy_windows: Dict,
-                                **kwargs) -> SimindSimulator:
-    """Factory function to create a simulator from YAML configuration."""
+def create_penetrate_simulator(config_source: Union[str, SimulationConfig], output_dir: str,
+                              template_sinogram: Union[str, AcquisitionData],
+                              source: Union[str, ImageData],
+                              mu_map: Union[str, ImageData],
+                              **kwargs) -> SimindSimulator:
+    """Factory function to create a simulator specifically for penetrate routine."""
     
-    simulator = SimindSimulator(
-        yaml_config_path, output_dir,
-        output_prefix=kwargs.get("output_prefix", "output"),
-        photon_multiplier=kwargs.get("photon_multiplier", 1)
+    return create_simulator_from_template(
+        config_source, output_dir, template_sinogram, source, mu_map,
+        scoring_routine=ScoringRoutine.PENETRATE,
+        **kwargs
     )
 
-    # Set all inputs
-    simulator.set_source(source)
-    simulator.set_mu_map(mu_map)
-    simulator.set_template_sinogram(template_sinogram)
-    simulator.set_energy_windows(**energy_windows)
 
-    return simindulator
-
-
-def create_simulator_from_config(config: SimulationConfig, output_dir: str,
-                                    template_sinogram: Union[str, AcquisitionData],
-                                    source: Union[str, ImageData],
-                                    mu_map: Union[str, ImageData],
-                                    energy_windows: Dict,
-                                    **kwargs) -> SimindSimulator:
-        """Factory function to create a simulator from SimulationConfig object."""
-        
-        simulator = SimindSimulator(
-            config, output_dir,
-            output_prefix=kwargs.get("output_prefix", "output"),
-            photon_multiplier=kwargs.get("photon_multiplier", 1)
-        )
+def create_scattwin_simulator(config_source: Union[str, SimulationConfig], output_dir: str,
+                             template_sinogram: Union[str, AcquisitionData],
+                             source: Union[str, ImageData],
+                             mu_map: Union[str, ImageData],
+                             energy_windows: Dict,
+                             **kwargs) -> SimindSimulator:
+    """Factory function to create a simulator specifically for scattwin routine."""
     
-        # Set all inputs
-        simulator.set_source(source)
-        simulator.set_mu_map(mu_map)
-        simulator.set_template_sinogram(template_sinogram)
-        simulator.set_energy_windows(**energy_windows)
-    
-        return simulator
+    return create_simulator_from_template(
+        config_source, output_dir, template_sinogram, source, mu_map,
+        scoring_routine=ScoringRoutine.SCATTWIN,
+        energy_windows=energy_windows,
+        **kwargs
+    )
