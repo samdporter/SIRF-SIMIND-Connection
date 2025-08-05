@@ -1,14 +1,14 @@
 import pytest
-import numpy as np
+
 from sirf_simind_connection.core.components import (
     EnergyWindow,
     ImageGeometry,
-    RotationParameters,
-    RotationDirection,
-    ScoringRoutine,
-    PenetrateOutputType,
     ImageValidator,
-    ValidationError
+    PenetrateOutputType,
+    RotationDirection,
+    RotationParameters,
+    ScoringRoutine,
+    ValidationError,
 )
 from sirf_simind_connection.utils.stir_utils import create_simple_phantom
 
@@ -26,7 +26,7 @@ def test_image_geometry():
     """Test ImageGeometry data class."""
     phantom = create_simple_phantom()
     geometry = ImageGeometry.from_image(phantom)
-    
+
     assert geometry.dim_x > 0
     assert geometry.dim_y > 0
     assert geometry.dim_z > 0
@@ -41,12 +41,12 @@ def test_rotation_parameters():
         direction=RotationDirection.CCW,
         rotation_angle=360.0,
         start_angle=0.0,
-        num_projections=64
+        num_projections=64,
     )
-    
+
     assert rotation.direction == RotationDirection.CCW
     assert rotation.rotation_angle == 360.0
-    
+
     # Test SIMIND parameter conversion
     switch, start_angle = rotation.to_simind_params()
     assert isinstance(switch, int)
@@ -57,7 +57,7 @@ def test_scoring_routine_enum():
     """Test ScoringRoutine enum."""
     assert ScoringRoutine.SCATTWIN.value == 1
     assert ScoringRoutine.PENETRATE.value == 4
-    
+
 
 def test_penetrate_output_type_enum():
     """Test PenetrateOutputType enum."""
@@ -68,13 +68,13 @@ def test_penetrate_output_type_enum():
 def test_image_validator():
     """Test ImageValidator functionality."""
     phantom = create_simple_phantom()
-    
+
     # Test validation passes for square phantom
     try:
         ImageValidator.validate_square_pixels(phantom)
     except ValidationError:
         pytest.fail("Validation should pass for square phantom")
-    
+
     # Test compatibility check
     phantom2 = create_simple_phantom()
     try:
