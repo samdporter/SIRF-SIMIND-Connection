@@ -11,12 +11,33 @@ try:  # installed (pip/poetry)
 except _meta.PackageNotFoundError:  # editable / source checkout
     __version__ = "1.0.0"
 
-from . import builders, configs, core, data, utils
-
-# Re-export key objects so users can do:
-#   from sirf_simind_connection import SimindSimulator
-from .core import SimindSimulator  # noqa: F401
-from .core import SimindProjector, SimulationConfig
+# Lazy imports to avoid SIRF dependencies in CI
+def __getattr__(name):
+    if name == "SimindSimulator":
+        from .core import SimindSimulator
+        return SimindSimulator
+    elif name == "SimindProjector":
+        from .core import SimindProjector
+        return SimindProjector
+    elif name == "SimulationConfig":
+        from .core import SimulationConfig
+        return SimulationConfig
+    elif name == "builders":
+        from . import builders
+        return builders
+    elif name == "configs":
+        from . import configs
+        return configs
+    elif name == "core":
+        from . import core
+        return core
+    elif name == "data":
+        from . import data
+        return data
+    elif name == "utils":
+        from . import utils
+        return utils
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
     "SimulationConfig",

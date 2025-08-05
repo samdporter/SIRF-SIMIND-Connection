@@ -11,7 +11,16 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from sirf.STIR import AcquisitionData, ImageData
+
+# Conditional import for SIRF to avoid CI dependencies
+try:
+    from sirf.STIR import AcquisitionData, ImageData
+    SIRF_AVAILABLE = True
+except ImportError:
+    # Create dummy types for type hints when SIRF is not available
+    AcquisitionData = type(None)
+    ImageData = type(None)
+    SIRF_AVAILABLE = False
 
 # =============================================================================
 # EXCEPTIONS
@@ -116,6 +125,8 @@ class ImageGeometry:
 
     @classmethod
     def from_image(cls, image: ImageData) -> "ImageGeometry":
+        if not SIRF_AVAILABLE:
+            raise ImportError("SIRF is required for ImageGeometry.from_image()")
         dims = image.dimensions()
         voxels = image.voxel_sizes()
         return cls(

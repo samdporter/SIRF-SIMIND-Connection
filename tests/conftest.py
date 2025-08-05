@@ -15,6 +15,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "ci_skip: marks tests to skip in CI environments"
     )
+    config.addinivalue_line(
+        "markers", "unit: marks tests as pure unit tests (CI-friendly)"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
