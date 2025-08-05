@@ -57,6 +57,12 @@ EXAMPLES = [
         "module": "examples.05_scattwin_vs_penetrate_comparison",
         "estimated_time": "3 minutes",
     },
+    {
+        "name": "06_schneider_density_conversion.py",
+        "description": "Schneider2000 density conversion demonstration",
+        "module": "examples.06_schneider_density_conversion",
+        "estimated_time": "< 1 minute",
+    },
 ]
 
 
@@ -224,6 +230,8 @@ def run_single_example(example_info, example_num):
     elif name == "04_custom_config.py":
         success, message = run_example_alternative(name)
     elif name == "05_scattwin_vs_penetrate_comparison.py":
+        success, message = run_example_alternative(name)
+    elif name == "06_schneider_density_conversion.py":
         success, message = run_example_alternative(name)
     else:
         success, message = False, "Unknown example"

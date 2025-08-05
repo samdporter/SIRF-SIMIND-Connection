@@ -12,9 +12,10 @@ A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
 - [Installation](https://SIRF-SIMIND-Connection.readthedocs.io/en/latest/installation.html)
 
 ## Key Features
-- Monte Carlo SPECT Simulation.
-- Dual Scoring Routines.
-- DICOM to STIR Conversion.
+- Monte Carlo SPECT Simulation
+- Dual Scoring Routines (SCATTWIN/PENETRATE)  
+- DICOM to STIR Conversion
+- **Advanced Schneider2000 Density Conversion** - Clinically validated HU-to-density mapping with 44 tissue segments
 
 ## Installation
 
@@ -41,6 +42,17 @@ simulator.set_source(phantom)
 simulator.set_mu_map(mu_map)
 simulator.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
 simulator.run_simulation()
+```
+
+### Advanced Density Conversion
+
+```python
+from sirf_simind_connection.converters.attenuation import hu_to_density_schneider
+import numpy as np
+
+# Convert HU image to densities using Schneider2000 model
+hu_image = np.array([[-1000, 0, 500], [800, 1200, 2000]])
+density_map = hu_to_density_schneider(hu_image)  # 44-segment clinical model
 ```
 
 ## Contributing

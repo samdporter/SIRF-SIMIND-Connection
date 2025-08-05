@@ -2,10 +2,11 @@
 Attenuation coefficient conversion utilities.
 
 This module provides functions to convert Hounsfield Units (HU) to attenuation
-coefficients and densities based on the bilinear model.
+coefficients and densities based on both bilinear and Schneider piecewise models.
 """
 
 import importlib.resources as pkg_resources
+import json
 import warnings
 from pathlib import Path
 
@@ -201,3 +202,195 @@ def attenuation_to_density(attenuation_array, photon_energy, file_path=None):
     density_map = np.clip(density_map, 0, 3.0)
 
     return density_map
+
+
+def load_schneider_data():
+    """
+    Load Schneider2000 tissue data from JSON file.
+
+    Returns:
+        dict: Schneider tissue data with HU ranges and densities
+    """
+    try:
+        schneider_path = get_package_data_path("Schneider2000.json")
+        with open(schneider_path, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            "Schneider2000.json data file not found in package data"
+        )
+
+
+def hu_to_density_schneider(image_array):
+    """
+    Convert Hounsfield Units to density using Schneider2000 piecewise lookup table.
+
+    This provides much higher accuracy than the bilinear model by using 44 tissue
+    segments with specific HU ranges and corresponding densities.
+
+    Args:
+        image_array (np.ndarray): Array of HU values
+
+    Returns:
+        np.ndarray: Density map in g/cm^3
+    """
+    schneider_data = load_schneider_data()
+
+    # Create arrays for HU boundaries and densities
+    hu_boundaries = []
+    densities = []
+
+    # Sort tissues by HU_lo to ensure proper ordering
+    tissues = sorted(schneider_data.items(), key=lambda x: x[1]["HU_lo (HU)"])
+
+    for tissue_name, tissue_data in tissues:
+        hu_lo = tissue_data["HU_lo (HU)"]
+        hu_hi = tissue_data["HU_hi (HU)"]
+        density_mg_cm3 = tissue_data["density (mg/cm3)"]
+        density_g_cm3 = density_mg_cm3 / 1000.0  # Convert mg/cm³ to g/cm³
+
+        hu_boundaries.extend([hu_lo, hu_hi])
+        densities.extend([density_g_cm3, density_g_cm3])
+
+    # Remove duplicates while preserving order
+    unique_boundaries = []
+    unique_densities = []
+
+    for i, (hu, density) in enumerate(zip(hu_boundaries, densities)):
+        if i == 0 or hu != unique_boundaries[-1]:
+            unique_boundaries.append(hu)
+            unique_densities.append(density)
+
+    # Convert to numpy arrays
+    hu_points = np.array(unique_boundaries)
+    density_points = np.array(unique_densities)
+
+    # Interpolate densities for input HU values
+    density_map = np.interp(image_array, hu_points, density_points)
+
+    # Ensure reasonable bounds (safety check)
+    density_map = np.clip(density_map, 0.001, 3.0)
+
+    return density_map
+
+
+def hu_to_density_schneider_piecewise(image_array):
+    """
+    Convert HU to density using exact Schneider2000 piecewise segments.
+
+    This method assigns the exact density value for each HU range segment,
+    providing the most faithful reproduction of the Schneider lookup table.
+
+    Args:
+        image_array (np.ndarray): Array of HU values
+
+    Returns:
+        np.ndarray: Density map in g/cm^3
+
+    Note:
+        HU values outside the Schneider range (-1050 to 4001) are clamped
+        to the nearest boundary values.
+    """
+    schneider_data = load_schneider_data()
+
+    # Initialize output array
+    density_map = np.zeros_like(image_array, dtype=np.float32)
+
+    # Sort tissues by HU_lo for processing
+    tissues = sorted(schneider_data.items(), key=lambda x: x[1]["HU_lo (HU)"])
+
+    for tissue_name, tissue_data in tissues:
+        hu_lo = tissue_data["HU_lo (HU)"]
+        hu_hi = tissue_data["HU_hi (HU)"]
+        density_mg_cm3 = tissue_data["density (mg/cm3)"]
+        density_g_cm3 = density_mg_cm3 / 1000.0  # Convert to g/cm³
+
+        # Create mask for HU values in this range
+        mask = (image_array >= hu_lo) & (image_array < hu_hi)
+        density_map[mask] = density_g_cm3
+
+    # Handle edge case: exact upper boundary of last segment
+    last_tissue = tissues[-1][1]
+    last_hu_hi = last_tissue["HU_hi (HU)"]
+    last_density = last_tissue["density (mg/cm3)"] / 1000.0
+
+    exact_boundary_mask = image_array == last_hu_hi
+    density_map[exact_boundary_mask] = last_density
+
+    # Handle values outside Schneider range
+    first_hu_lo = tissues[0][1]["HU_lo (HU)"]
+    first_density = tissues[0][1]["density (mg/cm3)"] / 1000.0
+
+    below_range_mask = image_array < first_hu_lo
+    above_range_mask = image_array > last_hu_hi
+
+    density_map[below_range_mask] = first_density  # Air density for very low HU
+    density_map[above_range_mask] = last_density  # Metal density for very high HU
+
+    return density_map
+
+
+def get_schneider_tissue_info(hu_value):
+    """
+    Get tissue information for a specific HU value using Schneider data.
+
+    Args:
+        hu_value (float): Hounsfield Unit value
+
+    Returns:
+        dict: Tissue information including name, density, and HU range
+
+    Example:
+        >>> info = get_schneider_tissue_info(50)
+        >>> print(f"Tissue: {info['name']}, Density: {info['density_g_cm3']:.3f} g/cm³")
+    """
+    schneider_data = load_schneider_data()
+
+    for tissue_name, tissue_data in schneider_data.items():
+        hu_lo = tissue_data["HU_lo (HU)"]
+        hu_hi = tissue_data["HU_hi (HU)"]
+
+        if hu_lo <= hu_value < hu_hi or (
+            hu_value == hu_hi and tissue_name.startswith("MetallImplants_43")
+        ):
+            return {
+                "name": tissue_name,
+                "density_mg_cm3": tissue_data["density (mg/cm3)"],
+                "density_g_cm3": tissue_data["density (mg/cm3)"] / 1000.0,
+                "hu_range": (hu_lo, hu_hi),
+            }
+
+    # If not found, return None
+    return None
+
+
+def compare_density_methods(image_array):
+    """
+    Compare density conversion results between bilinear and Schneider methods.
+
+    Args:
+        image_array (np.ndarray): Array of HU values
+
+    Returns:
+        dict: Comparison results including density maps and statistics
+    """
+    # Compute densities using different methods
+    density_bilinear = hu_to_density(image_array)
+    density_schneider_interp = hu_to_density_schneider(image_array)
+    density_schneider_piecewise = hu_to_density_schneider_piecewise(image_array)
+
+    # Compute differences
+    diff_interp = density_schneider_interp - density_bilinear
+    diff_piecewise = density_schneider_piecewise - density_bilinear
+
+    return {
+        "bilinear": density_bilinear,
+        "schneider_interpolated": density_schneider_interp,
+        "schneider_piecewise": density_schneider_piecewise,
+        "difference_interpolated": diff_interp,
+        "difference_piecewise": diff_piecewise,
+        "max_diff_interp": np.max(np.abs(diff_interp)),
+        "max_diff_piecewise": np.max(np.abs(diff_piecewise)),
+        "mean_diff_interp": np.mean(np.abs(diff_interp)),
+        "mean_diff_piecewise": np.mean(np.abs(diff_piecewise)),
+    }
