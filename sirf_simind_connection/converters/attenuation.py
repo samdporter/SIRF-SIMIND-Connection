@@ -221,80 +221,23 @@ def load_schneider_data():
         )
 
 
-def hu_to_density_schneider(image_array):
-    """
-    Convert Hounsfield Units to density using Schneider2000 piecewise lookup table.
-
-    This provides much higher accuracy than the bilinear model by using 44 tissue
-    segments with specific HU ranges and corresponding densities.
-
-    Args:
-        image_array (np.ndarray): Array of HU values
-
-    Returns:
-        np.ndarray: Density map in g/cm^3
-    """
-    schneider_data = load_schneider_data()
-
-    # Create arrays for HU boundaries and densities
-    hu_boundaries = []
-    densities = []
-
-    # Sort tissues by HU_lo to ensure proper ordering
-    tissues = sorted(schneider_data.items(), key=lambda x: x[1]["HU_lo (HU)"])
-
-    for tissue_name, tissue_data in tissues:
-        hu_lo = tissue_data["HU_lo (HU)"]
-        hu_hi = tissue_data["HU_hi (HU)"]
-        density_mg_cm3 = tissue_data["density (mg/cm3)"]
-        density_g_cm3 = density_mg_cm3 / 1000.0  # Convert mg/cm³ to g/cm³
-
-        hu_boundaries.extend([hu_lo, hu_hi])
-        densities.extend([density_g_cm3, density_g_cm3])
-
-    # Remove duplicates while preserving order
-    unique_boundaries = []
-    unique_densities = []
-
-    for i, (hu, density) in enumerate(zip(hu_boundaries, densities)):
-        if i == 0 or hu != unique_boundaries[-1]:
-            unique_boundaries.append(hu)
-            unique_densities.append(density)
-
-    # Convert to numpy arrays
-    hu_points = np.array(unique_boundaries)
-    density_points = np.array(unique_densities)
-
-    # Interpolate densities for input HU values
-    density_map = np.interp(image_array, hu_points, density_points)
-
-    # Ensure reasonable bounds (safety check)
-    density_map = np.clip(density_map, 0.001, 3.0)
-
-    return density_map
-
-
 def hu_to_density_schneider_piecewise(image_array):
     """
     Convert HU to density using exact Schneider2000 piecewise segments.
-
-    This method assigns the exact density value for each HU range segment,
-    providing the most faithful reproduction of the Schneider lookup table.
+    
+    Simple step function: any HU value between HU_lo and HU_hi gets the 
+    exact density for that tissue segment.
 
     Args:
         image_array (np.ndarray): Array of HU values
 
     Returns:
         np.ndarray: Density map in g/cm^3
-
-    Note:
-        HU values outside the Schneider range (-1050 to 4001) are clamped
-        to the nearest boundary values.
     """
     schneider_data = load_schneider_data()
 
-    # Initialize output array
-    density_map = np.zeros_like(image_array, dtype=np.float32)
+    # Initialize output array with air density (default for unmapped values)
+    density_map = np.full_like(image_array, 0.001225, dtype=np.float32)
 
     # Sort tissues by HU_lo for processing
     tissues = sorted(schneider_data.items(), key=lambda x: x[1]["HU_lo (HU)"])
@@ -305,27 +248,55 @@ def hu_to_density_schneider_piecewise(image_array):
         density_mg_cm3 = tissue_data["density (mg/cm3)"]
         density_g_cm3 = density_mg_cm3 / 1000.0  # Convert to g/cm³
 
-        # Create mask for HU values in this range
-        mask = (image_array >= hu_lo) & (image_array < hu_hi)
+        # Simple assignment: any HU in range gets this density
+        mask = (image_array >= hu_lo) & (image_array <= hu_hi)
         density_map[mask] = density_g_cm3
 
-    # Handle edge case: exact upper boundary of last segment
-    last_tissue = tissues[-1][1]
-    last_hu_hi = last_tissue["HU_hi (HU)"]
-    last_density = last_tissue["density (mg/cm3)"] / 1000.0
+    return density_map
 
-    exact_boundary_mask = image_array == last_hu_hi
-    density_map[exact_boundary_mask] = last_density
 
-    # Handle values outside Schneider range
-    first_hu_lo = tissues[0][1]["HU_lo (HU)"]
-    first_density = tissues[0][1]["density (mg/cm3)"] / 1000.0
+def hu_to_density_schneider(image_array):
+    """
+    Convert Hounsfield Units to density using Schneider2000 interpolated lookup table.
 
-    below_range_mask = image_array < first_hu_lo
-    above_range_mask = image_array > last_hu_hi
+    Uses the center point of each HU range for intelligent interpolation,
+    providing smooth transitions between tissue segments.
 
-    density_map[below_range_mask] = first_density  # Air density for very low HU
-    density_map[above_range_mask] = last_density  # Metal density for very high HU
+    Args:
+        image_array (np.ndarray): Array of HU values
+
+    Returns:
+        np.ndarray: Density map in g/cm^3
+    """
+    schneider_data = load_schneider_data()
+
+    # Create arrays for HU center points and densities
+    hu_centers = []
+    densities = []
+
+    # Sort tissues by HU_lo to ensure proper ordering
+    tissues = sorted(schneider_data.items(), key=lambda x: x[1]["HU_lo (HU)"])
+
+    for tissue_name, tissue_data in tissues:
+        hu_lo = tissue_data["HU_lo (HU)"]
+        hu_hi = tissue_data["HU_hi (HU)"]
+        density_mg_cm3 = tissue_data["density (mg/cm3)"]
+        density_g_cm3 = density_mg_cm3 / 1000.0  # Convert to g/cm³
+
+        # Use center point of HU range for interpolation
+        hu_center = (hu_lo + hu_hi) / 2.0
+        hu_centers.append(hu_center)
+        densities.append(density_g_cm3)
+
+    # Convert to numpy arrays
+    hu_points = np.array(hu_centers)
+    density_points = np.array(densities)
+
+    # Interpolate densities for input HU values
+    density_map = np.interp(image_array, hu_points, density_points)
+
+    # Ensure reasonable bounds (safety check)
+    density_map = np.clip(density_map, 0.001, 3.0)
 
     return density_map
 
