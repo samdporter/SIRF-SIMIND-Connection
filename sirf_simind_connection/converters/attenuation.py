@@ -174,7 +174,7 @@ def attenuation_to_density(attenuation_array, photon_energy, file_path=None):
     mu_bone = get_attenuation_coefficient("bone", photon_energy_mev, file_path)
 
     # Densities
-    density_air = 0.001225  # g/cm^3
+    # density_air = 0.001225  # g/cm^3  # Not used in this calculation
     density_water = 1.0  # g/cm^3
     density_bone = 1.85  # g/cm^3
 

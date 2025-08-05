@@ -63,7 +63,7 @@ def main():
     scatt_scatter = simulator_scatt.get_scatter_output(window=1)
     scatt_primary = scatt_total - scatt_scatter
 
-    print(f"SCATTWIN Results:")
+    print("SCATTWIN Results:")
     print(f"  Total counts: {scatt_total.sum():.0f}")
     print(f"  Scatter counts: {scatt_scatter.sum():.0f}")
     print(f"  Primary counts: {scatt_primary.sum():.0f}")
@@ -94,7 +94,7 @@ def main():
     # Get PENETRATE results
     pen_outputs = simulator_pen.get_outputs()
 
-    print(f"PENETRATE Results:")
+    print("PENETRATE Results:")
     print(f"  Available outputs: {len(pen_outputs)}")
     for key, data in pen_outputs.items():
         print(f"  {key}: {data.sum():.0f} counts")
@@ -107,22 +107,22 @@ def main():
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
 
     # SCATTWIN plots (top row)
-    im1 = axes[0, 0].imshow(scatt_total.as_array()[0, :, 32, :], cmap="hot")
+    axes[0, 0].imshow(scatt_total.as_array()[0, :, 32, :], cmap="hot")
     axes[0, 0].set_title("SCATTWIN: Total Counts")
     axes[0, 0].axis("off")
 
-    im2 = axes[0, 1].imshow(scatt_primary.as_array()[0, :, 32, :], cmap="hot")
+    axes[0, 1].imshow(scatt_primary.as_array()[0, :, 32, :], cmap="hot")
     axes[0, 1].set_title("SCATTWIN: Primary Counts")
     axes[0, 1].axis("off")
 
-    im3 = axes[0, 2].imshow(scatt_scatter.as_array()[0, :, 32, :], cmap="hot")
+    axes[0, 2].imshow(scatt_scatter.as_array()[0, :, 32, :], cmap="hot")
     axes[0, 2].set_title("SCATTWIN: Scatter Counts")
     axes[0, 2].axis("off")
 
     # PENETRATE plots (bottom row) - show first 3 available outputs
     pen_keys = list(pen_outputs.keys())[:3]
     for i, key in enumerate(pen_keys):
-        im = axes[1, i].imshow(pen_outputs[key].as_array()[0, :, 32, :], cmap="plasma")
+        axes[1, i].imshow(pen_outputs[key].as_array()[0, :, 32, :], cmap="plasma")
         axes[1, i].set_title(f"PENETRATE: {key.replace('_', ' ').title()}")
         axes[1, i].axis("off")
 
@@ -160,10 +160,10 @@ def main():
     plt.tight_layout()
     plt.savefig(output_dir / "count_comparison.png", dpi=150, bbox_inches="tight")
 
-    print(f"\nComparison complete!")
+    print("\nComparison complete!")
     print(f"Results saved to: {output_dir}")
-    print(f"- routine_comparison.png: Projection images")
-    print(f"- count_comparison.png: Count statistics")
+    print("- routine_comparison.png: Projection images")
+    print("- count_comparison.png: Count statistics")
 
 
 if __name__ == "__main__":

@@ -649,7 +649,7 @@ class SimulationConfig:
                 if val == index:
                     self.data_files[key] = filepath
         else:
-            raise ValueError(f"index must be an integer or string")
+            raise ValueError("index must be an integer or string")
 
     def get_data_file(self, index):
         """

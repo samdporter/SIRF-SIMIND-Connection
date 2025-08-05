@@ -1,27 +1,30 @@
 repos:
-- repo: https://github.com/PyCQA/autoflake
-  rev: v2.3.1        # or the latest released tag
-  hooks:
-    - id: autoflake
-      args: [--in-place,
-             --remove-all-unused-imports,
-             --remove-unused-variables]
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --remove-unused-variables
 
-- repo: https://github.com/psf/black
-  rev: 25.1.0
-  hooks:
-    - id: black
-      args: [--line-length=88]
+  - repo: https://github.com/PyCQA/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+        args:
+          - --profile=black
 
-- repo: https://github.com/PyCQA/isort
-  rev: 6.0.1
-  hooks:
-    - id: isort
-      args: [--profile=black]
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        args:
+          - --line-length=88
 
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.12.7          # pin to the tag you want
-  hooks:
-    - id: ruff          # or `ruff-check` – both point to the linter
-      args: [--exit-zero]   # keeps the “warn-only” behaviour you had
-
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.7
+    hooks:
+      - id: ruff
+        args:
+          - --exit-zero
