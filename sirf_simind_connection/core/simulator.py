@@ -12,6 +12,7 @@ import yaml
 # Conditional import for SIRF to avoid CI dependencies
 try:
     from sirf.STIR import AcquisitionData, ImageData
+
     SIRF_AVAILABLE = True
 except ImportError:
     AcquisitionData = type(None)

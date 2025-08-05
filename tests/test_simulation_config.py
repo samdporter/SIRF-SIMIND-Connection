@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 
@@ -29,6 +30,10 @@ def test_config_yaml_loading():
     assert isinstance(spect_study, bool)
 
 
+@pytest.mark.skipif(
+    "CI" in os.environ or "GITHUB_ACTIONS" in os.environ,
+    reason="SMC config files not available in CI environment",
+)
 def test_config_smc_loading():
     """Test loading configuration from SMC file."""
     config = SimulationConfig(get("input.smc"))

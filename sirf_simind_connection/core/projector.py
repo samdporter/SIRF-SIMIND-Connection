@@ -9,6 +9,7 @@ Monte Carlo simulation process for SPECT imaging.
 # Conditional import for SIRF to avoid CI dependencies
 try:
     from sirf.STIR import AcquisitionData, AcquisitionModel, ImageData, assert_validity
+
     SIRF_AVAILABLE = True
 except ImportError:
     # Create dummy types for type hints when SIRF is not available
@@ -16,6 +17,7 @@ except ImportError:
     AcquisitionModel = type(None)
     ImageData = type(None)
     SIRF_AVAILABLE = False
+
     # Fallback implementation if assert_validity is not available
     def assert_validity(obj, expected_type):
         if not isinstance(obj, expected_type):
