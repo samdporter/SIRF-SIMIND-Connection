@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 """
-Basic SIMIND Simulation Example
+Basic SIMIND Simulation Example (Updated)
 
 This example demonstrates how to run a basic SPECT Monte Carlo simulation
-using SIRF-SIMIND-SPECT with a simple phantom.
+using SIRF-SIMIND-Connection with the new API.
 """
 
 from pathlib import Path
-
 import matplotlib.pyplot as plt
 
-from sirf_simind_connection import (SimindSimulator, SimulationConfig, configs,
-                                    utils)
+from sirf_simind_connection import (
+    SimindSimulator, SimulationConfig, configs, utils,
+)
+from sirf_simind_connection.core.components import ScoringRoutine
 
 # Create output directory
 output_dir = Path("output/basic_simulation")
@@ -28,37 +29,42 @@ def main():
     phantom.write(str(output_dir / "phantom.hv"))
     mu_map.write(str(output_dir / "mu_map.hv"))
 
-    print("Setting up SIMIND simulator...")
-    # Use the provided scanner configuration
+    print("Setting up SIMIND simulator using new API...")
+    
+    # Load and configure the simulation config
     config = SimulationConfig(configs.get("input.smc"))
-    config.import_yaml(configs.get("AnyScan.yaml"))  # Load a scanner configuration
-    config_file = config.save_file(str(output_dir / "sim_config.smc"))
-
+    config.import_yaml(configs.get("AnyScan.yaml"))
+    
+    # Method 1: Using the new constructor directly
     simulator = SimindSimulator(
-        template_smc_file_path=config_file,
+        config_source=config,
         output_dir=output_dir,
         output_prefix="basic_sim",
-        source=phantom,
-        mu_map=mu_map,
-        photon_multiplier=10,
+        photon_multiplier=1,
+        scoring_routine=ScoringRoutine.SCATTWIN
     )
-
-    # Set energy window for Tc-99m (140 keV ± 10%)
-    # due to a bug in SIMIND, we need an extra throwaway window
-    print("Setting energy window...")
-    simulator.set_windows(
-        lower_bounds=[126],  # 140 - 14
-        upper_bounds=[154],  # 140 + 14
-        scatter_orders=[0],  # Up to 5th order scatter
+    
+    # Set the inputs using new methods
+    simulator.set_source(phantom)
+    simulator.set_mu_map(mu_map)
+    
+    # Set energy windows for Tc-99m (140 keV ± 10%)
+    simulator.set_energy_windows(
+        lower_bounds=[126],  # 140 - 14 keV
+        upper_bounds=[154],  # 140 + 14 keV
+        scatter_orders=[0]   # Include scatter
     )
-
+    
+    # Set photon energy for Tc-99m
+    simulator.add_config_value(1, 140.0)  # 140 keV
+    
     print("Running simulation (this may take a few minutes)...")
     simulator.run_simulation()
 
     print("Retrieving results...")
-    # Get the output sinograms
-    total_counts = simulator.get_output_total(window=1)
-    scatter_counts = simulator.get_output_scatter(window=1)
+    # Get the output sinograms using new API
+    total_counts = simulator.get_total_output(window=1)
+    scatter_counts = simulator.get_scatter_output(window=1)
     primary_counts = total_counts - scatter_counts
 
     # Save results
@@ -75,12 +81,12 @@ def main():
 
     print(f"\nResults saved to: {output_dir}")
 
-    # view input images and resultant projections
+    # Create visualizations
     fig, ax = plt.subplots(1, 2, figsize=(12, 4))
     axim0 = ax[0].imshow(phantom.as_array()[32, :, :], cmap="viridis")
     ax[0].set_title("Phantom (Axial Slice)")
     axim1 = ax[1].imshow(mu_map.as_array()[32, :, :], cmap="gray")
-    ax[1].set_title("Total Counts (Axial Slice)")
+    ax[1].set_title("Attenuation Map (Axial Slice)")
     plt.colorbar(axim0, ax=ax[0])
     plt.colorbar(axim1, ax=ax[1])
     plt.tight_layout()
@@ -98,6 +104,8 @@ def main():
     plt.colorbar(axim2, ax=ax[2])
     plt.tight_layout()
     plt.savefig(output_dir / "projection_results.png")
+
+    print("Visualization plots saved!")
 
 
 if __name__ == "__main__":

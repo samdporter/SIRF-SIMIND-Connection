@@ -4,6 +4,9 @@ DICOM to STIR Conversion Example
 
 This example demonstrates how to convert SPECT DICOM files to STIR format
 and prepare them for SIMIND simulation.
+
+Note: This example primarily uses the builder classes and doesn't require
+the new SimindSimulator API, so minimal changes are needed.
 """
 
 import sys
@@ -62,6 +65,39 @@ def analyze_acquisition(acq_data):
     print(f"  Mean counts per pixel: {acq_data.sum() / acq_data.size:.2f}")
 
 
+def show_new_api_usage(acq_data):
+    """Show how converted data would be used with the new API."""
+    print("\n=== Using with New SimindSimulator API ===")
+    print("Once you have converted DICOM data, you can use it with the new API:")
+    print("""
+    from sirf_simind_connection import SimindSimulator, SimulationConfig
+    from sirf_simind_connection.core.components import ScoringRoutine
+    
+    # Load your config
+    config = SimulationConfig('your_config.smc')
+    
+    # Create simulator
+    simulator = SimindSimulator(
+        config_source=config,
+        output_dir='output',
+        output_prefix='sim',
+        photon_multiplier=10,
+        scoring_routine=ScoringRoutine.SCATTWIN
+    )
+    
+    # Set your source, attenuation map, and template sinogram
+    simulator.set_source(source_image)
+    simulator.set_mu_map(attenuation_map) 
+    simulator.set_template_sinogram(converted_acq_data)  # Use converted DICOM data!
+    
+    # Set energy windows if needed
+    simulator.set_energy_windows([126], [154], [0])
+    
+    # Run simulation
+    simulator.run_simulation()
+    """)
+
+
 def main():
     """Main conversion routine."""
     if len(sys.argv) < 2:
@@ -95,11 +131,9 @@ def main():
 
         print(f"\nConversion complete! Output saved to: {output_dir}")
 
-        # Additional tip for using with SIMIND
-        print("\nTo use with SIMIND simulation:")
-        print("1. Create source and attenuation images with matching geometry")
-        print("2. Use the converted sinogram as template:")
-        print("   simulator.set_template_sinogram(acq_data)")
+        # Show how to use with new API
+        if acq_data_list:
+            show_new_api_usage(acq_data_list[0])
 
     except Exception as e:
         print(f"Error during conversion: {e}")

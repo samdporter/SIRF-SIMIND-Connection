@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Custom Configuration Example
+Custom Configuration Example (Updated)
 
 This example shows how to create and modify SIMIND configurations,
 including exporting to YAML for easy editing and version control.
@@ -135,13 +135,65 @@ def demonstrate_yaml_workflow():
     print("\nYou can now:")
     print("1. Edit the YAML files directly")
     print("2. Use them with SimindSimulator:")
-    print("   config = SimulationConfig.from_yaml('lehr_collimator.yaml')")
-    print("   simulator = SimindSimulator(template_smc_file_path=config, ...)")
+    print("   config = SimulationConfig('lehr_collimator.yaml')")
+    print("   simulator = SimindSimulator(config_source=config, ...)")
+
+
+def demonstrate_new_api_usage():
+    """Show how to use configurations with the new API."""
+    output_dir = Path("output/custom_configs")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    print("\n=== Demonstrating New API Usage ===")
+    
+    # Create a custom config
+    custom_config = create_custom_lehr_config()
+    
+    # Show how it would be used with the new SimindSimulator API
+    print("\nWith the new API, you would use this config like:")
+    print("""
+    from sirf_simind_connection import SimindSimulator
+    from sirf_simind_connection.core.components import ScoringRoutine
+    
+    # Option 1: Use the config object directly
+    simulator = SimindSimulator(
+        config_source=custom_config,  # Pass the config object
+        output_dir='output',
+        output_prefix='lehr_sim',
+        photon_multiplier=10,
+        scoring_routine=ScoringRoutine.SCATTWIN
+    )
+    
+    # Set your inputs
+    simulator.set_source(phantom)
+    simulator.set_mu_map(mu_map)
+    simulator.set_energy_windows([126], [154], [0])
+    
+    # Run simulation
+    simulator.run_simulation()
+    
+    ----------
+    
+    # Option 2: Use a saved YAML file
+    simulator = SimindSimulator(
+        config_source='lehr_collimator.yaml',  # Pass YAML path
+        output_dir='output',
+        output_prefix='lehr_sim',
+        photon_multiplier=10,
+        scoring_routine=ScoringRoutine.SCATTWIN
+    )
+    """)
+    
+    # Save an example YAML that could be loaded
+    example_yaml = output_dir / "example_usage.yaml"
+    custom_config.export_yaml(str(example_yaml))
+    print(f"\nExample config saved to: {example_yaml}")
 
 
 def main():
     """Run the configuration examples."""
     demonstrate_yaml_workflow()
+    demonstrate_new_api_usage()
 
 
 if __name__ == "__main__":
