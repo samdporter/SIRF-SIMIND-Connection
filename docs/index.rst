@@ -5,8 +5,14 @@ SIRF-SIMIND-Connection Documentation
    :maxdepth: 2
    :caption: Contents:
 
-   README
-   CONTRIBUTING
+   intro
+   installation
+   usage
+   examples
+   api
+   testing
+   changelog
+   contributing
 
 Indices and tables
 ==================

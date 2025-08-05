@@ -1,0 +1,222 @@
+{
+    "Air_0": {
+        "density (mg/cm3)": 1.21,
+        "HU_lo (HU)": -1050.0,
+        "HU_hi (HU)": -950.0
+    },
+    "Lung_1": {
+        "density (mg/cm3)": 102.695,
+        "HU_lo (HU)": -950.0,
+        "HU_hi (HU)": -852.884
+    },
+    "Lung_2": {
+        "density (mg/cm3)": 202.695,
+        "HU_lo (HU)": -852.884,
+        "HU_hi (HU)": -755.769
+    },
+    "Lung_3": {
+        "density (mg/cm3)": 302.695,
+        "HU_lo (HU)": -755.769,
+        "HU_hi (HU)": -658.653
+    },
+    "Lung_4": {
+        "density (mg/cm3)": 402.695,
+        "HU_lo (HU)": -658.653,
+        "HU_hi (HU)": -561.538
+    },
+    "Lung_5": {
+        "density (mg/cm3)": 502.695,
+        "HU_lo (HU)": -561.538,
+        "HU_hi (HU)": -464.422
+    },
+    "Lung_6": {
+        "density (mg/cm3)": 602.695,
+        "HU_lo (HU)": -464.422,
+        "HU_hi (HU)": -367.306
+    },
+    "Lung_7": {
+        "density (mg/cm3)": 702.695,
+        "HU_lo (HU)": -367.306,
+        "HU_hi (HU)": -270.191
+    },
+    "Lung_8": {
+        "density (mg/cm3)": 802.695,
+        "HU_lo (HU)": -270.191,
+        "HU_hi (HU)": -173.075
+    },
+    "Lung_9": {
+        "density (mg/cm3)": 880.021,
+        "HU_lo (HU)": -173.075,
+        "HU_hi (HU)": -120.0
+    },
+    "AT_AG_SI1_10": {
+        "density (mg/cm3)": 926.911,
+        "HU_lo (HU)": -120.0,
+        "HU_hi (HU)": -82.0
+    },
+    "AT_AG_SI2_11": {
+        "density (mg/cm3)": 957.382,
+        "HU_lo (HU)": -82.0,
+        "HU_hi (HU)": -52.0
+    },
+    "AT_AG_SI3_12": {
+        "density (mg/cm3)": 984.277,
+        "HU_lo (HU)": -52.0,
+        "HU_hi (HU)": -22.0
+    },
+    "AT_AG_SI4_13": {
+        "density (mg/cm3)": 1011.1699999999998,
+        "HU_lo (HU)": -22.0,
+        "HU_hi (HU)": 8.0
+    },
+    "AT_AG_SI5_14": {
+        "density (mg/cm3)": 1029.55,
+        "HU_lo (HU)": 8.0,
+        "HU_hi (HU)": 19.0
+    },
+    "SoftTissus_15": {
+        "density (mg/cm3)": 1061.6000000000001,
+        "HU_lo (HU)": 19.0,
+        "HU_hi (HU)": 80.0
+    },
+    "ConnectiveTissue_16": {
+        "density (mg/cm3)": 1119.8999999999999,
+        "HU_lo (HU)": 80.0,
+        "HU_hi (HU)": 120.0
+    },
+    "Marrow_Bone01_17": {
+        "density (mg/cm3)": 1111.15,
+        "HU_lo (HU)": 120.0,
+        "HU_hi (HU)": 200.0
+    },
+    "Marrow_Bone02_18": {
+        "density (mg/cm3)": 1164.4699999999998,
+        "HU_lo (HU)": 200.0,
+        "HU_hi (HU)": 300.0
+    },
+    "Marrow_Bone03_19": {
+        "density (mg/cm3)": 1223.71,
+        "HU_lo (HU)": 300.0,
+        "HU_hi (HU)": 400.0
+    },
+    "Marrow_Bone04_20": {
+        "density (mg/cm3)": 1282.95,
+        "HU_lo (HU)": 400.0,
+        "HU_hi (HU)": 500.0
+    },
+    "Marrow_Bone05_21": {
+        "density (mg/cm3)": 1342.19,
+        "HU_lo (HU)": 500.0,
+        "HU_hi (HU)": 600.0
+    },
+    "Marrow_Bone06_22": {
+        "density (mg/cm3)": 1401.42,
+        "HU_lo (HU)": 600.0,
+        "HU_hi (HU)": 700.0
+    },
+    "Marrow_Bone07_23": {
+        "density (mg/cm3)": 1460.66,
+        "HU_lo (HU)": 700.0,
+        "HU_hi (HU)": 800.0
+    },
+    "Marrow_Bone08_24": {
+        "density (mg/cm3)": 1519.9,
+        "HU_lo (HU)": 800.0,
+        "HU_hi (HU)": 900.0
+    },
+    "Marrow_Bone09_25": {
+        "density (mg/cm3)": 1579.14,
+        "HU_lo (HU)": 900.0,
+        "HU_hi (HU)": 1000.0
+    },
+    "Marrow_Bone10_26": {
+        "density (mg/cm3)": 1638.3799999999999,
+        "HU_lo (HU)": 1000.0,
+        "HU_hi (HU)": 1100.0
+    },
+    "Marrow_Bone11_27": {
+        "density (mg/cm3)": 1697.62,
+        "HU_lo (HU)": 1100.0,
+        "HU_hi (HU)": 1200.0
+    },
+    "Marrow_Bone12_28": {
+        "density (mg/cm3)": 1756.8600000000001,
+        "HU_lo (HU)": 1200.0,
+        "HU_hi (HU)": 1300.0
+    },
+    "Marrow_Bone13_29": {
+        "density (mg/cm3)": 1816.1000000000001,
+        "HU_lo (HU)": 1300.0,
+        "HU_hi (HU)": 1400.0
+    },
+    "Marrow_Bone14_30": {
+        "density (mg/cm3)": 1875.34,
+        "HU_lo (HU)": 1400.0,
+        "HU_hi (HU)": 1500.0
+    },
+    "Marrow_Bone15_31": {
+        "density (mg/cm3)": 1946.43,
+        "HU_lo (HU)": 1500.0,
+        "HU_hi (HU)": 1640.0
+    },
+    "AmalgamTooth_32": {
+        "density (mg/cm3)": 2038.08,
+        "HU_lo (HU)": 1640.0,
+        "HU_hi (HU)": 1807.5
+    },
+    "AmalgamTooth_33": {
+        "density (mg/cm3)": 2138.08,
+        "HU_lo (HU)": 1807.5,
+        "HU_hi (HU)": 1975.01
+    },
+    "AmalgamTooth_34": {
+        "density (mg/cm3)": 2238.08,
+        "HU_lo (HU)": 1975.01,
+        "HU_hi (HU)": 2142.51
+    },
+    "AmalgamTooth_35": {
+        "density (mg/cm3)": 2335.09,
+        "HU_lo (HU)": 2142.51,
+        "HU_hi (HU)": 2300.0
+    },
+    "MetallImplants_36": {
+        "density (mg/cm3)": 2432.1000000000004,
+        "HU_lo (HU)": 2300.0,
+        "HU_hi (HU)": 2467.5
+    },
+    "MetallImplants_37": {
+        "density (mg/cm3)": 2532.1,
+        "HU_lo (HU)": 2467.5,
+        "HU_hi (HU)": 2635.01
+    },
+    "MetallImplants_38": {
+        "density (mg/cm3)": 2632.1,
+        "HU_lo (HU)": 2635.01,
+        "HU_hi (HU)": 2802.51
+    },
+    "MetallImplants_39": {
+        "density (mg/cm3)": 2732.1,
+        "HU_lo (HU)": 2802.51,
+        "HU_hi (HU)": 2970.02
+    },
+    "MetallImplants_40": {
+        "density (mg/cm3)": 2791.0499999999997,
+        "HU_lo (HU)": 2970.02,
+        "HU_hi (HU)": 3000.0
+    },
+    "MetallImplants_41": {
+        "density (mg/cm3)": 2900.0,
+        "HU_lo (HU)": 3000.0,
+        "HU_hi (HU)": 4000.0
+    },
+    "MetallImplants_42": {
+        "density (mg/cm3)": 2900.0,
+        "HU_lo (HU)": 4000.0,
+        "HU_hi (HU)": 4000.0
+    },
+    "MetallImplants_43": {
+        "density (mg/cm3)": 2900.0,
+        "HU_lo (HU)": 4000.0,
+        "HU_hi (HU)": 4001.0
+    }
+}

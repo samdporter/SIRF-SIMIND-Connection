@@ -6,7 +6,18 @@ The SimindProjector class facilitates accurate forward projections, scatter upda
 Monte Carlo simulation process for SPECT imaging.
 """
 
-from sirf.STIR import *
+from sirf.STIR import AcquisitionData, AcquisitionModel, ImageData
+
+# Import assert_validity for type checking
+try:
+    from sirf.STIR import assert_validity
+except ImportError:
+    # Fallback implementation if assert_validity is not available
+    def assert_validity(obj, expected_type):
+        if not isinstance(obj, expected_type):
+            raise TypeError(
+                f"Expected {expected_type.__name__}, got {type(obj).__name__}"
+            )
 
 
 class SimindProjector:
@@ -234,7 +245,7 @@ class SimindProjector:
         if self._additive_estimate is None:
             try:
                 self._additive_estimate = self.stir_projector.get_additive_term()
-            except:
+            except Exception:
                 self._additive_estimate = self.acquisition_data.get_uniform_copy(0)
 
         projected_trues = None

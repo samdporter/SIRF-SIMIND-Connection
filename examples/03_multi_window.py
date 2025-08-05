@@ -7,9 +7,10 @@ useful for scatter correction techniques like TEW (Triple Energy Window).
 """
 
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 
-from sirf_simind_connection import (SimindSimulator, SimulationConfig, configs, utils)
+from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
 from sirf_simind_connection.core.components import ScoringRoutine
 
 
@@ -91,11 +92,11 @@ def main():
     # Choose window configuration
     print("\nSetting up Triple Energy Window (TEW) for Tc-99m...")
     lower_bounds, upper_bounds, scatter_orders = setup_tew_windows()
-    window_widths = [u - l for l, u in zip(lower_bounds, upper_bounds)]
+    window_widths = [upper - lower for lower, upper in zip(lower_bounds, upper_bounds)]
 
     print("Energy windows:")
-    for i, (l, u) in enumerate(zip(lower_bounds, upper_bounds)):
-        print(f"  Window {i + 1}: {l}-{u} keV (width: {u - l} keV)")
+    for i, (lower, upper) in enumerate(zip(lower_bounds, upper_bounds)):
+        print(f"  Window {i + 1}: {lower}-{upper} keV (width: {upper - lower} keV)")
 
     # Configure simulator using new API
     print("\nConfiguring SIMIND simulator...")
@@ -107,10 +108,10 @@ def main():
         output_dir=output_dir,
         output_prefix="tew_sim",
         photon_multiplier=1,
-        scoring_routine=ScoringRoutine.SCATTWIN
+        scoring_routine=ScoringRoutine.SCATTWIN,
     )
 
-    # Set inputs using new methods  
+    # Set inputs using new methods
     simulator.set_source(phantom)
     simulator.set_mu_map(mu_map)
 

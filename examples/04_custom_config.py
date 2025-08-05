@@ -143,15 +143,16 @@ def demonstrate_new_api_usage():
     """Show how to use configurations with the new API."""
     output_dir = Path("output/custom_configs")
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     print("\n=== Demonstrating New API Usage ===")
-    
+
     # Create a custom config
     custom_config = create_custom_lehr_config()
-    
+
     # Show how it would be used with the new SimindSimulator API
     print("\nWith the new API, you would use this config like:")
-    print("""
+    print(
+        """
     from sirf_simind_connection import SimindSimulator
     from sirf_simind_connection.core.components import ScoringRoutine
     
@@ -182,8 +183,9 @@ def demonstrate_new_api_usage():
         photon_multiplier=10,
         scoring_routine=ScoringRoutine.SCATTWIN
     )
-    """)
-    
+    """
+    )
+
     # Save an example YAML that could be loaded
     example_yaml = output_dir / "example_usage.yaml"
     custom_config.export_yaml(str(example_yaml))

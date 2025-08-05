@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "SIRF-SIMIND-Connection"
-version = "0.1.0"
+name = "sirf-simind-connection"
+version = "0.2.1"
 description = "A wrapper for SIRF and SIMIND for Monte Carlo SPECT simulations"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -18,7 +18,7 @@ maintainers = [
     {name = "Sam Porter", email = "sam.porter.18@ucl.ac.uk"},
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "License :: OSI Approved :: Apache Software License",
@@ -56,7 +56,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/samdporter/SIRF-SIMIND-Connection"
-Documentation = "https://github.com/samdporter/SIRF-SIMIND-Connection"
+Documentation = "https://sirf-simind-connection.readthedocs.io/"
 Repository = "https://github.com/samdporter/SIRF-SIMIND-Connection"
 Issues = "https://github.com/samdporter/SIRF-SIMIND-Connection/issues"
 

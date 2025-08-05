@@ -9,9 +9,10 @@ from importlib import metadata as _meta
 try:  # installed (pip/poetry)
     __version__ = _meta.version(__name__)
 except _meta.PackageNotFoundError:  # editable / source checkout
-    __version__ = "0.1.0"
+    __version__ = "1.0.0"
 
-from . import builders, configs, data, utils, core
+from . import builders, configs, core, data, utils
+
 # Re-export key objects so users can do:
 #   from sirf_simind_connection import SimindSimulator
 from .core import SimindSimulator  # noqa: F401
