@@ -1,0 +1,30 @@
+# Project paths and settings
+project:
+  total_activity: 358.7  # Total activity in MBq
+  data_dir: "/home/sam/working/PSF_estimation/Y90/data/spect/PS_140"
+  image_path: "/home/sam/working/PSF_estimation/Y90/data/spect/PS_140/simulated.hv"
+  output_dir: "/home/sam/working/PSF_estimation/Y90/data/spect/PS_140"
+  output_prefix: "psf_mlegp_penetrate"
+  simind_parent_dir: "/home/sam/devel/simind_v8/simind"
+  axial_slice: 64  # Axial slice to plot
+
+# Simulation parameters
+simulation:
+  photon_multiplier: 10000
+  photon_energy: 150
+  window_lower: 75
+  window_upper: 225
+  time_per_projection: 15
+  source_type: "y90_frey"
+  collimator: "ma-mlegp"
+  kev_per_channel: 10
+  max_energy: 2080
+  scoring_routine: 4
+  collimator_routine: 1
+  photon_direction: 3
+  half_life: 64.6
+
+# Data file names (relative to data_dir)
+data:
+  mu_map_filename: false
+  measured_data_filename: "peak.hs"

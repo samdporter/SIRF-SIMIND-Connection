@@ -1,0 +1,30 @@
+# Project paths and settings
+project:
+  total_activity: 187  # Total activity in MBq
+  data_dir: "/home/storage/prepared_data/phantom_data/nema_phantom_data/SPECT"
+  image_path: "/home/storage/prepared_data/phantom_data/nema_phantom_data/SPECT/ellipsoid_image_s.hv"
+  output_dir: "/home/storage/prepared_data/phantom_data/nema_phantom_data/SPECT"
+  output_prefix: "nema_megp_pentrate"
+  simind_parent_dir: "/home/sam/devel/simind_v8/simind"
+  axial_slice: 64  # Axial slice to plot
+
+# Simulation parameters
+simulation:
+  photon_multiplier: 1
+  photon_energy: 150
+  window_lower: 60
+  window_upper: 150
+  time_per_projection: 60
+  source_type: "y90_frey"
+  collimator: "ma-megp"
+  kev_per_channel: 10
+  max_energy: 2080
+  scoring_routine: 4
+  collimator_routine: 1
+  photon_direction: 3
+  half_life: 64.6
+
+# Data file names (relative to data_dir)
+data:
+  mu_map_filename: "umap_zoomed.hv"
+  measured_data_filename: "peak.hs"
