@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 """
-Multi-Energy Window Simulation Example
+Multi-Energy Window Simulation Example (Updated)
 
 This example demonstrates how to simulate SPECT with multiple energy windows,
 useful for scatter correction techniques like TEW (Triple Energy Window).
 """
 
 from pathlib import Path
-
 import matplotlib.pyplot as plt
 
-from sirf_simind_connection import (SimindSimulator, SimulationConfig, configs,
-                                    utils)
+from sirf_simind_connection import (SimindSimulator, SimulationConfig, configs, utils)
+from sirf_simind_connection.core.components import ScoringRoutine
 
 
 def setup_tew_windows():
@@ -98,32 +97,34 @@ def main():
     for i, (l, u) in enumerate(zip(lower_bounds, upper_bounds)):
         print(f"  Window {i + 1}: {l}-{u} keV (width: {u - l} keV)")
 
-    # Configure simulator
+    # Configure simulator using new API
     print("\nConfiguring SIMIND simulator...")
     config = SimulationConfig(configs.get("input.smc"))
-    config.import_yaml(configs.get("AnyScan.yaml"))  # Load a scanner configuration
-    config_file = config.save_file(str(output_dir / "sim_config.smc"))
+    config.import_yaml(configs.get("AnyScan.yaml"))
 
     simulator = SimindSimulator(
-        template_smc_file_path=config_file,
+        config_source=config,
         output_dir=output_dir,
         output_prefix="tew_sim",
-        source=phantom,
-        mu_map=mu_map,
-        photon_multiplier=10,
+        photon_multiplier=1,
+        scoring_routine=ScoringRoutine.SCATTWIN
     )
 
-    # Set Tc-99m parameters
-    simulator.add_index(1, 140.0)  # Photon energy
+    # Set inputs using new methods  
+    simulator.set_source(phantom)
+    simulator.set_mu_map(mu_map)
 
-    # Set multiple windows
-    simulator.set_windows(lower_bounds, upper_bounds, scatter_orders)
+    # Set multiple energy windows
+    simulator.set_energy_windows(lower_bounds, upper_bounds, scatter_orders)
+
+    # Set Tc-99m parameters
+    simulator.add_config_value(1, 140.0)  # Photon energy
 
     print("Running simulation...")
     simulator.run_simulation()
 
     print("Retrieving results...")
-    outputs = simulator.get_output()
+    outputs = simulator.get_outputs()
 
     # Print results for each window
     print("\nRaw window counts:")
@@ -157,7 +158,7 @@ def main():
     axim0 = ax[0].imshow(phantom.as_array()[32, :, :], cmap="viridis")
     ax[0].set_title("Phantom (Axial Slice)")
     axim1 = ax[1].imshow(mu_map.as_array()[32, :, :], cmap="gray")
-    ax[1].set_title("Total Counts (Axial Slice)")
+    ax[1].set_title("Attenuation Map (Axial Slice)")
     plt.colorbar(axim0, ax=ax[0])
     plt.colorbar(axim1, ax=ax[1])
     plt.tight_layout()
