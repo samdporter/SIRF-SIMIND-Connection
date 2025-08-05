@@ -26,7 +26,7 @@ def test_energy_window():
 def test_image_geometry():
     """Test ImageGeometry data class."""
     from sirf_simind_connection.utils.stir_utils import create_simple_phantom
-    
+
     phantom = create_simple_phantom()
     geometry = ImageGeometry.from_image(phantom)
 
@@ -75,7 +75,7 @@ def test_penetrate_output_type_enum():
 def test_image_validator():
     """Test ImageValidator functionality."""
     from sirf_simind_connection.utils.stir_utils import create_simple_phantom
-    
+
     phantom = create_simple_phantom()
 
     # Test validation passes for square phantom

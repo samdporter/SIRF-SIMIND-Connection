@@ -4,7 +4,11 @@ import subprocess
 import pytest
 
 # Integration tests may require both SIRF and SIMIND
-pytestmark = [pytest.mark.integration, pytest.mark.requires_sirf, pytest.mark.requires_simind]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.requires_sirf,
+    pytest.mark.requires_simind,
+]
 
 
 @pytest.mark.integration

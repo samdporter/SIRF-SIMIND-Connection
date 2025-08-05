@@ -224,8 +224,8 @@ def load_schneider_data():
 def hu_to_density_schneider_piecewise(image_array):
     """
     Convert HU to density using exact Schneider2000 piecewise segments.
-    
-    Simple step function: any HU value between HU_lo and HU_hi gets the 
+
+    Simple step function: any HU value between HU_lo and HU_hi gets the
     exact density for that tissue segment.
 
     Args:
