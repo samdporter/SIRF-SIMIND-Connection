@@ -16,11 +16,30 @@ A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
 - Dual Scoring Routines.
 - DICOM to STIR Conversion.
 
+## Installation
+
+```bash
+pip install sirf-simind-connection
+```
+
 ## Quick Start
 ```python
 from sirf_simind_connection import SimindSimulator, SimulationConfig
-config = SimulationConfig("config.yaml")
-simulator = SimindSimulator(config)
+from sirf_simind_connection.configs import get
+from sirf_simind_connection.utils.stir_utils import create_simple_phantom, create_attenuation_map
+
+# Create phantom and attenuation map
+phantom = create_simple_phantom()
+mu_map = create_attenuation_map(phantom)
+
+# Load pre-configured scanner settings
+config = SimulationConfig(get("AnyScan.yaml"))
+simulator = SimindSimulator(config, output_dir='output')
+
+# Set inputs and run
+simulator.set_source(phantom)
+simulator.set_mu_map(mu_map)
+simulator.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
 simulator.run_simulation()
 ```
 
