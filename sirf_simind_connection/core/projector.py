@@ -6,7 +6,7 @@ The SimindProjector class facilitates accurate forward projections, scatter upda
 Monte Carlo simulation process for SPECT imaging.
 """
 
-from sirf.STIR import AcquisitionModel, AcquisitionData, ImageData
+from sirf.STIR import AcquisitionData, AcquisitionModel, ImageData
 
 # Import assert_validity for type checking
 try:
