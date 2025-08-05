@@ -374,9 +374,9 @@ def plot_comparison(data_list, slice_index, orientation, base_output_filename, o
 
     # Determine vmax over all datasets for consistent color scaling
     if orientation == 'axial':
-        vmax = max(data[0][slice_index].max() for data, _ in data_list if data[0] is not None)
+        vmax = data_list[0][0][0][slice_index].max()
     elif orientation == 'coronal':
-        vmax = max(data[0][:, :, slice_index].max() for data, _ in data_list if data[0] is not None)
+        vmax = data_list[0][0][0][:,slice_index].max()
     else:
         raise ValueError("orientation must be 'axial' or 'coronal'")
 

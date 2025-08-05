@@ -127,7 +127,7 @@ parameters:
   detector_crystal:
     crystal_half_length_radius:
       index: 8
-      value: 21.25
+      value: 20.5
       description: Crystal half-length/radius in cm (circular detectors use radius)
     crystal_thickness:
       index: 9
@@ -135,11 +135,11 @@ parameters:
       description: 'Crystal thickness in cm (NaI(Tl) typical: 0.95cm)'
     crystal_half_width:
       index: 10
-      value: 27.0
+      value: 27.25
       description: Crystal half-width in cm (for rectangular crystals)
     backscatter_thickness:
       index: 11
-      value: 5.0
+      value: 1.6
       description: Backscatter thickness in cm (for backscatter material)
     height_to_detector_surface:
       index: 12
