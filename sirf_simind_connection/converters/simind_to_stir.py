@@ -5,7 +5,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from sirf.STIR import AcquisitionData
+# Conditional import for SIRF to avoid CI dependencies
+try:
+    from sirf.STIR import AcquisitionData
+    SIRF_AVAILABLE = True
+except ImportError:
+    AcquisitionData = type(None)
+    SIRF_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

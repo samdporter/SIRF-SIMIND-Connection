@@ -9,7 +9,16 @@ import subprocess
 import warnings
 
 import numpy as np
-from sirf.STIR import AcquisitionData, ImageData
+
+# Conditional import for SIRF to avoid CI dependencies  
+try:
+    from sirf.STIR import AcquisitionData, ImageData
+    SIRF_AVAILABLE = True
+except ImportError:
+    # Create dummy types for type hints when SIRF is not available
+    AcquisitionData = type(None)
+    ImageData = type(None) 
+    SIRF_AVAILABLE = False
 
 
 def parse_sinogram(template_sinogram):

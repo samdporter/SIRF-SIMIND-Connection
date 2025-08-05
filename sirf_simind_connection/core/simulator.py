@@ -8,7 +8,15 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import yaml
-from sirf.STIR import AcquisitionData, ImageData
+
+# Conditional import for SIRF to avoid CI dependencies
+try:
+    from sirf.STIR import AcquisitionData, ImageData
+    SIRF_AVAILABLE = True
+except ImportError:
+    AcquisitionData = type(None)
+    ImageData = type(None)
+    SIRF_AVAILABLE = False
 
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
