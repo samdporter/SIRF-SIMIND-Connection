@@ -1,8 +1,13 @@
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from sirf_simind_connection import SimulationConfig
 from sirf_simind_connection.configs import get
+
+# Most tests here are unit tests that don't require SIRF
+pytestmark = pytest.mark.unit
 
 
 def test_simulation_config_loading():

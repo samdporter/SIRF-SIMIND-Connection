@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
@@ -10,6 +11,9 @@ from sirf_simind_connection.utils.stir_utils import (
     create_stir_image,
     parse_interfile,
 )
+
+# Most tests require SIRF, but parse_interfile doesn't
+pytestmark = pytest.mark.requires_sirf
 
 
 def test_create_simple_phantom():
@@ -82,6 +86,7 @@ def test_create_stir_acqdata():
     assert acq_array.shape[3] == proj_matrix[1]  # Second dimension
 
 
+@pytest.mark.unit
 def test_parse_interfile():
     """Test parsing interfile headers."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".hv", delete=False) as f:

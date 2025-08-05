@@ -10,9 +10,9 @@ from sirf_simind_connection.core.components import (
     ScoringRoutine,
     ValidationError,
 )
-from sirf_simind_connection.utils.stir_utils import create_simple_phantom
 
 
+@pytest.mark.unit
 def test_energy_window():
     """Test EnergyWindow data class."""
     window = EnergyWindow(126.0, 154.0, 0, 1)
@@ -22,8 +22,11 @@ def test_energy_window():
     assert window.window_id == 1
 
 
+@pytest.mark.requires_sirf
 def test_image_geometry():
     """Test ImageGeometry data class."""
+    from sirf_simind_connection.utils.stir_utils import create_simple_phantom
+    
     phantom = create_simple_phantom()
     geometry = ImageGeometry.from_image(phantom)
 
@@ -35,6 +38,7 @@ def test_image_geometry():
     assert geometry.voxel_z > 0
 
 
+@pytest.mark.unit
 def test_rotation_parameters():
     """Test RotationParameters data class."""
     rotation = RotationParameters(
@@ -53,20 +57,25 @@ def test_rotation_parameters():
     assert isinstance(start_angle, float)
 
 
+@pytest.mark.unit
 def test_scoring_routine_enum():
     """Test ScoringRoutine enum."""
     assert ScoringRoutine.SCATTWIN.value == 1
     assert ScoringRoutine.PENETRATE.value == 4
 
 
+@pytest.mark.unit
 def test_penetrate_output_type_enum():
     """Test PenetrateOutputType enum."""
     assert PenetrateOutputType.ALL_INTERACTIONS.value == 1
     assert PenetrateOutputType.GEOM_COLL_PRIMARY_ATT.value == 2
 
 
+@pytest.mark.requires_sirf
 def test_image_validator():
     """Test ImageValidator functionality."""
+    from sirf_simind_connection.utils.stir_utils import create_simple_phantom
+    
     phantom = create_simple_phantom()
 
     # Test validation passes for square phantom
@@ -83,6 +92,7 @@ def test_image_validator():
         pytest.fail("Compatibility check should pass for identical phantoms")
 
 
+@pytest.mark.unit
 def test_validation_error():
     """Test ValidationError exception."""
     with pytest.raises(ValidationError):
