@@ -9,7 +9,7 @@ from importlib import metadata as _meta
 try:  # installed (pip/poetry)
     __version__ = _meta.version(__name__)
 except _meta.PackageNotFoundError:  # editable / source checkout
-    __version__ = "1.1.0"
+    __version__ = "1.0.0"
 
 from . import builders, configs, core, data, utils
 
