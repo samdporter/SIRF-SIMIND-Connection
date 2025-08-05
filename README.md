@@ -5,12 +5,12 @@ A Python wrapper for seamless integration between SIRF (Synergistic Image Recons
 ## Features
 
 - **Monte Carlo SPECT Simulation**: Run SIMIND simulations using SIRF data types
+- **Dual Scoring Routines**: SCATTWIN (traditional) and PENETRATE (detailed interaction analysis)
 - **DICOM to STIR Conversion**: Convert SPECT DICOM files to STIR format
-- **Attenuation Modeling**: Convert between Hounsfield Units, attenuation coefficients, and density maps (simple - more to come)
+- **Attenuation Modeling**: Convert between Hounsfield Units, attenuation coefficients, and density maps
 - **Flexible Configuration**: YAML-based configuration with validation
 - **Energy Window Support**: Multiple energy window simulation and analysis
-- **Scatter Correction**: Integrated scatter simulation and correction (alpha phase)
-- **Scanner Configurations**: Pre-configured templates for some common SPECT scanners
+- **Scanner Configurations**: Pre-configured templates for common SPECT scanners
 
 ## Installation
 
@@ -52,52 +52,84 @@ pip install SIRF-SIMIND-Connection
 
 ### Verify Installation
 
-```python
-import sirf_simind_connection
-print(sirf_simind_connection.__version__)
+```bash
+# Quick verification
+cd scripts/
+python verify_installation.py
 
-# Check if SIMIND is accessible
-from sirf_simind_connection import SimindSimulator
-# This will raise an error if SIMIND is not found
+# Run all examples
+python run_all_examples.py
 ```
 
 ## Quick Start
 
 ```python
-from sirf_simind_connection import SimindSimulator, SimulationConfig
-from sirf.STIR import ImageData
+from sirf_simind_connection import (
+    SimindSimulator, SimulationConfig, configs, utils
+)
+from sirf_simind_connection.core.components import ScoringRoutine
 
-# Load or use provided scanner configuration
-config = SimulationConfig(configs.get("input.smc")) # Currently we require a template .smc file but this may change in later iterations
-config.import_yaml(configs.get("AnyScan.yaml"))  # Load a scanner configuration (if different from .smc file)
-config_file = config.save_file(str(output_dir / "sim_config.smc")) # this also returns a path - required for SIMIND simulations
+# Create phantom and attenuation map
+phantom = utils.stir_utils.create_simple_phantom()
+mu_map = utils.stir_utils.create_attenuation_map(phantom)
 
-# Load your data
-source_image = ImageData('source.hv')
-attenuation_map = ImageData('mu_map.hv')
+# Load scanner configuration
+config = SimulationConfig(configs.get("input.smc"))
+config.import_yaml(configs.get("AnyScan.yaml"))
 
 # Create simulator
 simulator = SimindSimulator(
-    template_smc_file_path=config,
+    config_source=config,
     output_dir='output',
-    source=source_image,
-    mu_map=attenuation_map
+    output_prefix='sim',
+    photon_multiplier=10,
+    scoring_routine=ScoringRoutine.SCATTWIN
 )
 
-# Set energy windows (e.g., 140 keV ± 10% for Tc-99m)
-simulator.set_windows(
-    lower_bounds=[126],
-    upper_bounds=[154],
-    scatter_orders=[0] # note that using scatter_order !=1 will only result in scatter files
-)
+# Set inputs
+simulator.set_source(phantom)
+simulator.set_mu_map(mu_map)
+simulator.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
+simulator.add_config_value(1, 140.0)  # 140 keV
 
 # Run simulation
 simulator.run_simulation()
 
 # Get results
-total_counts = simulator.get_output_total(window=1)
-scatter = simulator.get_output_scatter(window=1)
+total_counts = simulator.get_total_output(window=1)
+scatter_counts = simulator.get_scatter_output(window=1)
+primary_counts = total_counts - scatter_counts
 ```
+
+## Examples
+
+Run all examples from the scripts directory:
+
+```bash
+cd scripts/
+python run_all_examples.py  # Run all examples (10-25 minutes)
+python verify_installation.py  # Quick verification
+```
+
+Individual examples:
+
+1. **[Basic simulation](examples/01_basic_simulation.py)** - Simple phantom with SCATTWIN
+2. **[DICOM conversion](examples/02_dicom_conversion.py)** - Convert DICOM to STIR format
+3. **[Multi-energy windows](examples/03_multi_window.py)** - TEW scatter correction
+4. **[Custom configurations](examples/04_custom_config.py)** - YAML workflow
+5. **[Scoring routine comparison](examples/05_scattwin_vs_penetrate_comparison.py)** - SCATTWIN vs PENETRATE
+
+## Scoring Routines
+
+### SCATTWIN (Traditional)
+- Energy-window based analysis
+- Outputs: total, scatter, primary, air per window
+- Best for: Clinical SPECT, scatter correction (TEW, DEW)
+
+### PENETRATE (Detailed)
+- Interaction component analysis  
+- Outputs: 19 different interaction types
+- Best for: Collimator design, physics research
 
 ## Scanner Configurations
 
@@ -110,18 +142,18 @@ Pre-configured templates are available in the `configs/` directory:
 
 Full documentation will be available at [Read the Docs](https://SIRF-SIMIND-Connection.readthedocs.io/) (when deployed).
 
-### Tutorials
-- [Basic SIMIND simulation](examples/01_basic_simulation.py)
-- [DICOM to STIR conversion](examples/02_dicom_conversion.py)
-- [Multi-energy window simulation](examples/03_multi_window.py)
-- [Creating custom configurations](examples/04_custom_config.py)
-
 ## Troubleshooting
 
 ### SIMIND not found
 If you get "SIMIND executable not found", ensure:
 1. SIMIND is properly installed
-2. The `simind` executable is in your system PATH (explained on the website)
+2. The `simind` executable is in your system PATH
+
+### Import errors
+```bash
+cd scripts/
+python verify_installation.py  # Check dependencies
+```
 
 ### File format issues
 - SIMIND uses specific file formats for density maps (`.dmi`) and source maps (`.smi`)
@@ -144,12 +176,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install in development mode
 pip install -e ".[dev]"
 
-# Run tests
-pytest
-
-# Run linting
-flake8 sirf_simind_connection
-black --check sirf_simind_connection
+# Run tests and examples
+cd scripts/
+python run_all_examples.py
 ```
 
 ## License
