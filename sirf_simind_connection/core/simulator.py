@@ -28,9 +28,7 @@ from .components import (  # Exceptions; Data classes; Managers and processors; 
     RotationDirection,
     RotationParameters,
     ScoringRoutine,
-    SimindError,
     SimindExecutor,
-    SimulationError,
     ValidationError,
 )
 from .config import RuntimeSwitches, SimulationConfig

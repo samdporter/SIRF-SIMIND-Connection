@@ -258,7 +258,7 @@ def setup_simulator(sim_config, scanner_config_path, image, mu_map, measured_dat
     simulator.add_runtime_switch("CC", sim_config["collimator"])
     simulator.add_runtime_switch("FI", sim_config["source_type"])
 
-    print(f"Simulator configured with:")
+    print("Simulator configured with:")
     print(f"  - Scoring routine: {scoring_routine.name}")
     print(f"  - Photon multiplier: {sim_config['photon_multiplier']}")
     print(f"  - Collimator: {sim_config['collimator']}")
@@ -334,7 +334,7 @@ def run_simulation_with_error_handling(simulator):
             raise ValueError(f"Unsupported scoring routine: {scoring_routine}")
 
         # Log count statistics
-        print(f"Simulation results:")
+        print("Simulation results:")
         for key, data in outputs.items():
             print(f"  - {key}: {data.sum():.0f} counts")
 
@@ -603,7 +603,7 @@ def main(args):
             outputs, measured_data, scoring_routine, sim_config, base_filename
         )
 
-        print(f"\nSimulation completed successfully!")
+        print("\nSimulation completed successfully!")
         print(f"Scoring routine: {scoring_routine.name}")
         print(f"Output directory: {sim_config['output_dir']}")
 

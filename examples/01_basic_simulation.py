@@ -10,12 +10,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from sirf_simind_connection import (
-    SimindSimulator,
-    SimulationConfig,
-    configs,
-    utils,
-)
+from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
 from sirf_simind_connection.core.components import ScoringRoutine
 
 # Create output directory

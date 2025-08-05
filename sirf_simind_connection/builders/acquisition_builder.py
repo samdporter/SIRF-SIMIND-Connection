@@ -265,9 +265,9 @@ class STIRSPECTAcquisitionDataBuilder:
                             )
                         )
                     else:
-                        self.header["!time per projection (sec)[1]"] = (
-                            time_per_projection
-                        )
+                        self.header[
+                            "!time per projection (sec)[1]"
+                        ] = time_per_projection
 
                     if "RotationDirection" in rot_item:
                         rd = str(rot_item.RotationDirection)

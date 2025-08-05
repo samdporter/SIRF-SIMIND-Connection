@@ -498,7 +498,7 @@ class SimindToStirConverter:
         else:
             # Multiple .h00 files - this might be scattwin, not penetrate
             self.logger.warning(
-                f"Multiple .h00 files found - this may not be penetrate routine output"
+                "Multiple .h00 files found - this may not be penetrate routine output"
             )
             # Return the first one as fallback
             return str(h00_files[0])

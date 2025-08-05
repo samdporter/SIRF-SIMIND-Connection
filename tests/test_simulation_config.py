@@ -45,7 +45,7 @@ def test_config_modification():
 
     # Test flag modification
     config.set_flag("write_results_to_screen", True)
-    assert config.get_flag("write_results_to_screen") == True
+    assert config.get_flag("write_results_to_screen")
 
 
 def test_config_yaml_export():
