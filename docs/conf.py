@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "SIRF-SIMIND-Connection"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-release = "0.1.0"
+release = "1.0.0"
 
 # General configuration
 extensions = [
