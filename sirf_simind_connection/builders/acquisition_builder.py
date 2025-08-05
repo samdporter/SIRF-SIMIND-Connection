@@ -241,24 +241,34 @@ class STIRSPECTAcquisitionDataBuilder:
                 rot_seq = ds[(0x0054, 0x0052)].value
                 if len(rot_seq) > 0:
                     rot_item = rot_seq[0]
-                    
+
                     # Extract basic rotation parameters
                     if "StartAngle" in rot_item:
                         self.header["start angle"] = str(rot_item.StartAngle)
                     elif (0x0054, 0x0200) in rot_item:
-                        self.header["start angle"] = str(rot_item[(0x0054, 0x0200)].value)
-                    
+                        self.header["start angle"] = str(
+                            rot_item[(0x0054, 0x0200)].value
+                        )
+
                     if (0x0018, 0x1242) in rot_item:
-                        time_per_projection = str(rot_item[(0x0018, 0x1242)].value / 1000)
-                        
+                        time_per_projection = str(
+                            rot_item[(0x0018, 0x1242)].value / 1000
+                        )
+
                     if num_frames is not None:
                         self.header["number of time frames"] = str(1)
                         self.header["!image duration (sec)[1]"] = str(
-                            int(np.round(float(time_per_projection) * float(num_frames), 0))
+                            int(
+                                np.round(
+                                    float(time_per_projection) * float(num_frames), 0
+                                )
+                            )
                         )
                     else:
-                        self.header["!time per projection (sec)[1]"] = time_per_projection
-                        
+                        self.header["!time per projection (sec)[1]"] = (
+                            time_per_projection
+                        )
+
                     if "RotationDirection" in rot_item:
                         rd = str(rot_item.RotationDirection)
                         self.header["!direction of rotation"] = (
@@ -269,93 +279,131 @@ class STIRSPECTAcquisitionDataBuilder:
                         self.header["!direction of rotation"] = (
                             "CCW" if rd == "CC" else ("CW" if rd == "C" else rd)
                         )
-                        
+
                     if "ScanArc" in rot_item:
                         self.header["!extent of rotation"] = str(rot_item.ScanArc)
                     elif (0x0018, 0x1143) in rot_item:
-                        self.header["!extent of rotation"] = str(rot_item[(0x0018, 0x1143)].value)
-                    
+                        self.header["!extent of rotation"] = str(
+                            rot_item[(0x0018, 0x1143)].value
+                        )
+
                     # Handle radial position - this is the key section
                     mean_radial_position = 0.0  # default
                     radial_processed = False
-                    
+
                     if (0x0018, 0x1142) in rot_item:
                         rp_val = rot_item[(0x0018, 0x1142)].value
-                        
+
                         # Check if rp_val is an array with multiple values
-                        if (hasattr(rp_val, "__iter__") and not isinstance(rp_val, str) and len(rp_val) > 1):
+                        if (
+                            hasattr(rp_val, "__iter__")
+                            and not isinstance(rp_val, str)
+                            and len(rp_val) > 1
+                        ):
                             # Use the array values directly as the radii of rotation
                             rp_list = [float(x) for x in rp_val]
-                            
+
                             # Check if all radii are the same (circular orbit) using proper tolerance
-                            if len(set(rp_list)) == 1 or all(abs(r - rp_list[0]) < 1e-3 for r in rp_list):
+                            if len(set(rp_list)) == 1 or all(
+                                abs(r - rp_list[0]) < 1e-3 for r in rp_list
+                            ):
                                 self.header["Radius"] = str(rp_list[0])
                                 self.header["orbit"] = "circular"
                                 # Remove Radii key if it exists
                                 self.header.pop("Radii", None)
                             else:
-                                self.header["Radii"] = "{" + ",".join(str(r) for r in rp_list) + "}"
+                                self.header["Radii"] = (
+                                    "{" + ",".join(str(r) for r in rp_list) + "}"
+                                )
                                 self.header["orbit"] = "non-circular"
                                 # Remove Radius key if it exists
                                 self.header.pop("Radius", None)
-                            
+
                             radial_processed = True
-                            print(f"Debug: Direct radii processed - all same: {len(set(rp_list)) == 1}, values: {rp_list[:5]}...")
-                            
+                            print(
+                                f"Debug: Direct radii processed - all same: {len(set(rp_list)) == 1}, values: {rp_list[:5]}..."
+                            )
+
                         else:
                             # Single value
                             mean_radial_position = float(rp_val)
-                            print(f"Debug: Single radial position: {mean_radial_position}")
+                            print(
+                                f"Debug: Single radial position: {mean_radial_position}"
+                            )
                     else:
-                        warnings.warn("Mean radial position not found in Rotation Information Sequence. Using default 0.0.")
+                        warnings.warn(
+                            "Mean radial position not found in Rotation Information Sequence. Using default 0.0."
+                        )
                         mean_radial_position = 0.0
 
                     # Only process tomo view offset if we haven't already processed direct radii
                     if not radial_processed:
-                        print("Debug: Processing tomo view offset since direct radii not processed")
-                        
+                        print(
+                            "Debug: Processing tomo view offset since direct radii not processed"
+                        )
+
                         # Process Detector Information Sequence & Tomo View Offset
                         det_info_seq_tag = (0x0055, 0x1022)
                         tomo_view_offset_tag = (0x0013, 0x101E)
-                        
+
                         if det_info_seq_tag in ds:
                             det_seq = ds[det_info_seq_tag].value
                             if len(det_seq) > 0:
                                 det_item = det_seq[0]
                                 if tomo_view_offset_tag in det_item:
                                     tvo = det_item[tomo_view_offset_tag].value
-                                    if (hasattr(tvo, "__iter__") or isinstance(tvo, (list, tuple))) and len(tvo) > 1:
+                                    if (
+                                        hasattr(tvo, "__iter__")
+                                        or isinstance(tvo, (list, tuple))
+                                    ) and len(tvo) > 1:
                                         # Compute radial positions by adding tomo view offsets to the mean radial position
                                         radial_positions = [
                                             mean_radial_position + float(tvo[i])
                                             for i in range(2, min(len(tvo), 360), 3)
                                         ]
-                                        
+
                                         # Handle empty radial_positions list
                                         if len(radial_positions) == 0:
-                                            self.header["Radius"] = str(mean_radial_position)
+                                            self.header["Radius"] = str(
+                                                mean_radial_position
+                                            )
                                             self.header["orbit"] = "circular"
-                                        elif len(radial_positions) == 1 or all(abs(r - radial_positions[0]) < 1e-3 for r in radial_positions):
-                                            self.header["Radius"] = str(radial_positions[0])
+                                        elif len(radial_positions) == 1 or all(
+                                            abs(r - radial_positions[0]) < 1e-3
+                                            for r in radial_positions
+                                        ):
+                                            self.header["Radius"] = str(
+                                                radial_positions[0]
+                                            )
                                             self.header["orbit"] = "circular"
                                         else:
-                                            self.header["Radii"] = "{" + ",".join(str(r) for r in radial_positions) + "}"
+                                            self.header["Radii"] = (
+                                                "{"
+                                                + ",".join(
+                                                    str(r) for r in radial_positions
+                                                )
+                                                + "}"
+                                            )
                                             self.header["orbit"] = "non-circular"
                                             self.header.pop("Radius", None)
                                     else:
-                                        self.header["Radius"] = str(mean_radial_position + float(tvo))
+                                        self.header["Radius"] = str(
+                                            mean_radial_position + float(tvo)
+                                        )
                                         self.header["orbit"] = "circular"
                         else:
                             self.header["Radius"] = str(mean_radial_position)
                             self.header["orbit"] = "circular"
                     else:
-                        print("Debug: Skipping tomo view offset processing - direct radii already processed")
-                        
+                        print(
+                            "Debug: Skipping tomo view offset processing - direct radii already processed"
+                        )
+
                 else:
                     warnings.warn("Rotation Information Sequence is empty.")
             else:
                 warnings.warn("Rotation Information Sequence not found in DICOM.")
-                
+
         except Exception as e:
             warnings.warn("Error processing Rotation Information Sequence: " + str(e))
 

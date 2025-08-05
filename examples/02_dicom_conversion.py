@@ -69,7 +69,8 @@ def show_new_api_usage(acq_data):
     """Show how converted data would be used with the new API."""
     print("\n=== Using with New SimindSimulator API ===")
     print("Once you have converted DICOM data, you can use it with the new API:")
-    print("""
+    print(
+        """
     from sirf_simind_connection import SimindSimulator, SimulationConfig
     from sirf_simind_connection.core.components import ScoringRoutine
     
@@ -95,7 +96,8 @@ def show_new_api_usage(acq_data):
     
     # Run simulation
     simulator.run_simulation()
-    """)
+    """
+    )
 
 
 def main():

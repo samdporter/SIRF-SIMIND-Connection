@@ -7,10 +7,14 @@ using SIRF-SIMIND-Connection with the new API.
 """
 
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 
 from sirf_simind_connection import (
-    SimindSimulator, SimulationConfig, configs, utils,
+    SimindSimulator,
+    SimulationConfig,
+    configs,
+    utils,
 )
 from sirf_simind_connection.core.components import ScoringRoutine
 
@@ -30,34 +34,34 @@ def main():
     mu_map.write(str(output_dir / "mu_map.hv"))
 
     print("Setting up SIMIND simulator using new API...")
-    
+
     # Load and configure the simulation config
     config = SimulationConfig(configs.get("input.smc"))
     config.import_yaml(configs.get("AnyScan.yaml"))
-    
+
     # Method 1: Using the new constructor directly
     simulator = SimindSimulator(
         config_source=config,
         output_dir=output_dir,
         output_prefix="basic_sim",
         photon_multiplier=1,
-        scoring_routine=ScoringRoutine.SCATTWIN
+        scoring_routine=ScoringRoutine.SCATTWIN,
     )
-    
+
     # Set the inputs using new methods
     simulator.set_source(phantom)
     simulator.set_mu_map(mu_map)
-    
+
     # Set energy windows for Tc-99m (140 keV ± 10%)
     simulator.set_energy_windows(
         lower_bounds=[126],  # 140 - 14 keV
         upper_bounds=[154],  # 140 + 14 keV
-        scatter_orders=[0]   # Include scatter
+        scatter_orders=[0],  # Include scatter
     )
-    
+
     # Set photon energy for Tc-99m
     simulator.add_config_value(1, 140.0)  # 140 keV
-    
+
     print("Running simulation (this may take a few minutes)...")
     simulator.run_simulation()
 

@@ -193,7 +193,7 @@ class SimulationConfig:
         print(str(filepath))
 
         # Detect file type and load accordingly
-        if str(filepath).endswith('.yaml') or str(filepath).endswith('.yml'):
+        if str(filepath).endswith(".yaml") or str(filepath).endswith(".yml"):
             # Initialize with default values first
             self._initialise_yaml_defaults()
             self.import_yaml(filepath)
@@ -205,8 +205,8 @@ class SimulationConfig:
         """Initialize with default values for YAML loading."""
         # Set up defaults for when loading from YAML
         self.data = [0.0] * 101  # Initialize with 101 zeros
-        self.flags = 'F' * 15    # Initialize with 15 False flags
-        self.text_variables = {i: 'none' for i in range(1, 13)}
+        self.flags = "F" * 15  # Initialize with 15 False flags
+        self.text_variables = {i: "none" for i in range(1, 13)}
         self.data_files = {}
         self.comment = "Loaded from YAML"
 
@@ -253,7 +253,8 @@ class SimulationConfig:
                 data_files_start + 1 : data_files_start + 1 + data_files_count
             ]
             self.data_files = {
-                i + 1: data_files_lines[i].strip() for i in range(data_files_count)  # Start from 1, not 7
+                i + 1: data_files_lines[i].strip()
+                for i in range(data_files_count)  # Start from 1, not 7
             }
 
     def to_yaml_dict(self):
@@ -678,7 +679,7 @@ class SimulationConfig:
     def save_file(self, filepath):
         # Ensure filepath is a Path object
         filepath = Path(filepath)
-        
+
         # Check if the file has the correct suffix, add it if missing
         if filepath.suffix != ".smc":
             filepath = filepath.with_suffix(".smc")
@@ -695,7 +696,7 @@ class SimulationConfig:
                         val = self.data[i + j]
                     else:
                         val = 0.0  # Pad with zeros if needed
-                    
+
                     # Format the value in scientific notation with 5 decimal places
                     formatted_val = f"{val:.5E}"
                     if val != 0:
@@ -719,7 +720,7 @@ class SimulationConfig:
                     else:
                         # If the value is 0, we don't need to format it
                         formatted_val = f" {val:.5E}"
-                    
+
                     # Add the formatted value to the line
                     line += f"{formatted_val}"
 
@@ -732,7 +733,7 @@ class SimulationConfig:
                 file.write(f"{self.text_variables[i]}\n")
             file.write(f"    {len(self.data_files)} # Data files\n")
             for i in range(1, 13):
-                filename = self.data_files.get(i, 'none')
+                filename = self.data_files.get(i, "none")
                 file.write(f"{filename:<60}\n")
 
         return filepath.with_suffix(".smc")

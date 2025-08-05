@@ -7,9 +7,10 @@ useful for scatter correction techniques like TEW (Triple Energy Window).
 """
 
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 
-from sirf_simind_connection import (SimindSimulator, SimulationConfig, configs, utils)
+from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
 from sirf_simind_connection.core.components import ScoringRoutine
 
 
@@ -107,10 +108,10 @@ def main():
         output_dir=output_dir,
         output_prefix="tew_sim",
         photon_multiplier=1,
-        scoring_routine=ScoringRoutine.SCATTWIN
+        scoring_routine=ScoringRoutine.SCATTWIN,
     )
 
-    # Set inputs using new methods  
+    # Set inputs using new methods
     simulator.set_source(phantom)
     simulator.set_mu_map(mu_map)
 
