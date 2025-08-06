@@ -10,7 +10,7 @@ from importlib import metadata as _meta
 try:  # installed (pip/poetry)
     __version__ = _meta.version(__name__)
 except _meta.PackageNotFoundError:  # editable / source checkout
-    __version__ = "1.0.0"
+    __version__ = "0.2.2"
 
 
 # Lazy imports to avoid SIRF dependencies in CI
