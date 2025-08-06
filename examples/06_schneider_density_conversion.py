@@ -3,10 +3,12 @@
 Example: Schneider Density Conversion
 
 This example demonstrates the improved Schneider2000-based density conversion
-functionality, which provides much higher accuracy than the traditional bilinear model.
+functionality, which provides much higher accuracy than the traditional
+bilinear model.
 
-The Schneider model uses 44 tissue segments with specific HU ranges and densities,
-providing clinically accurate tissue density mappings for SPECT simulation.
+The Schneider model uses 44 tissue segments with specific HU ranges and
+densities, providing clinically accurate tissue density mappings for SPECT
+simulation.
 """
 
 from pathlib import Path
@@ -19,7 +21,6 @@ from sirf_simind_connection.converters.attenuation import (
     get_schneider_tissue_info,
     hu_to_density,
     hu_to_density_schneider,
-    hu_to_density_schneider_piecewise,
 )
 
 
@@ -41,27 +42,29 @@ def main():
     # Compare all three methods
     hu_to_density(hu_values)
     hu_to_density_schneider(hu_values)
-    hu_to_density_schneider_piecewise(hu_values)
 
     print("   ✓ Bilinear model")
     print("   ✓ Schneider interpolated model")
-    print("   ✓ Schneider piecewise model")
 
     # Perform comparison analysis
     print("\n2. Analyzing differences between methods...")
     comparison = compare_density_methods(hu_values)
 
     print(
-        f"   Max difference (interpolated vs bilinear): {comparison['max_diff_interp']:.4f} g/cm³"
+        f"   Max difference (interpolated vs bilinear): "
+        f"{comparison['max_diff_interp']:.4f} g/cm³"
     )
     print(
-        f"   Max difference (piecewise vs bilinear): {comparison['max_diff_piecewise']:.4f} g/cm³"
+        f"   Max difference (piecewise vs bilinear): "
+        f"{comparison['max_diff_piecewise']:.4f} g/cm³"
     )
     print(
-        f"   Mean absolute difference (interpolated): {comparison['mean_diff_interp']:.4f} g/cm³"
+        f"   Mean absolute difference (interpolated): "
+        f"{comparison['mean_diff_interp']:.4f} g/cm³"
     )
     print(
-        f"   Mean absolute difference (piecewise): {comparison['mean_diff_piecewise']:.4f} g/cm³"
+        f"   Mean absolute difference (piecewise): "
+        f"{comparison['mean_diff_piecewise']:.4f} g/cm³"
     )
 
     # Demonstrate tissue lookup
@@ -108,13 +111,6 @@ def create_comparison_plots(hu_values, comparison, output_dir):
         label="Schneider Interpolated",
         linewidth=2,
     )
-    axes[0, 0].plot(
-        hu_values,
-        comparison["schneider_piecewise"],
-        "g:",
-        label="Schneider Piecewise",
-        linewidth=1.5,
-    )
     axes[0, 0].set_xlabel("Hounsfield Units")
     axes[0, 0].set_ylabel("Density (g/cm³)")
     axes[0, 0].set_title("Full Range Density Conversion (-1050 to 2000 HU)")
@@ -138,13 +134,6 @@ def create_comparison_plots(hu_values, comparison, output_dir):
         "r--",
         label="Schneider Interpolated",
         linewidth=2,
-    )
-    axes[0, 1].plot(
-        hu_clinical,
-        comparison["schneider_piecewise"][clinical_mask],
-        "g:",
-        label="Schneider Piecewise",
-        linewidth=1.5,
     )
     axes[0, 1].set_xlabel("Hounsfield Units")
     axes[0, 1].set_ylabel("Density (g/cm³)")

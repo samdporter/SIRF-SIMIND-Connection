@@ -222,7 +222,8 @@ class TestConsistency:
     """Test consistency and edge cases."""
 
     def test_density_monotonicity(self):
-        """Test that density generally increases with HU (not strictly required but expected trend)."""
+        """Test that density generally increases with HU (not strictly required
+        but expected trend)."""
         hu_values = np.array([-1000, -500, 0, 500, 1000])
         densities = hu_to_density_schneider(hu_values)
 

@@ -8,12 +8,23 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import yaml
-from sirf.STIR import AcquisitionData, ImageData
+
+
+# Conditional import for SIRF to avoid CI dependencies
+try:
+    from sirf.STIR import AcquisitionData, ImageData
+
+    SIRF_AVAILABLE = True
+except ImportError:
+    AcquisitionData = type(None)
+    ImageData = type(None)
+    SIRF_AVAILABLE = False
 
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
 
-from .components import (  # Exceptions; Data classes; Managers and processors; Constants
+from .components import (  # Exceptions; Data classes; Managers and processors;
+    # Constants
     SIMIND_VOXEL_UNIT_CONVERSION,
     AcquisitionManager,
     DataFileManager,
@@ -36,7 +47,8 @@ from .config import RuntimeSwitches, SimulationConfig
 
 class SimindSimulator:
     """
-    Enhanced SIMIND simulator with support for both scattwin and penetrate scoring routines.
+    Enhanced SIMIND simulator with support for both scattwin and penetrate
+    scoring routines.
     """
 
     def __init__(
@@ -51,7 +63,8 @@ class SimindSimulator:
         Initialize the simulator with flexible configuration source.
 
         Args:
-            config_source: Can be string path to .smc/.yaml file or SimulationConfig object
+            config_source: Can be string path to .smc/.yaml file or
+                SimulationConfig object
             output_dir: Directory for simulation outputs
             output_prefix: Prefix for output files
             photon_multiplier: Photon multiplier for NN runtime switch
@@ -163,7 +176,8 @@ class SimindSimulator:
 
         else:
             raise TypeError(
-                f"config_source must be string path or SimulationConfig object, got {type(config_source)}"
+                f"config_source must be string path or SimulationConfig object, "
+                f"got {type(config_source)}"
             )
 
     def _configure_voxelised_phantom(self) -> None:
@@ -234,7 +248,8 @@ class SimindSimulator:
         self.geometry_manager.configure_attenuation_geometry(geometry)
 
         self.logger.info(
-            f"Attenuation map configured: {geometry.dim_x}×{geometry.dim_y}×{geometry.dim_z}"
+            f"Attenuation map configured: {geometry.dim_x}×{geometry.dim_y}"
+            f"×{geometry.dim_z}"
         )
 
     def set_energy_windows(
@@ -250,7 +265,8 @@ class SimindSimulator:
                 "Energy windows configuration is not applicable for penetrate routine"
             )
             self.logger.warning(
-                "Penetrate routine analyzes all interactions regardless of energy windows"
+                "Penetrate routine analyzes all interactions regardless of "
+                "energy windows"
             )
 
         # Convert single values to lists
@@ -402,7 +418,8 @@ class SimindSimulator:
             if not self.energy_windows:
                 raise ValidationError("Energy windows must be set for scattwin routine")
         elif self.scoring_routine == ScoringRoutine.PENETRATE:
-            # Penetrate routine doesn't need energy windows but may have other requirements
+            # Penetrate routine doesn't need energy windows but may have other
+            # requirements
             pass
 
     def _prepare_simulation(self) -> None:
@@ -561,7 +578,8 @@ class SimindSimulator:
         if component_name not in outputs:
             available = list(outputs.keys())
             raise OutputError(
-                f"Penetrate component '{component_name}' not found. Available: {available}"
+                f"Penetrate component '{component_name}' not found. "
+                f"Available: {available}"
             )
 
         return outputs[component_name]

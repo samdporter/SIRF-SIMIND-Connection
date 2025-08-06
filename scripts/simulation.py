@@ -3,7 +3,8 @@
 """
 Run a simulation using SIMIND and STIR,
 generate simulated sinograms and compare with measured data.
-python script.py --simulation_config simulation_config.yaml --scanner_config scanner_config.yaml
+python script.py --simulation_config simulation_config.yaml \
+--scanner_config scanner_config.yaml
 
 Updated to work with both scattwin and penetrate scoring routines.
 """
@@ -21,6 +22,7 @@ from sirf.STIR import AcquisitionData, ImageData, MessageRedirector
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.core import ScoringRoutine
+
 
 msg = MessageRedirector()
 
@@ -223,11 +225,13 @@ def setup_simulator(sim_config, scanner_config_path, image, mu_map, measured_dat
             scatter_orders=0,
         )
         print(
-            f"  - Energy window: {sim_config['window_lower']}-{sim_config['window_upper']} keV"
+            f"  - Energy window: {sim_config['window_lower']}-"
+            f"{sim_config['window_upper']} keV"
         )
     else:
         print(
-            f"  - Energy windows not applicable for {scoring_routine.name.lower()} routine"
+            f"  - Energy windows not applicable for "
+            f"{scoring_routine.name.lower()} routine"
         )
 
     # Add configuration parameters
@@ -387,16 +391,17 @@ def plot_comparison(
     colormap="viridis",
 ):
     """
-    Plot slice comparisons of the sinograms (axial or coronal) with an image grid and a line plot.
+    Plot slice comparisons of the sinograms (axial or coronal) with an image grid
+    and a line plot.
     """
     slice_index = int(slice_index)
     profile_index = int(profile_index)
 
     # Determine vmax over all datasets for consistent color scaling
-    if orientation == 'axial':
+    if orientation == "axial":
         vmax = data_list[0][0][0][slice_index].max()
-    elif orientation == 'coronal':
-        vmax = data_list[0][0][0][:,slice_index].max()
+    elif orientation == "coronal":
+        vmax = data_list[0][0][0][:, slice_index].max()
     else:
         raise ValueError("orientation must be 'axial' or 'coronal'")
 
@@ -533,7 +538,8 @@ def generate_plots(outputs, measured_data, scoring_routine, sim_config, base_fil
             )
 
     print(
-        f"Generated {len(orientations) * len(methods)} comparison plots for {routine_name}"
+        f"Generated {len(orientations) * len(methods)} comparison plots for "
+        f"{routine_name}"
     )
 
 
@@ -613,7 +619,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run a simulation using SIMIND and STIR with configurable scoring routines"
+        description="Run a simulation using SIMIND and STIR with configurable "
+        "scoring routines"
     )
 
     parser.add_argument(

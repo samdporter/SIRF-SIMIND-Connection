@@ -17,6 +17,7 @@ import time
 import traceback
 from pathlib import Path
 
+
 # Add the parent directory to Python path for imports
 script_dir = Path(__file__).parent
 parent_dir = script_dir.parent
@@ -212,7 +213,7 @@ def run_single_example(example_info, example_num):
     description = example_info["description"]
     estimated_time = example_info["estimated_time"]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"EXAMPLE {example_num}: {name}")
     print(f"Description: {description}")
     print(f"Estimated time: {estimated_time}")
@@ -264,7 +265,7 @@ def print_summary(results):
     print(f"Successful: {successful}")
     print(f"Failed: {failed}")
     print(
-        f"Total runtime: {total_runtime:.1f} seconds ({total_runtime/60:.1f} minutes)"
+        f"Total runtime: {total_runtime:.1f} seconds ({total_runtime / 60:.1f} minutes)"
     )
 
     print("\nDetailed Results:")
@@ -346,7 +347,8 @@ def main():
 
     total_time = time.time() - start_time
     print(
-        f"\nTotal execution time: {total_time:.1f} seconds ({total_time/60:.1f} minutes)"
+        f"\nTotal execution time: {total_time:.1f} seconds "
+        f"({total_time / 60:.1f} minutes)"
     )
 
 

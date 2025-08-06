@@ -1,10 +1,9 @@
-from sirf.STIR import *
-import numpy as np
+import argparse
 import os
-import matplotlib.pyplot as pl
 import time
 
-import argparse
+from sirf.STIR import *
+
 
 def parse_spect_res(x):
     vals = x.split(',')
@@ -43,7 +42,7 @@ def get_spect_am(spect_data, keep_all_views_in_cache=False):
     spect_am_mat = SPECTUBMatrix()
     spect_am_mat.set_attenuation_image(spect_data["attenuation"])
     spect_am_mat.set_keep_all_views_in_cache(keep_all_views_in_cache)
-    spect_am_mat.set_resolution_model(1.22, 0.031, False) 
+    spect_am_mat.set_resolution_model(1.22, 0.031, False)
     spect_am = AcquisitionModelUsingMatrix(spect_am_mat)
     gauss = SeparableGaussianImageFilter()
     gauss.set_fwhms((13.4, 13.4, 13.4))
@@ -84,14 +83,14 @@ def main(data_path):
 if __name__ == "__main__":
 
     start_time = time.time()
-    
+
     msg = MessageRedirector()
-    
+
     args = parser.parse_args()
     suffix = f"osem_i{args.num_epochs}_s{args.num_subsets}"
 
     print(f"Reconstructing {args.data_path} with {args.num_epochs} epochs and {args.num_subsets} subsets")
-    
+
     spect = main(args.data_path)
     if args.smoothing:
         suffix += "_smoothed"

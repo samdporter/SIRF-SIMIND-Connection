@@ -1,8 +1,15 @@
+import os
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from sirf_simind_connection import SimulationConfig
 from sirf_simind_connection.configs import get
+
+
+# Most tests here are unit tests that don't require SIRF
+pytestmark = pytest.mark.unit
 
 
 def test_simulation_config_loading():
@@ -24,6 +31,10 @@ def test_config_yaml_loading():
     assert isinstance(spect_study, bool)
 
 
+@pytest.mark.skipif(
+    "CI" in os.environ or "GITHUB_ACTIONS" in os.environ,
+    reason="SMC config files not available in CI environment",
+)
 def test_config_smc_loading():
     """Test loading configuration from SMC file."""
     config = SimulationConfig(get("input.smc"))

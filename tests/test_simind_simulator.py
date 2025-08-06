@@ -1,5 +1,7 @@
 import tempfile
 
+import pytest
+
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.configs import get
 from sirf_simind_connection.core.components import ScoringRoutine
@@ -7,6 +9,10 @@ from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,
 )
+
+
+# All tests in this file require SIRF since they use SimindSimulator with SIRF objects
+pytestmark = pytest.mark.requires_sirf
 
 
 def test_simulator_initialization():

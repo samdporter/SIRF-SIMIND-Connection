@@ -10,6 +10,7 @@ from pathlib import Path
 
 from sirf_simind_connection import SimulationConfig, configs
 
+
 TEMPLATE_PATH = configs.get("input.smc")  # Path to a template configuration file
 
 
@@ -155,7 +156,7 @@ def demonstrate_new_api_usage():
         """
     from sirf_simind_connection import SimindSimulator
     from sirf_simind_connection.core.components import ScoringRoutine
-    
+
     # Option 1: Use the config object directly
     simulator = SimindSimulator(
         config_source=custom_config,  # Pass the config object
@@ -164,17 +165,17 @@ def demonstrate_new_api_usage():
         photon_multiplier=10,
         scoring_routine=ScoringRoutine.SCATTWIN
     )
-    
+
     # Set your inputs
     simulator.set_source(phantom)
     simulator.set_mu_map(mu_map)
     simulator.set_energy_windows([126], [154], [0])
-    
+
     # Run simulation
     simulator.run_simulation()
-    
+
     ----------
-    
+
     # Option 2: Use a saved YAML file
     simulator = SimindSimulator(
         config_source='lehr_collimator.yaml',  # Pass YAML path

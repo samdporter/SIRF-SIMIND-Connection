@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
 from sirf_simind_connection.core.components import ScoringRoutine
 
+
 # Create output directory
 output_dir = Path("output/basic_simulation")
 output_dir.mkdir(parents=True, exist_ok=True)

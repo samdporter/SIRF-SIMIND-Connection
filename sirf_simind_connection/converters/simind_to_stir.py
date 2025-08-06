@@ -5,7 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from sirf.STIR import AcquisitionData
+
+# Conditional import for SIRF to avoid CI dependencies
+try:
+    from sirf.STIR import AcquisitionData
+
+    SIRF_AVAILABLE = True
+except ImportError:
+    AcquisitionData = type(None)
+    SIRF_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -186,7 +194,10 @@ class IgnorePatternRule(ConversionRule):
 
 
 class SimindToStirConverter:
-    """Enhanced SIMIND to STIR converter with configurable rules and editing capabilities."""
+    """
+    Enhanced SIMIND to STIR converter with configurable rules and editing
+    capabilities.
+    """
 
     def __init__(self, config: Optional[ConversionConfig] = None):
         self.config = config or ConversionConfig()
@@ -312,8 +323,10 @@ class SimindToStirConverter:
         """
         Create multiple STIR headers for penetrate routine from single .h00 template.
 
-        The penetrate routine creates only one .h00 file pointing to a non-existent .a00,
-        but multiple .bXX binary files. This method creates separate .hs headers for each .bXX file.
+        The penetrate routine creates only one .h00 file pointing to a
+        non-existent .a00,
+        but multiple .bXX binary files. This method creates separate .hs headers
+        for each .bXX file.
 
         Args:
             h00_file: Path to the single .h00 template file from penetrate routine
@@ -457,7 +470,9 @@ class SimindToStirConverter:
             7: "Septal penetration from scattered photons",
             8: "Collimator scatter from scattered photons",
             9: "X-rays from collimator (scattered photons)",
-            10: "Geometrically collimated primary attenuated photons (with backscatter)",
+            10: (
+                "Geometrically collimated primary attenuated photons (with backscatter)"
+            ),
             11: "Septal penetration from primary attenuated photons (with backscatter)",
             12: "Collimator scatter from primary attenuated photons (with backscatter)",
             13: "X-rays from collimator, primary attenuated photons (with backscatter)",
@@ -622,7 +637,8 @@ class SimindToStirConverter:
         self, filename: str, image_data, tolerance: float = 0.1
     ) -> bool:
         """
-        Validate scaling factors against image voxel sizes and fix if they differ within tolerance.
+        Validate scaling factors against image voxel sizes and fix if they differ
+        within tolerance.
 
         Args:
             filename: Path to the header file
@@ -630,7 +646,8 @@ class SimindToStirConverter:
             tolerance: Maximum allowed difference in mm (default 0.1mm)
 
         Returns:
-            bool: True if scaling factors were within tolerance, False if they were corrected
+            bool: True if scaling factors were within tolerance, False if they were
+                corrected
         """
         if not filename.endswith((".hs", ".h00")):
             self.logger.error("File must have .hs or .h00 extension")
@@ -659,7 +676,8 @@ class SimindToStirConverter:
                 filename, "scaling factor (mm/pixel) [2]", image_voxel_y
             )
             self.logger.info(
-                f"Set scaling factors to image voxel sizes: [{image_voxel_x}, {image_voxel_y}]"
+                f"Set scaling factors to image voxel sizes: "
+                f"[{image_voxel_x}, {image_voxel_y}]"
             )
             return False
 
@@ -673,7 +691,8 @@ class SimindToStirConverter:
 
             if diff_x <= tolerance and diff_y <= tolerance:
                 self.logger.debug(
-                    f"Scaling factors are within tolerance: current=[{current_x}, {current_y}], image=[{image_voxel_x}, {image_voxel_y}]"
+                    f"Scaling factors are within tolerance: current=[{current_x}, "
+                    f"{current_y}], image=[{image_voxel_x}, {image_voxel_y}]"
                 )
                 return True
             else:

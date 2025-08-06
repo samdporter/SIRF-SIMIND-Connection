@@ -10,7 +10,8 @@ class STIRSPECTAcquisitionDataBuilder:
     """
     A builder class for creating a uniform STIR AcquisitionData object.
 
-    Default header parameters for the STIR format are set during initialization but can be
+    Default header parameters for the STIR format are set during initialization but
+    can be
     overridden via constructor parameters or by using the `update_header` method.
     """
 
@@ -116,7 +117,8 @@ class STIRSPECTAcquisitionDataBuilder:
     def build_multi_energy(self, output_path_base="temp", multiple_data_files=True):
         """
         If multiple energy windows are available (as extracted in self.energy_windows),
-        build and save separate AcquisitionData files for each energy window. At the moment,
+        build and save separate AcquisitionData files for each energy window. At the
+        moment,
         this is the only way to do this. In the future, we may consider adding an option
         to change the data offset and save data to a single file.
 
@@ -154,7 +156,8 @@ class STIRSPECTAcquisitionDataBuilder:
 
     def update_header_from_dicom(self, dicom_filepath):
         """
-        Update header values from a DICOM file. Extracts as many relevant values as possible,
+        Update header values from a DICOM file. Extracts as many relevant values as
+        possible,
         with warnings if an expected tag is missing.
 
         Also extracts energy window information into self.energy_windows.
@@ -164,7 +167,8 @@ class STIRSPECTAcquisitionDataBuilder:
         """
         ds = pydicom.dcmread(dicom_filepath)
 
-        # (Existing updates for modality, matrix sizes, pixel spacing, number of projections, etc.)
+        # (Existing updates for modality, matrix sizes, pixel spacing, number of
+        # projections, etc.)
         try:
             self.header["!imaging modality"] = ds.Modality
         except AttributeError:
@@ -192,7 +196,8 @@ class STIRSPECTAcquisitionDataBuilder:
                 self.header["!number of projections"] = str(num_frames)
             else:
                 warnings.warn(
-                    "NumberOfFrames not found in DICOM. Retaining default '!number of projections'."
+                    "NumberOfFrames not found in DICOM. Retaining default "
+                    "'!number of projections'."
                 )
         except Exception as e:
             warnings.warn("Error accessing NumberOfFrames from DICOM: " + str(e))
@@ -303,7 +308,8 @@ class STIRSPECTAcquisitionDataBuilder:
                             # Use the array values directly as the radii of rotation
                             rp_list = [float(x) for x in rp_val]
 
-                            # Check if all radii are the same (circular orbit) using proper tolerance
+                            # Check if all radii are the same (circular orbit) using
+                            # proper tolerance
                             if len(set(rp_list)) == 1 or all(
                                 abs(r - rp_list[0]) < 1e-3 for r in rp_list
                             ):
@@ -321,7 +327,8 @@ class STIRSPECTAcquisitionDataBuilder:
 
                             radial_processed = True
                             print(
-                                f"Debug: Direct radii processed - all same: {len(set(rp_list)) == 1}, values: {rp_list[:5]}..."
+                                f"Debug: Direct radii processed - all same: "
+                                f"{len(set(rp_list)) == 1}, values: {rp_list[:5]}..."
                             )
 
                         else:
@@ -332,14 +339,17 @@ class STIRSPECTAcquisitionDataBuilder:
                             )
                     else:
                         warnings.warn(
-                            "Mean radial position not found in Rotation Information Sequence. Using default 0.0."
+                            "Mean radial position not found in Rotation Information "
+                            "Sequence. Using default 0.0."
                         )
                         mean_radial_position = 0.0
 
-                    # Only process tomo view offset if we haven't already processed direct radii
+                    # Only process tomo view offset if we haven't already processed
+                    # direct radii
                     if not radial_processed:
                         print(
-                            "Debug: Processing tomo view offset since direct radii not processed"
+                            "Debug: Processing tomo view offset since direct radii "
+                            "not processed"
                         )
 
                         # Process Detector Information Sequence & Tomo View Offset
@@ -356,7 +366,8 @@ class STIRSPECTAcquisitionDataBuilder:
                                         hasattr(tvo, "__iter__")
                                         or isinstance(tvo, (list, tuple))
                                     ) and len(tvo) > 1:
-                                        # Compute radial positions by adding tomo view offsets to the mean radial position
+                                        # Compute radial positions by adding tomo view
+                                        # offsets to the mean radial position
                                         radial_positions = [
                                             mean_radial_position + float(tvo[i])
                                             for i in range(2, min(len(tvo), 360), 3)
@@ -396,7 +407,8 @@ class STIRSPECTAcquisitionDataBuilder:
                             self.header["orbit"] = "circular"
                     else:
                         print(
-                            "Debug: Skipping tomo view offset processing - direct radii already processed"
+                            "Debug: Skipping tomo view offset processing - direct "
+                            "radii already processed"
                         )
 
                 else:
@@ -407,7 +419,8 @@ class STIRSPECTAcquisitionDataBuilder:
         except Exception as e:
             warnings.warn("Error processing Rotation Information Sequence: " + str(e))
 
-        # (Remaining updates: acquisition date & time, acquisition number, manufacturer, etc.)
+        # (Remaining updates: acquisition date & time, acquisition number,
+        # manufacturer, etc.)
         try:
             self.header[";#acquisition date"] = ds.AcquisitionDate
         except AttributeError:

@@ -1,4 +1,5 @@
-### This file contains a few useful functions for converting SIMIND output to STIR format.
+# This file contains a few useful functions for converting SIMIND output to
+# STIR format.
 ### It should probably be cleaned up and object-orientedified at some point.
 
 ### Author: Sam Porter, Efstathios Varzakis
@@ -9,7 +10,18 @@ import subprocess
 import warnings
 
 import numpy as np
-from sirf.STIR import AcquisitionData, ImageData
+
+
+# Conditional import for SIRF to avoid CI dependencies
+try:
+    from sirf.STIR import AcquisitionData, ImageData
+
+    SIRF_AVAILABLE = True
+except ImportError:
+    # Create dummy types for type hints when SIRF is not available
+    AcquisitionData = type(None)
+    ImageData = type(None)
+    SIRF_AVAILABLE = False
 
 
 def parse_sinogram(template_sinogram):
@@ -45,7 +57,8 @@ def parse_interfile(filename):
 def get_sirf_attenuation_from_simind(
     attn_filename, photopeak_energy=0.12, attn_type="mu"
 ):
-    """Reads attenuation data from simind attenuation file and returns SIRF ImageData object
+    """Reads attenuation data from simind attenuation file and returns SIRF
+    ImageData object
 
     Args:
         attn_filename (string): file name of simind attenuation file header
@@ -104,8 +117,10 @@ def get_sirf_sinogram_from_simind(
 
     Args:
         simind_header_filepath (string): file name of simind header file
-        script_path (string, optional): path to simind conversion scripts. Defaults to ".".
-        circular (bool, optional): whether to use circular or non-circular conversion script. Defaults to True.
+        script_path (string, optional): path to simind conversion scripts.
+            Defaults to ".".
+        circular (bool, optional): whether to use circular or non-circular
+            conversion script. Defaults to True.
     Returns:
         AcquisitionData: SIRF AcquisitionData object containing sinogram data
     """
@@ -140,7 +155,8 @@ def convert_value(val: str):
         return val
 
 
-### PLEASE NOTE that the following functions are far from perfect and things may have been missed
+# PLEASE NOTE that the following functions are far from perfect and things may
+# have been missed
 ### The naming converntions are a bit funny so there needs to be some cleaning up
 
 STIR_ATTRIBUTE_MAPPING = {
@@ -305,7 +321,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ),
         (
             re.compile(
-                r"Average depth of interaction\s*\(cm\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
+                r"Average depth of interaction\s*\(cm\)\s*[:=]+\s*"
+                r"([-+]?[0-9]*\.?[0-9]+)",
                 re.IGNORECASE,
             ),
             lambda m: float(m.group(1)),
@@ -352,7 +369,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ),
         (
             re.compile(
-                r"Number of blocks per bucket in transaxial direction\s*[:=]+\s*([-]?\d+)",
+                r"Number of blocks per bucket in transaxial direction\s*[:=]+\s*"
+                r"([-]?\d+)",
                 re.IGNORECASE,
             ),
             lambda m: int(m.group(1)),
@@ -376,7 +394,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ),
         (
             re.compile(
-                r"Number of crystals per block in transaxial direction\s*[:=]+\s*([-]?\d+)",
+                r"Number of crystals per block in transaxial direction\s*[:=]+\s*"
+                r"([-]?\d+)",
                 re.IGNORECASE,
             ),
             lambda m: int(m.group(1)),
@@ -389,7 +408,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ),
         (
             re.compile(
-                r"Number of crystals per singles unit in axial direction\s*[:=]+\s*([-]?\d+)",
+                r"Number of crystals per singles unit in axial direction\s*[:=]+\s*"
+                r"([-]?\d+)",
                 re.IGNORECASE,
             ),
             lambda m: int(m.group(1)),
@@ -397,7 +417,9 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ),
         (
             re.compile(
-                r"Number of crystals per singles unit in transaxial direction\s*[:=]+\s*([-]?\d+)",
+                r"Number of crystals per singles unit in transaxial "
+                r"direction\s*[:=]+\s*"
+                r"([-]?\d+)",
                 re.IGNORECASE,
             ),
             lambda m: int(m.group(1)),
@@ -411,7 +433,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         # Other parameters:
         (
             re.compile(
-                r"start vertical bed position\s*\(mm\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
+                r"start vertical bed position\s*\(mm\)\s*[:=]+\s*"
+                r"([-+]?[0-9]*\.?[0-9]+)",
                 re.IGNORECASE,
             ),
             lambda m: float(m.group(1)),
@@ -419,7 +442,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ),
         (
             re.compile(
-                r"start horizontal bed position\s*\(mm\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
+                r"start horizontal bed position\s*\(mm\)\s*[:=]+\s*"
+                r"([-+]?[0-9]*\.?[0-9]+)",
                 re.IGNORECASE,
             ),
             lambda m: float(m.group(1)),
@@ -482,7 +506,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ),
     ]
 
-    # Special handling for "ring differences per segment:" which appears on one line, followed by a tuple in the next.
+    # Special handling for "ring differences per segment:" which appears on one
+    # line, followed by a tuple in the next.
     ring_diff_pattern = re.compile(r"\(\s*([-+]?\d+)\s*,\s*([-+]?\d+)\s*\)")
 
     skip_next = False  # flag to skip a line already processed (for ring differences)
@@ -503,7 +528,8 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         ):
             continue
 
-        # Handle "ring differences per segment:" (the value is on the next non-empty line)
+        # Handle "ring differences per segment:" (the value is on the next
+        # non-empty line)
         if line.lower().startswith("ring differences per segment"):
             j = i + 1
             while j < len(lines) and not lines[j].strip():
@@ -563,7 +589,8 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
         "scaling_factors": {},
     }
 
-    # Define generic patterns: each tuple contains (compiled regex, converter, attribute key)
+    # Define generic patterns: each tuple contains (compiled regex, converter,
+    # attribute key)
     patterns = [
         (
             re.compile(r"!imaging modality\s*:=\s*(.+)", re.IGNORECASE),
@@ -724,8 +751,10 @@ def create_stir_image(matrix_dim: list, voxel_size: list):
     Creates a uniform (zeros) STIR ImageData object given specified parameters.
 
     Parameters:
-    matrix_dim (list of int): A three element list containing the matrix size for each dimension of the image.
-    voxel_size (list of float): A three element list describing the voxel size in the image (mm).
+    matrix_dim (list of int): A three element list containing the matrix size
+        for each dimension of the image.
+    voxel_size (list of float): A three element list describing the voxel size
+        in the image (mm).
 
     Returns [ImageData]: The ImageData object.
 
@@ -793,9 +822,11 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
     Creates a uniform (zeros) STIR AcquisitionData object given specified parameters.
 
     Parameters:
-    proj_matrix (list of int): A two element list containing the matrix size for each dimension of the projections.
+    proj_matrix (list of int): A two element list containing the matrix size for
+        each dimension of the projections.
     num_projections (int): The number of projections in the acquisition data file.
-    pixel_size (list of float): A two element list describing the pixel size in the projections (mm).
+    pixel_size (list of float): A two element list describing the pixel size
+        in the projections (mm).
 
     Returns [AcquisiitonData]: The AcquisitionData object.
 

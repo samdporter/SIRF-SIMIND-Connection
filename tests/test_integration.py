@@ -4,6 +4,14 @@ import subprocess
 import pytest
 
 
+# Integration tests may require both SIRF and SIMIND
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.requires_sirf,
+    pytest.mark.requires_simind,
+]
+
+
 @pytest.mark.integration
 def test_run_all_examples():
     """Test running all examples as an integration test."""
@@ -21,6 +29,7 @@ def test_run_all_examples():
     )
 
     # Check that script completes successfully
-    assert (
-        result.returncode == 0
-    ), f"Script failed with return code {result.returncode}\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    assert result.returncode == 0, (
+        f"Script failed with return code {result.returncode}\n"
+        f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    )
