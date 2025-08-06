@@ -10,6 +10,7 @@ import warnings
 
 import numpy as np
 
+
 # Conditional import for SIRF to avoid CI dependencies
 try:
     from sirf.STIR import AcquisitionData, ImageData

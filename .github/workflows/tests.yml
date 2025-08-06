@@ -26,9 +26,6 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
-      - name: Format check with black
-        run: |
-          black --check .
       - name: Run CI-friendly tests
         run: |
           python -m pytest tests/ -v -m "not requires_sirf and not requires_simind and not ci_skip" --cov=sirf_simind_connection --cov-report=xml

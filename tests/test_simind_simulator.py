@@ -10,6 +10,7 @@ from sirf_simind_connection.utils.stir_utils import (
     create_simple_phantom,
 )
 
+
 # All tests in this file require SIRF since they use SimindSimulator with SIRF objects
 pytestmark = pytest.mark.requires_sirf
 

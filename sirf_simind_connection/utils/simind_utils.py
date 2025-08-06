@@ -44,9 +44,9 @@ def create_window_file(
     if isinstance(scatter_orders, Number):
         scatter_orders = [scatter_orders]
 
-    assert (
-        len(lower_bounds) == len(upper_bounds) == len(scatter_orders)
-    ), "lower_bounds, upper_bounds and scatter_orders must have same length"
+    assert len(lower_bounds) == len(upper_bounds) == len(scatter_orders), (
+        "lower_bounds, upper_bounds and scatter_orders must have same length"
+    )
 
     # remove previous window file if present
     if os.path.exists(output_filename):

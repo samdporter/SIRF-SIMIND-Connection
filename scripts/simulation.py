@@ -22,6 +22,7 @@ from sirf.STIR import AcquisitionData, ImageData, MessageRedirector
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.core import ScoringRoutine
 
+
 msg = MessageRedirector()
 
 

@@ -12,6 +12,7 @@ from sirf_simind_connection.utils.stir_utils import (
     parse_interfile,
 )
 
+
 # Most tests require SIRF, but parse_interfile doesn't
 pytestmark = pytest.mark.requires_sirf
 

@@ -236,8 +236,7 @@ class SimulationConfig:
             text_variables_start = 29
             text_variables_count = int(lines[text_variables_start].split()[0])
             text_variables_lines = lines[
-                text_variables_start
-                + 1 : text_variables_start
+                text_variables_start + 1 : text_variables_start
                 + 1
                 + text_variables_count
             ]

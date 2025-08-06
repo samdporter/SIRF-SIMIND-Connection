@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as _np
 
+
 __all__ = ["data_path", "load_table"]
 
 

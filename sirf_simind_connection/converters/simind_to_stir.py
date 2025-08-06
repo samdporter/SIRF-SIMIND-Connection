@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+
 # Conditional import for SIRF to avoid CI dependencies
 try:
     from sirf.STIR import AcquisitionData

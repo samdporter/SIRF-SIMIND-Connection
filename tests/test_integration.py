@@ -3,6 +3,7 @@ import subprocess
 
 import pytest
 
+
 # Integration tests may require both SIRF and SIMIND
 pytestmark = [
     pytest.mark.integration,
@@ -28,6 +29,6 @@ def test_run_all_examples():
     )
 
     # Check that script completes successfully
-    assert (
-        result.returncode == 0
-    ), f"Script failed with return code {result.returncode}\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    assert result.returncode == 0, (
+        f"Script failed with return code {result.returncode}\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    )

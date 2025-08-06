@@ -10,6 +10,7 @@ from pathlib import Path
 
 from sirf_simind_connection import SimulationConfig, configs
 
+
 TEMPLATE_PATH = configs.get("input.smc")  # Path to a template configuration file
 
 

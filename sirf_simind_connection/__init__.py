@@ -6,6 +6,7 @@ SIRF ⇄ SIMIND connector – public API.
 
 from importlib import metadata as _meta
 
+
 try:  # installed (pip/poetry)
     __version__ = _meta.version(__name__)
 except _meta.PackageNotFoundError:  # editable / source checkout
