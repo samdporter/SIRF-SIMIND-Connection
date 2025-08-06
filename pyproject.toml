@@ -29,7 +29,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 keywords = ["SPECT", "Monte Carlo", "medical imaging", "SIMIND", "SIRF", "STIR"]
-
 dependencies = [
     "numpy>=1.20.0",
     "pydicom>=2.0.0",
@@ -43,8 +42,6 @@ dev = [
     "pytest-mock",
     "black",
     "ruff",
-    "isort",
-    "autoflake",
     "sphinx",
     "sphinx-rtd-theme",
     "sphinx-autodoc-typehints",
@@ -66,3 +63,12 @@ include = ["sirf_simind_connection*"]
 
 [tool.setuptools.package-data]
 sirf_simind_connection = ["data/*.atn"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I"]  # Include import sorting (I)
+
+[tool.ruff.lint.isort]
+profile = "black"
