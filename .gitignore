@@ -165,4 +165,8 @@ temp*
 # Output directories
 output/
 results/
-simulations/
+simulations/act_Linux_x86_64.tar.gz
+node_modules/
+package-lock.json
+package.json
+bin/

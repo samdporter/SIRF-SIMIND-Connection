@@ -30,5 +30,6 @@ def test_run_all_examples():
 
     # Check that script completes successfully
     assert result.returncode == 0, (
-        f"Script failed with return code {result.returncode}\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+        f"Script failed with return code {result.returncode}\n"
+        f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
     )

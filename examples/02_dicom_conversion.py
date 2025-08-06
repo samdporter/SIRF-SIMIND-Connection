@@ -73,10 +73,10 @@ def show_new_api_usage(acq_data):
         """
     from sirf_simind_connection import SimindSimulator, SimulationConfig
     from sirf_simind_connection.core.components import ScoringRoutine
-    
+
     # Load your config
     config = SimulationConfig('your_config.smc')
-    
+
     # Create simulator
     simulator = SimindSimulator(
         config_source=config,
@@ -85,15 +85,15 @@ def show_new_api_usage(acq_data):
         photon_multiplier=10,
         scoring_routine=ScoringRoutine.SCATTWIN
     )
-    
+
     # Set your source, attenuation map, and template sinogram
     simulator.set_source(source_image)
-    simulator.set_mu_map(attenuation_map) 
+    simulator.set_mu_map(attenuation_map)
     simulator.set_template_sinogram(converted_acq_data)  # Use converted DICOM data!
-    
+
     # Set energy windows if needed
     simulator.set_energy_windows([126], [154], [0])
-    
+
     # Run simulation
     simulator.run_simulation()
     """

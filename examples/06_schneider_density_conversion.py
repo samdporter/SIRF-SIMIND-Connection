@@ -3,10 +3,12 @@
 Example: Schneider Density Conversion
 
 This example demonstrates the improved Schneider2000-based density conversion
-functionality, which provides much higher accuracy than the traditional bilinear model.
+functionality, which provides much higher accuracy than the traditional
+bilinear model.
 
-The Schneider model uses 44 tissue segments with specific HU ranges and densities,
-providing clinically accurate tissue density mappings for SPECT simulation.
+The Schneider model uses 44 tissue segments with specific HU ranges and
+densities, providing clinically accurate tissue density mappings for SPECT
+simulation.
 """
 
 from pathlib import Path
@@ -49,16 +51,20 @@ def main():
     comparison = compare_density_methods(hu_values)
 
     print(
-        f"   Max difference (interpolated vs bilinear): {comparison['max_diff_interp']:.4f} g/cm³"
+        f"   Max difference (interpolated vs bilinear): "
+        f"{comparison['max_diff_interp']:.4f} g/cm³"
     )
     print(
-        f"   Max difference (piecewise vs bilinear): {comparison['max_diff_piecewise']:.4f} g/cm³"
+        f"   Max difference (piecewise vs bilinear): "
+        f"{comparison['max_diff_piecewise']:.4f} g/cm³"
     )
     print(
-        f"   Mean absolute difference (interpolated): {comparison['mean_diff_interp']:.4f} g/cm³"
+        f"   Mean absolute difference (interpolated): "
+        f"{comparison['mean_diff_interp']:.4f} g/cm³"
     )
     print(
-        f"   Mean absolute difference (piecewise): {comparison['mean_diff_piecewise']:.4f} g/cm³"
+        f"   Mean absolute difference (piecewise): "
+        f"{comparison['mean_diff_piecewise']:.4f} g/cm³"
     )
 
     # Demonstrate tissue lookup

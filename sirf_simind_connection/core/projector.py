@@ -1,8 +1,10 @@
 """
 SimindProjector Module
 
-This module defines the SimindProjector class, which integrates the SIMIND Monte Carlo SPECT simulator with the STIR library.
-The SimindProjector class facilitates accurate forward projections, scatter updates, and residual corrections to optimize the
+This module defines the SimindProjector class, which integrates the SIMIND Monte
+Carlo SPECT simulator with the STIR library.
+The SimindProjector class facilitates accurate forward projections, scatter
+updates, and residual corrections to optimize the
 Monte Carlo simulation process for SPECT imaging.
 """
 
@@ -30,8 +32,10 @@ class SimindProjector:
     """
     SimindProjector Class
 
-    The SimindProjector combines the SIMIND Monte Carlo SPECT simulator and the STIR library to perform accurate forward projections.
-    It provides optional features for scatter updates and residual corrections, allowing efficient and accurate image reconstruction
+    The SimindProjector combines the SIMIND Monte Carlo SPECT simulator and the
+    STIR library to perform accurate forward projections.
+    It provides optional features for scatter updates and residual corrections,
+    allowing efficient and accurate image reconstruction
     and acquisition data simulations.
 
     Attributes:
@@ -39,7 +43,8 @@ class SimindProjector:
         stir_projector (AcquisitionModel): The STIR acquisition model instance.
         image (ImageData): The image data for forward and backward projection.
         acquisition_data (AcquisitionData): The acquisition data for simulations.
-        correction_update_interval (int): Interval for updating corrections in iterative processes.
+        correction_update_interval (int): Interval for updating corrections in
+            iterative processes.
         update_scatter (bool): Indicates whether scatter updates are enabled.
         residual_correction (bool): Indicates whether residual correction is enabled.
     """
@@ -58,11 +63,15 @@ class SimindProjector:
         Initialize the SimindProjector with optional components.
 
         Args:
-            simind_simulator (SimindSimulator, optional): Instance of the SIMIND simulator.
-            stir_projector (AcquisitionModel, optional): Instance of the STIR acquisition model.
+            simind_simulator (SimindSimulator, optional): Instance of the SIMIND
+                simulator.
+            stir_projector (AcquisitionModel, optional): Instance of the STIR
+                acquisition model.
             image (ImageData, optional): Image data for projections.
-            acquisition_data (AcquisitionData, optional): Acquisition data for simulations.
-            correction_update_interval (int, optional): Interval for updating corrections (default=1).
+            acquisition_data (AcquisitionData, optional): Acquisition data for
+                simulations.
+            correction_update_interval (int, optional): Interval for updating
+                corrections (default=1).
             update_scatter (bool, optional): Enables scatter update if True.
             residual_correction (bool, optional): Enables residual correction if True.
         """
@@ -238,7 +247,8 @@ class SimindProjector:
 
     def simulate_forward_projection(self, image, window=1):
         """
-        Simulate the forward projection of the image using SIMIND and optionally update scatter or apply residual correction.
+        Simulate the forward projection of the image using SIMIND and optionally
+        update scatter or apply residual correction.
 
         Args:
             image (ImageData): Input image for forward projection.

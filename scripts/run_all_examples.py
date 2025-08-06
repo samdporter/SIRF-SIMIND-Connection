@@ -347,7 +347,8 @@ def main():
 
     total_time = time.time() - start_time
     print(
-        f"\nTotal execution time: {total_time:.1f} seconds ({total_time / 60:.1f} minutes)"
+        f"\nTotal execution time: {total_time:.1f} seconds "
+        f"({total_time / 60:.1f} minutes)"
     )
 
 
