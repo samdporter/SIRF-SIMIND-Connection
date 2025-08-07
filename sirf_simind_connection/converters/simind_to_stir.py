@@ -61,7 +61,7 @@ class ConversionRule:
 class RadiusConversionRule(ConversionRule):
     """Convert radius values with scaling."""
 
-    def __init__(self, scale_factor: float = 10.0):
+    def __init__(self, scale_factor: float = 1.0):  # Default to no scaling
         self.scale_factor = scale_factor
 
     def matches(self, line: str) -> bool:
@@ -69,7 +69,9 @@ class RadiusConversionRule(ConversionRule):
 
     def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         try:
-            radius_value = float(line.split()[-1]) * self.scale_factor
+            # Assume .h00 files contain radius in mm (SIMIND's inconsistent behavior)
+            # So use radius value as-is for STIR (which expects mm)
+            radius_value = float(line.split()[-1])
             return f"Radius := {radius_value}", context
         except (ValueError, IndexError) as e:
             logging.warning(f"Failed to convert radius line '{line}': {e}")
@@ -730,3 +732,71 @@ class SimindToStirConverter:
             self.rules.append(rule)
         else:
             self.rules.insert(priority, rule)
+
+    def validate_and_correct_radius(
+        self,
+        output_file: str,
+        template_file: Optional[str] = None,
+        tolerance_factor: float = 2.0,
+    ) -> bool:
+        """
+        Validate radius in output file against template and correct if needed.
+
+        Args:
+            output_file: Path to the output .hs file
+            template_file: Path to the template .hs file for comparison
+            tolerance_factor: Factor by which radius can differ before correction
+
+        Returns:
+            bool: True if radius was within tolerance, False if corrected
+        """
+        if template_file is None or not os.path.exists(template_file):
+            self.logger.debug(
+                "No template file provided or found - skipping radius validation"
+            )
+            return True
+
+        try:
+            # Read radius from template
+            template_radius = self.read_parameter(template_file, "Radius")
+            if template_radius is None:
+                self.logger.debug("No radius found in template file")
+                return True
+
+            template_radius = float(template_radius)
+
+            # Read radius from output
+            output_radius = self.read_parameter(output_file, "Radius")
+            if output_radius is None:
+                self.logger.warning(f"No radius found in output file {output_file}")
+                return True
+
+            output_radius = float(output_radius)
+
+            # Check if radii are within tolerance
+            ratio = output_radius / template_radius
+            if 1 / tolerance_factor <= ratio <= tolerance_factor:
+                self.logger.debug(
+                    f"Radius validation passed: template={template_radius}, output={output_radius}"
+                )
+                return True
+
+            # Radius mismatch detected - attempt correction
+            self.logger.warning(
+                f"Radius mismatch detected in {output_file}:\n"
+                f"  Template: {template_radius} mm\n"
+                f"  Output:   {output_radius} mm\n"
+                f"  Ratio:    {ratio:.2f}"
+            )
+
+            # Correct the radius by setting it to template value
+            self.edit_parameter(output_file, "Radius", template_radius)
+            self.logger.info(
+                f"Corrected radius in {output_file} to {template_radius} mm"
+            )
+
+            return False
+
+        except (ValueError, TypeError) as e:
+            self.logger.error(f"Error during radius validation: {e}")
+            return True
