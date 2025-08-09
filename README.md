@@ -12,7 +12,7 @@ A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
 - [Installation](https://SIRF-SIMIND-Connection.readthedocs.io/en/latest/installation.html)
 
 ## Key Features
-- Monte Carlo SPECT Simulation
+- Monte Carlo SPECT Simulation usind SIMIND
 - Dual Scoring Routines (SCATTWIN/PENETRATE)  
 - DICOM to STIR Conversion
 - **Advanced Schneider2000 Density Conversion** - Clinically validated HU-to-density mapping with 44 tissue segments
