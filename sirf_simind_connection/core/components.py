@@ -7,11 +7,23 @@ Each component has a single responsibility, making the code easier to maintain a
 import logging
 import subprocess
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+
+# Import types that don't depend on SIRF
+from .types import (
+    MAX_SOURCE,
+    ORBIT_FILE_EXTENSION,
+    SIMIND_VOXEL_UNIT_CONVERSION,
+    OutputError,
+    PenetrateOutputType,
+    RotationDirection,
+    ScoringRoutine,
+    SimulationError,
+    ValidationError,
+)
 
 
 # Conditional import for SIRF to avoid CI dependencies
@@ -20,94 +32,9 @@ try:
 
     SIRF_AVAILABLE = True
 except ImportError:
-    # Create dummy types for type hints when SIRF is not available
     AcquisitionData = type(None)
     ImageData = type(None)
     SIRF_AVAILABLE = False
-
-# =============================================================================
-# EXCEPTIONS
-# =============================================================================
-
-
-class SimindError(Exception):
-    """Base exception for SIMIND simulation errors."""
-
-
-class ValidationError(SimindError):
-    """Raised when validation fails."""
-
-
-class SimulationError(SimindError):
-    """Raised when simulation execution fails."""
-
-
-class OutputError(SimindError):
-    """Raised when output processing fails."""
-
-
-# =============================================================================
-# ENUMS AND CONSTANTS
-# =============================================================================
-
-
-class RotationDirection(Enum):
-    CCW = "ccw"
-    CW = "cw"
-
-
-class ScatterType(Enum):
-    TOTAL = "tot"
-    SCATTER = "sca"
-    PRIMARY = "pri"
-    AIR = "air"
-
-
-class ScoringRoutine(Enum):
-    """Enum for different SIMIND scoring routines."""
-
-    DUMMY = 0
-    SCATTWIN = 1
-    LIST_MODE = 2
-    FORCED_COLLIMATION = 3
-    PENETRATE = 4
-
-
-class PenetrateOutputType(Enum):
-    """Enum for different penetrate routine output components."""
-
-    ALL_INTERACTIONS = 1  # *.b01
-    GEOM_COLL_PRIMARY_ATT = 2  # *.b02
-    SEPTAL_PENETRATION_PRIMARY_ATT = 3  # *.b03
-    COLL_SCATTER_PRIMARY_ATT = 4  # *.b04
-    COLL_XRAY_PRIMARY_ATT = 5  # *.b05
-    GEOM_COLL_SCATTERED = 6  # *.b06
-    SEPTAL_PENETRATION_SCATTERED = 7  # *.b07
-    COLL_SCATTER_SCATTERED = 8  # *.b08
-    COLL_XRAY_SCATTERED = 9  # *.b09
-    # With backscatter (*.b10-*.b17)
-    GEOM_COLL_PRIMARY_ATT_BACK = 10  # *.b10
-    SEPTAL_PENETRATION_PRIMARY_ATT_BACK = 11  # *.b11
-    COLL_SCATTER_PRIMARY_ATT_BACK = 12  # *.b12
-    COLL_XRAY_PRIMARY_ATT_BACK = 13  # *.b13
-    GEOM_COLL_SCATTERED_BACK = 14  # *.b14
-    SEPTAL_PENETRATION_SCATTERED_BACK = 15  # *.b15
-    COLL_SCATTER_SCATTERED_BACK = 16  # *.b16
-    COLL_XRAY_SCATTERED_BACK = 17  # *.b17
-    ALL_UNSCATTERED_UNATTENUATED = 18  # *.b18
-    ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL = 19  # *.b19
-
-
-# Constants
-SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
-# Maximum normalised value of source image
-# You would have expected this to be 65535, but it is not
-# I have no understanding why, but it is the case
-# 500 seems a reasonable value that maximises precision
-# whilst not exceeding the maximum value (weird things happen)
-MAX_SOURCE = 500
-ORBIT_FILE_EXTENSION = ".cor"
-OUTPUT_EXTENSIONS = [".h00", ".a00", ".hs"]
 
 
 # =============================================================================
@@ -405,17 +332,37 @@ class OrbitFileManager:
         output_prefix: str,
         center_of_rotation: Optional[float] = None,
     ) -> Path:
-        """Write orbit file for non-circular orbits."""
-        if center_of_rotation is None:
-            center_of_rotation = 0  # Default center
+        """
+        Write orbit file for non-circular orbits.
 
-        orbit_file = self.output_dir / f"{output_prefix}{ORBIT_FILE_EXTENSION}"
+        Args:
+            radii: List of radii in mm (STIR units)
+            output_prefix: Prefix for output filename
+            center_of_rotation: Center of rotation in pixels
+
+        Returns:
+            Path to the created orbit file
+
+        Note:
+            - Input radii are in mm (STIR), output file uses cm (SIMIND)
+            - Uses suffix "_input.cor" to avoid conflict with SIMIND's output .cor file
+        """
+        if center_of_rotation is None:
+            center_of_rotation = 64  # Default center
+
+        # Use "_input.cor" suffix to avoid SIMIND overwriting it with output .cor
+        orbit_file = self.output_dir / f"{output_prefix}_input{ORBIT_FILE_EXTENSION}"
 
         with open(orbit_file, "w") as f:
-            for radius in radii:
-                f.write(f"{radius}\t{center_of_rotation}\t\n")
+            for radius_mm in radii:
+                # Convert from mm (STIR) to cm (SIMIND)
+                radius_cm = radius_mm / SIMIND_VOXEL_UNIT_CONVERSION
+                f.write(f"{radius_cm:.6f}\t{center_of_rotation}\t\n")
 
-        self.logger.info(f"Orbit file written: {orbit_file}")
+        self.logger.info(
+            f"Orbit file written: {orbit_file} "
+            f"({len(radii)} radii, mm->cm conversion applied)"
+        )
         return orbit_file
 
     def read_orbit_file(self, orbit_file: Path) -> List[float]:
@@ -450,20 +397,54 @@ class SimindExecutor:
         runtime_switches: Optional[Dict] = None,
     ) -> None:
         """Execute SIMIND simulation."""
-        command = ["simind", output_prefix, output_prefix]
+        # Check for MPI parallel run
+        mp_value = None
+        if runtime_switches:
+            for k, v in runtime_switches.items():
+                if k.lower() == "mp":
+                    mp_value = v
+                    break
 
+        if mp_value is not None:
+            # MPI parallel run
+            # MP value is the number of cores to use
+            command = [
+                "mpirun",
+                "-np",
+                str(mp_value),
+                "simind",
+                output_prefix,
+                output_prefix,
+            ]
+        else:
+            # Standard serial run
+            command = ["simind", output_prefix, output_prefix]
+
+        # Add orbit file BEFORE -p flag (must be 3rd/4th/5th argument)
+        # Use only filename (not full path) since we chdir to output_dir before running
         if orbit_file:
-            command.append(str(orbit_file))
+            command.append(orbit_file.name)
+
+        # Add -p flag for MPI AFTER orbit file
+        if mp_value is not None:
+            command.append("-p")
 
         if runtime_switches:
-            switches = "".join(f"/{k}:{v}" for k, v in runtime_switches.items())
+            switch_parts = []
+            for k, v in runtime_switches.items():
+                if k.upper() == "MP":
+                    # MP is just a flag when using mpirun
+                    switch_parts.append(f"/{k}")
+                else:
+                    switch_parts.append(f"/{k}:{v}")
+            switches = "".join(switch_parts)
             if switches:
                 command.append(switches)
 
         self.logger.info(f"Running SIMIND: {' '.join(command)}")
 
         try:
-            subprocess.run(command)
+            subprocess.run(command, check=True)
         except subprocess.CalledProcessError as e:
             self.logger.error(f"SIMIND failed: {e}")
             if e.stderr:
@@ -667,7 +648,7 @@ class OutputProcessor:
 
             # Validate and fix scaling factors using the converter
             scaling_ok = self.converter.validate_and_fix_scaling_factors(
-                str(h00_file), source, tolerance=0.0001
+                str(h00_file), source, tolerance=0.00001
             )
 
             if not scaling_ok:

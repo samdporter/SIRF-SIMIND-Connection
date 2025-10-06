@@ -416,16 +416,5 @@ data_files:
   energy_resolution_file:
     index: 8
     filepath: none
-  unkown_file_1:
-    index: 9
-    filepath: none
-  unkown_file_2:
-    index: 10
-    filepath: none
-  unkown_file_3:
-    index: 11
-    filepath: none
-  unkown_file_4:
-    index: 12
-    filepath: none
+
   
