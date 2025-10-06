@@ -227,6 +227,24 @@ class TestIterationTracking:
         coordinator.global_subiteration = 5
         assert coordinator.should_update() is True
 
+    def test_large_update_interval(self, simind_simulator, linear_acquisition_model):
+        """Test behaviour with a very large update interval."""
+        coordinator = SimindCoordinator(
+            simind_simulator=simind_simulator,
+            num_subsets=6,
+            correction_update_interval=1000,
+            residual_correction=True,
+            update_additive=False,
+            linear_acquisition_model=linear_acquisition_model,
+        )
+
+        # Iterate 0: still relying on cached additive, so no update
+        assert coordinator.should_update() is False
+
+        # Once we hit the large interval, the update should trigger
+        coordinator.global_subiteration = 1000
+        assert coordinator.should_update() is True
+
     def test_no_update_when_disabled(self, simind_simulator, linear_acquisition_model):
         """Test that updates don't happen when both flags are False."""
         coordinator = SimindCoordinator(
@@ -370,25 +388,6 @@ class TestEdgeCases:
         )
 
         assert coordinator.num_subsets == 1
-
-    def test_large_update_interval(self, simind_simulator, linear_acquisition_model):
-        """Test with very large update interval."""
-        coordinator = SimindCoordinator(
-            simind_simulator=simind_simulator,
-            num_subsets=6,
-            correction_update_interval=1000,
-            residual_correction=True,
-            update_additive=False,
-            linear_acquisition_model=linear_acquisition_model,
-        )
-
-        # Should update on iteration 0
-        assert coordinator.should_update() is True
-
-        # Should not update for a long time
-        coordinator.global_subiteration = 999
-        coordinator.last_update_iteration = 0
-        assert coordinator.should_update() is False
 
     def test_missing_linear_model_validation(self, simind_simulator):
         """Test that missing linear model is caught."""

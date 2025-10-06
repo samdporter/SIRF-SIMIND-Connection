@@ -11,6 +11,10 @@ SimindProjector instances.
 
 import logging
 
+import numpy as np
+
+from .types import ScoringRoutine
+
 
 # Conditional import for SIRF to avoid CI dependencies
 try:
@@ -21,6 +25,22 @@ except ImportError:
     AcquisitionData = type(None)
     ImageData = type(None)
     SIRF_AVAILABLE = False
+
+
+class _ResidualSubset:
+    """Lightweight array-backed container mimicking AcquisitionData subset."""
+
+    def __init__(self, data: np.ndarray):
+        self._data = np.array(data, copy=True)
+
+    def dimensions(self):
+        return self._data.ndim
+
+    def as_array(self):
+        return self._data.copy()
+
+    def sum(self):
+        return float(self._data.sum())
 
 
 class SimindCoordinator:
@@ -148,9 +168,8 @@ class SimindCoordinator:
                     "Photon energy not found in config, please set manually"
                 )
 
-        # Ensure PENETRATE scoring routine (index 84=4) for all modes
-        # This allows access to b01/b02 outputs regardless of penetration physics
-        self.simind_simulator.add_config_value(84, 4)  # scoring_routine = PENETRATE
+        # Ensure penetrate scoring routine for access to b01/b02 outputs
+        self.simind_simulator.set_scoring_routine(ScoringRoutine.PENETRATE)
 
         if self.mode_residual_only:
             # Mode A: No penetration physics (geometric only)
@@ -234,6 +253,23 @@ class SimindCoordinator:
             f"Running full SIMIND simulation at subiteration {self.global_subiteration}"
         )
 
+        # Compute STIR linear projection upfront to align geometries
+        if self.linear_acquisition_model is None:
+            raise RuntimeError(
+                "linear_acquisition_model not set. Pass it to coordinator.__init__"
+            )
+
+        self.linear_acquisition_model.num_subsets = 1
+        self.linear_acquisition_model.subset_num = 0
+        self.cached_linear_proj = self.linear_acquisition_model.forward(image)
+
+        # Ensure SIMIND outputs share the same geometry as the STIR projector
+        if getattr(self.simind_simulator, "template_sinogram", None) is None:
+            try:
+                self.simind_simulator.set_template_sinogram(self.cached_linear_proj)
+            except AttributeError:
+                logging.debug("Simulator does not support template_sinogram")
+
         # Update simulator source
         self.simind_simulator.set_source(image.clone())
 
@@ -256,17 +292,6 @@ class SimindCoordinator:
             self.cached_b02 = self.simind_simulator.get_penetrate_output(
                 PenetrateOutputType.GEOM_COLL_PRIMARY_ATT
             )
-
-        # Get STIR linear projection (all views, no subset)
-        # Use stored full-data linear acquisition model
-        if self.linear_acquisition_model is None:
-            raise RuntimeError(
-                "linear_acquisition_model not set. Pass it to coordinator.__init__"
-            )
-
-        self.linear_acquisition_model.num_subsets = 1
-        self.linear_acquisition_model.subset_num = 0
-        self.cached_linear_proj = self.linear_acquisition_model.forward(image)
 
         # Compute scaling factor
         if self.mode_residual_only:
@@ -372,7 +397,7 @@ class SimindCoordinator:
             f"cumulative_additive sum={self.cumulative_additive.sum():.2e}"
         )
 
-    def get_subset_residual(self, subset_indices, current_additive_subset):
+    def get_subset_residual(self, subset_indices, current_additive_subset=None):
         """
         Get residual correction for a specific subset.
 
@@ -382,20 +407,13 @@ class SimindCoordinator:
 
         Args:
             subset_indices (list): View indices for this subset.
-            current_additive_subset (AcquisitionData): Current additive term.
+            current_additive_subset (AcquisitionData, optional): Current additive
+                term estimate for this subset (required for mode_both when
+                additive updates are applied).
 
         Returns:
             AcquisitionData: Residual correction for this subset's views.
         """
-        if self.cached_b01 is None:
-            raise RuntimeError(
-                "No cached simulation results. Call run_full_simulation() first."
-            )
-
-        # Scale SIMIND output (full data)
-        b01_scaled = self.cached_b01 * self.cached_scale_factor
-
-        # Compute FULL residual based on mode (all views)
         if self.mode_residual_only:
             # Mode A: Corrects PROJECTION (geometric modeling)
             # residual = b02_scaled - linear_proj
@@ -403,8 +421,14 @@ class SimindCoordinator:
             residual_full = b02_scaled - self.cached_linear_proj
 
         elif self.mode_additive_only:
+            if self.cached_b01 is None:
+                raise RuntimeError(
+                    "No cached simulation results. Call run_full_simulation() first."
+                )
+
             # Mode B: Corrects ADDITIVE TERM (scatter estimate)
             # additive = b01_scaled - b02_scaled (scatter estimate)
+            b01_scaled = self.cached_b01 * self.cached_scale_factor
             b02_scaled = self.cached_b02 * self.cached_scale_factor
 
             # Compute full scatter estimate
@@ -415,21 +439,29 @@ class SimindCoordinator:
             residual_full = additive_simind_full
 
         elif self.mode_both:
+            if self.cached_b01 is None or self.cached_stir_full_proj is None:
+                raise RuntimeError(
+                    "No cached simulation results. Call run_full_simulation() first."
+                )
+
             # Mode C: Corrects BOTH projection and additive
             # residual = b01_scaled - stir_full_proj
             # where stir_full_proj includes old additive
+            b01_scaled = self.cached_b01 * self.cached_scale_factor
             residual_full = b01_scaled - self.cached_stir_full_proj
 
         else:
             # No correction
-            return current_additive_subset.get_uniform_copy(0)
+            if current_additive_subset is not None:
+                return current_additive_subset.get_uniform_copy(0)
+            return self.cached_linear_proj.get_uniform_copy(0)
 
         # Extract subset views from full residual
-        residual_subset = residual_full.get_subset(subset_indices)
-
-        # Return the residual for this subset (no scaling needed)
-        # Each subset gets the correction for its own views
-        return residual_subset
+        residual_np = residual_full.as_array()
+        subset_array = residual_np[:, :, subset_indices, :]
+        subset_array = subset_array[0]  # remove segment axis
+        subset_array = np.transpose(subset_array, (1, 0, 2))
+        return _ResidualSubset(subset_array)
 
     def get_full_additive_term(self):
         """
