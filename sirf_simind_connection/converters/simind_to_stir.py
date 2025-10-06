@@ -78,6 +78,64 @@ class RadiusConversionRule(ConversionRule):
             return line, context
 
 
+class OrbitFileRule(ConversionRule):
+    """Process non-circular orbit file reference and insert Radii array."""
+
+    def __init__(self, input_file_dir: Optional[Path] = None):
+        self.input_file_dir = input_file_dir
+        self.orbit_file_processed = False
+
+    def matches(self, line: str) -> bool:
+        return ";# Non-Uniform Orbit File" in line and not self.orbit_file_processed
+
+    def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        try:
+            # Extract orbit filename
+            orbit_filename = line.split(":=")[-1].strip()
+
+            # Build full path to orbit file
+            if self.input_file_dir:
+                orbit_path = self.input_file_dir / orbit_filename
+            else:
+                orbit_path = Path(orbit_filename)
+
+            if not orbit_path.exists():
+                logging.warning(f"Orbit file not found: {orbit_path}")
+                self.orbit_file_processed = True
+                return line, context
+
+            # Read radii from orbit file (first column, in cm)
+            radii_cm = []
+            with open(orbit_path, "r") as f:
+                for file_line in f:
+                    parts = file_line.strip().split()
+                    if parts:
+                        radii_cm.append(float(parts[0]))
+
+            # Convert cm to mm
+            radii_mm = [int(round(r * 10)) for r in radii_cm]
+
+            # Format as STIR Radii array
+            radii_str = ", ".join(str(r) for r in radii_mm)
+            radii_line = f"Radii := {{{radii_str}}}"
+
+            logging.info(
+                f"Converted {len(radii_mm)} radii from orbit file {orbit_filename}"
+            )
+            self.orbit_file_processed = True
+
+            # Return both the commented orbit file line and the new Radii line
+            return (
+                f";# Non-Uniform Orbit File := {orbit_filename}\n{radii_line}",
+                context,
+            )
+
+        except Exception as e:
+            logging.warning(f"Failed to process orbit file from line '{line}': {e}")
+            self.orbit_file_processed = True
+            return line, context
+
+
 class StartAngleConversionRule(ConversionRule):
     """Convert start angle with offset."""
 
@@ -170,13 +228,21 @@ class EnergyWindowRule(ConversionRule):
 class DataFileNameRule(ConversionRule):
     """Convert data file name references."""
 
+    def __init__(self, override_filename: Optional[str] = None):
+        self.override_filename = override_filename
+
     def matches(self, line: str) -> bool:
         return "!name of data file" in line
 
     def convert(self, line: str, context: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
         try:
-            file = Path(line.split()[5])
-            return f"!name of data file := {file.stem + file.suffix}", context
+            if self.override_filename:
+                # Use the override filename
+                return f"!name of data file := {self.override_filename}", context
+            else:
+                # Use existing filename from the header line
+                file = Path(line.split()[5])
+                return f"!name of data file := {file.stem + file.suffix}", context
         except IndexError as e:
             logging.warning(f"Failed to convert data file name line '{line}': {e}")
             return line, context
@@ -203,13 +269,17 @@ class SimindToStirConverter:
 
     def __init__(self, config: Optional[ConversionConfig] = None):
         self.config = config or ConversionConfig()
+        self.input_file_dir = None  # Will be set during convert_file
         self.rules = self._create_rules()
         self.logger = logging.getLogger(__name__)
 
-    def _create_rules(self) -> List[ConversionRule]:
+    def _create_rules(
+        self, data_file_override: Optional[str] = None
+    ) -> List[ConversionRule]:
         """Create conversion rules in order of priority."""
         return [
             IgnorePatternRule(self.config.ignored_patterns),
+            OrbitFileRule(self.input_file_dir),  # Process orbit file before other rules
             RadiusConversionRule(self.config.radius_scale_factor),
             StartAngleConversionRule(self.config.angle_offset),
             RotationDirectionRule(),
@@ -218,7 +288,7 @@ class SimindToStirConverter:
             ImageDurationRule(),
             EnergyWindowRule("lower"),
             EnergyWindowRule("upper"),
-            DataFileNameRule(),
+            DataFileNameRule(data_file_override),
         ]
 
     def convert_line(
@@ -277,6 +347,7 @@ class SimindToStirConverter:
         self,
         input_filename: str,
         output_filename: Optional[str] = None,
+        data_file: Optional[str] = None,
         return_object: bool = False,
     ) -> Optional[AcquisitionData]:
         """Convert a SIMIND header file to STIR format."""
@@ -286,6 +357,16 @@ class SimindToStirConverter:
 
         if output_filename is None:
             output_filename = input_filename.replace(".h00", ".hs")
+
+        # Set input directory for orbit file resolution
+        self.input_file_dir = Path(input_filename).parent
+
+        # Create rules with optional data file override
+        if data_file is not None:
+            self.rules = self._create_rules(data_file)
+        else:
+            # Recreate rules to pick up the new input_file_dir
+            self.rules = self._create_rules()
 
         context = {"rotation_direction": None}
 
@@ -309,6 +390,8 @@ class SimindToStirConverter:
             self.logger.info(
                 f"Successfully converted {input_filename} to {output_filename}"
             )
+            if data_file:
+                self.logger.info(f"Used data file override: {data_file}")
 
             if return_object:
                 return AcquisitionData(output_filename)
@@ -316,6 +399,10 @@ class SimindToStirConverter:
         except Exception as e:
             self.logger.error(f"Failed to convert {input_filename}: {e}")
             raise
+        finally:
+            # Reset rules to default after conversion
+            if data_file is not None:
+                self.rules = self._create_rules()
 
         return None
 
