@@ -72,8 +72,8 @@ def linear_acquisition_model(acq_template, basic_phantom):
 
     am = AcquisitionModelUsingRayTracingMatrix()
     am.set_up(acq_template, basic_phantom)
-    am.set_num_subsets(1)
-    am.set_subset_num(0)
+    am.num_subsets = 1
+    am.subset_num = 0
     return am
 
 
@@ -173,7 +173,7 @@ class TestIterationTracking:
     def test_should_update_on_first_call(
         self, simind_simulator, linear_acquisition_model
     ):
-        """Test that update happens on first call (iteration 0)."""
+        """Test that update does NOT happen on iteration 0 (we start with estimated additive)."""
         coordinator = SimindCoordinator(
             simind_simulator=simind_simulator,
             num_subsets=6,
@@ -183,6 +183,11 @@ class TestIterationTracking:
             linear_acquisition_model=linear_acquisition_model,
         )
 
+        # Iteration 0: should NOT update (start with estimated additive)
+        assert coordinator.should_update() is False
+
+        # After interval passes, should update
+        coordinator.global_subiteration = 6
         assert coordinator.should_update() is True
 
     def test_should_update_respects_interval(
@@ -198,26 +203,29 @@ class TestIterationTracking:
             linear_acquisition_model=linear_acquisition_model,
         )
 
-        # Iteration 0: should update
+        # Iteration 0: should NOT update (start with estimated additive)
         coordinator.global_subiteration = 0
-        assert coordinator.should_update() is True
-        coordinator.last_update_iteration = 0
+        assert coordinator.should_update() is False
 
-        # Iterations 1-2: should not update
+        # Iteration 1: should not update (haven't reached interval yet)
         coordinator.global_subiteration = 1
         assert coordinator.should_update() is False
 
+        # Iteration 2: should update (2 - (-1) = 3 >= 3)
         coordinator.global_subiteration = 2
+        assert coordinator.should_update() is True
+        coordinator.last_update_iteration = 2
+
+        # Iteration 3-4: should not update
+        coordinator.global_subiteration = 3
         assert coordinator.should_update() is False
 
-        # Iteration 3: should update
-        coordinator.global_subiteration = 3
-        assert coordinator.should_update() is True
-        coordinator.last_update_iteration = 3
-
-        # Iteration 4-5: should not update
         coordinator.global_subiteration = 4
         assert coordinator.should_update() is False
+
+        # Iteration 5: should update again (5 - 2 = 3 >= 3)
+        coordinator.global_subiteration = 5
+        assert coordinator.should_update() is True
 
     def test_no_update_when_disabled(self, simind_simulator, linear_acquisition_model):
         """Test that updates don't happen when both flags are False."""
@@ -344,7 +352,7 @@ class TestCumulativeAdditive:
         full_additive = coordinator.get_full_additive_term()
 
         assert full_additive is not None
-        assert full_additive.shape() == initial_additive.shape()
+        assert full_additive.shape == initial_additive.shape
 
 
 class TestEdgeCases:

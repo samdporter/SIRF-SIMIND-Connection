@@ -104,6 +104,18 @@ class SimindCoordinator:
         self.mode_additive_only = update_additive and not residual_correction
         self.mode_both = update_additive and residual_correction
 
+        # Validate required parameters for each mode
+        if self.mode_residual_only and linear_acquisition_model is None:
+            raise ValueError(
+                "Mode A (residual_correction=True, update_additive=False) requires "
+                "linear_acquisition_model to compute residuals."
+            )
+        if self.mode_both and linear_acquisition_model is None:
+            raise ValueError(
+                "Mode C (residual_correction=True, update_additive=True) requires "
+                "linear_acquisition_model to compute residuals."
+            )
+
         # Configure SIMIND simulator based on mode
         self._configure_simulator()
 
@@ -432,18 +444,9 @@ class SimindCoordinator:
           Simplifies to: b01 - linear_proj (corrects both projection and additive)
 
         Returns:
-            AcquisitionData: Full cumulative additive term (all views), or None if no simulation run yet.
+            AcquisitionData: Full cumulative additive term (all views), or None if not initialized.
         """
-        if self.cache_version == 0:
-            # No simulation run yet, return None
-            return None
-
-        if self.cumulative_additive is None:
-            raise RuntimeError(
-                "Cumulative additive not initialized. Call run_full_simulation() first."
-            )
-
-        # Return the cumulative additive term
+        # Return cumulative additive if it exists (either from initialization or simulation)
         return self.cumulative_additive
 
     def reset_iteration_counter(self):
