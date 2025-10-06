@@ -4,7 +4,9 @@ SIRF ⇄ SIMIND connector – public API.
 >>> from sirf_simind_connection import SimindSimulator
 """
 
+import importlib
 from importlib import metadata as _meta
+from typing import Any
 
 
 try:  # installed (pip/poetry)
@@ -13,41 +15,17 @@ except _meta.PackageNotFoundError:  # editable / source checkout
     __version__ = "0.2.2"
 
 
-# Lazy imports to avoid SIRF dependencies in CI
-def __getattr__(name):
-    if name == "SimindSimulator":
-        from .core import SimindSimulator
-
-        return SimindSimulator
-    elif name == "SimindProjector":
-        from .core import SimindProjector
-
-        return SimindProjector
-    elif name == "SimulationConfig":
-        from .core import SimulationConfig
-
-        return SimulationConfig
-    elif name == "builders":
-        from . import builders
-
-        return builders
-    elif name == "configs":
-        from . import configs
-
-        return configs
-    elif name == "core":
-        from . import core
-
-        return core
-    elif name == "data":
-        from . import data
-
-        return data
-    elif name == "utils":
-        from . import utils
-
-        return utils
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+def __getattr__(name: str) -> Any:
+    if name in {"builders", "configs", "converters", "core", "data", "utils"}:
+        mod = importlib.import_module(f".{name}", __name__)
+        globals()[name] = mod
+        return mod
+    elif name in {"SimindSimulator", "SimindProjector", "SimulationConfig"}:
+        core = importlib.import_module(".core", __name__)
+        obj = getattr(core, name)
+        globals()[name] = obj
+        return obj
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
@@ -56,6 +34,7 @@ __all__ = [
     "SimindSimulator",
     "builders",
     "configs",
+    "converters",
     "core",
     "data",
     "utils",

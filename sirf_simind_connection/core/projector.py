@@ -33,20 +33,22 @@ class SimindProjector:
     SimindProjector Class
 
     The SimindProjector combines the SIMIND Monte Carlo SPECT simulator and the
-    STIR library to perform accurate forward projections.
-    It provides optional features for scatter updates and residual corrections,
-    allowing efficient and accurate image reconstruction
-    and acquisition data simulations.
+    STIR library to provide an AcquisitionModel-compatible interface with
+    Monte Carlo-based corrections. It can be used as a drop-in replacement for
+    STIR's AcquisitionModel in reconstruction algorithms.
+
+    Supports three correction modes:
+    1. Residual correction only: Corrects resolution modeling using geometric SIMIND
+    2. Additive update only: Replaces scatter estimate with SIMIND (b01-b02)
+    3. Both: Updates both scatter and resolution via residual (b01 - STIR projection)
 
     Attributes:
         simind_simulator (SimindSimulator): The SIMIND Monte Carlo simulator instance.
         stir_projector (AcquisitionModel): The STIR acquisition model instance.
-        image (ImageData): The image data for forward and backward projection.
-        acquisition_data (AcquisitionData): The acquisition data for simulations.
         correction_update_interval (int): Interval for updating corrections in
             iterative processes.
-        update_scatter (bool): Indicates whether scatter updates are enabled.
-        residual_correction (bool): Indicates whether residual correction is enabled.
+        update_additive (bool): Replace additive term with SIMIND scatter.
+        residual_correction (bool): Apply residual correction for resolution modeling.
     """
 
     def __init__(
@@ -56,7 +58,7 @@ class SimindProjector:
         image=None,
         acquisition_data=None,
         correction_update_interval=1,
-        update_scatter=False,
+        update_additive=False,
         residual_correction=False,
     ):
         """
@@ -72,8 +74,10 @@ class SimindProjector:
                 simulations.
             correction_update_interval (int, optional): Interval for updating
                 corrections (default=1).
-            update_scatter (bool, optional): Enables scatter update if True.
-            residual_correction (bool, optional): Enables residual correction if True.
+            update_additive (bool, optional): Enables additive term update if True
+                (replaces additive with SIMIND scatter b01-b02).
+            residual_correction (bool, optional): Enables residual correction if True
+                (adds residual to correct resolution modeling).
         """
         self._simind_simulator = simind_simulator
         self._stir_projector = stir_projector
@@ -83,11 +87,26 @@ class SimindProjector:
         self._subset_num = 0
         self._correction_update_interval = correction_update_interval
 
+        # Configuration flags
+        self.update_additive = update_additive
+        self.residual_correction = residual_correction
+
+        # Internal state for iteration tracking
+        self._iteration_counter = 0
+        self._last_update_iteration = -1
+
+        # Cached acquisition models and terms
+        self._linear_acquisition_model = None
+        self._current_additive = None
+        self._last_update_image = None
+
+        # Deprecated - kept for backwards compatibility
         self._additive_correction = None
         self._additive_estimate = None
 
-        self.update_scatter = update_scatter
-        self.residual_correction = residual_correction
+        # Templates
+        self.acq_templ = None
+        self.img_templ = None
 
     @property
     def simind_simulator(self):
@@ -193,7 +212,11 @@ class SimindProjector:
 
     def forward(self, image, subset_num=None, num_subsets=None, out=None):
         """
-        Perform forward projection using the STIR projector.
+        Perform forward projection using the STIR projector with optional
+        Monte Carlo correction updates.
+
+        This method auto-increments an internal iteration counter and triggers
+        correction updates based on the correction_update_interval.
 
         Args:
             image (ImageData): Input image for forward projection.
@@ -204,6 +227,15 @@ class SimindProjector:
         Returns:
             AcquisitionData: Forward projected acquisition data.
         """
+        # Auto-increment iteration counter
+        self._iteration_counter += 1
+
+        # Check if we should update corrections this iteration
+        if self._should_update_corrections():
+            self._update_corrections(image)
+            self._last_update_iteration = self._iteration_counter
+
+        # Always use STIR for forward projection (fast, with updated additive)
         return self._stir_projector.forward(image, subset_num, num_subsets, out)
 
     def backward(self, acquisition_data, subset_num=None, num_subsets=None, out=None):
@@ -245,62 +277,502 @@ class SimindProjector:
             raise ValueError("stir_projector cannot be None")
         return self.stir_projector.domain_geometry()
 
-    def simulate_forward_projection(self, image, window=1):
+    def set_up(self, acq_templ, img_templ):
         """
-        Simulate the forward projection of the image using SIMIND and optionally
-        update scatter or apply residual correction.
+        Set up the projector with acquisition and image templates.
+
+        This method initializes the projector geometry and creates a linear
+        acquisition model for scaling and residual corrections.
+
+        Args:
+            acq_templ (AcquisitionData): Template for acquisition data.
+            img_templ (ImageData): Template for image data.
+        """
+        assert_validity(acq_templ, AcquisitionData)
+        assert_validity(img_templ, ImageData)
+
+        self.acq_templ = acq_templ
+        self.img_templ = img_templ
+
+        # Set up STIR projector if not already done
+        if self._stir_projector is not None:
+            self._stir_projector.set_up(acq_templ, img_templ)
+
+            # Create linear acquisition model (no additive/background)
+            self._linear_acquisition_model = (
+                self._stir_projector.get_linear_acquisition_model()
+            )
+            self._linear_acquisition_model.num_subsets = 1
+
+            # Initialize current additive term
+            self._current_additive = self._stir_projector.get_additive_term()
+
+    def reset_iteration_counter(self):
+        """
+        Reset the iteration counter.
+
+        Useful for multi-stage reconstructions where you want to restart
+        the correction update schedule.
+        """
+        self._iteration_counter = 0
+        self._last_update_iteration = -1
+
+    def _should_update_corrections(self):
+        """
+        Check if corrections should be updated this iteration.
+
+        Returns:
+            bool: True if corrections should be updated.
+        """
+        if not (self.update_additive or self.residual_correction):
+            return False
+
+        if self._simind_simulator is None:
+            return False
+
+        if self._correction_update_interval <= 0:
+            return False
+
+        return (self._iteration_counter % self._correction_update_interval) == 0
+
+    def _update_corrections(self, image):
+        """
+        Update corrections using SIMIND simulation.
+
+        Implements three correction modes:
+        1. Residual only: SIMIND geometric vs linear STIR
+        2. Additive only: Replace with SIMIND scatter (b01-b02)
+        3. Both: Residual between SIMIND full and STIR full projection
+
+        Args:
+            image (ImageData): Current image estimate.
+        """
+        from sirf_simind_connection.core.components import PenetrateOutputType
+
+        if self._linear_acquisition_model is None:
+            raise RuntimeError(
+                "SimindProjector.set_up() must be called before corrections"
+            )
+
+        # Determine correction mode
+        mode_residual_only = self.residual_correction and not self.update_additive
+        mode_additive_only = self.update_additive and not self.residual_correction
+        mode_both = self.update_additive and self.residual_correction
+
+        # Configure SIMIND simulator
+        self._simind_simulator.set_source(image.clone())
+
+        # Mode A: Residual correction only (no penetration needed)
+        if mode_residual_only:
+            # Run SIMIND without collimator modeling (index 53=0)
+            self._simind_simulator.set_collimator_routine(False)
+            self._simind_simulator.run_simulation()
+
+            # Get geometric output
+            b01 = self._simind_simulator.get_output_total(window=1)
+
+            # Get linear STIR projection
+            linear_proj = self._linear_acquisition_model.forward(image)
+
+            # Scale SIMIND to match STIR
+            scale_factor = linear_proj.sum() / max(b01.sum(), 1e-10)
+            b01_scaled = b01.clone()
+            b01_scaled.fill(b01.as_array() * scale_factor)
+
+            # Compute residual
+            residual = b01_scaled - linear_proj
+
+            # Update additive
+            if self._current_additive is None:
+                self._current_additive = self.acq_templ.get_uniform_copy(0)
+            new_additive = self._current_additive + residual
+
+        # Mode B: Additive update only (needs penetrate)
+        elif mode_additive_only:
+            # Run SIMIND with collimator modeling (index 53=1)
+            self._simind_simulator.set_collimator_routine(True)
+            self._simind_simulator.run_simulation()
+
+            # Get penetrate outputs
+            b01 = self._simind_simulator.get_penetrate_output(
+                PenetrateOutputType.ALL_INTERACTIONS
+            )
+            b02 = self._simind_simulator.get_penetrate_output(
+                PenetrateOutputType.GEOM_COLL_PRIMARY_ATT
+            )
+
+            # Get linear STIR projection for scaling
+            linear_proj = self._linear_acquisition_model.forward(image)
+
+            # Scale using b02 vs linear projection
+            scale_factor = linear_proj.sum() / max(b02.sum(), 1e-10)
+            b01_scaled = b01.clone()
+            b01_scaled.fill(b01.as_array() * scale_factor)
+            b02_scaled = b02.clone()
+            b02_scaled.fill(b02.as_array() * scale_factor)
+
+            # Compute additive as scatter (b01 - b02)
+            additive_simind = b01_scaled - b02_scaled
+            new_additive = additive_simind
+
+        # Mode C: Both (residual implicitly updates scatter + resolution)
+        elif mode_both:
+            # Run SIMIND with collimator modeling (index 53=1)
+            self._simind_simulator.set_collimator_routine(True)
+            self._simind_simulator.run_simulation()
+
+            # Get penetrate outputs
+            b01 = self._simind_simulator.get_penetrate_output(
+                PenetrateOutputType.ALL_INTERACTIONS
+            )
+            b02 = self._simind_simulator.get_penetrate_output(
+                PenetrateOutputType.GEOM_COLL_PRIMARY_ATT
+            )
+
+            # Get linear STIR projection for scaling
+            linear_proj = self._linear_acquisition_model.forward(image)
+
+            # Scale using b02 vs linear projection
+            scale_factor = linear_proj.sum() / max(b02.sum(), 1e-10)
+            b01_scaled = b01.clone()
+            b01_scaled.fill(b01.as_array() * scale_factor)
+
+            # Get full STIR projection (with current additive)
+            stir_full_proj = self._stir_projector.forward(image)
+
+            # Residual implicitly updates both scatter and resolution
+            residual = b01_scaled - stir_full_proj
+
+            # Update additive
+            if self._current_additive is None:
+                self._current_additive = self.acq_templ.get_uniform_copy(0)
+            new_additive = self._current_additive + residual
+
+        else:
+            # No correction mode enabled
+            return
+
+        # Apply maximum(0) to avoid negative values
+        new_additive = new_additive.maximum(0)
+
+        # Update STIR projector and cache
+        self._stir_projector.set_additive_term(new_additive)
+        self._current_additive = new_additive
+        self._last_update_image = image.clone()
+
+    def get_additive_term(self):
+        """
+        Get the additive term from the STIR projector.
+
+        Returns:
+            AcquisitionData: The additive term.
+        """
+        if self._stir_projector is None:
+            if self.acq_templ is not None:
+                return self.acq_templ.get_uniform_copy(0)
+            raise RuntimeError("Projector not set up. Call set_up() first.")
+        return self._stir_projector.get_additive_term()
+
+    def set_additive_term(self, additive):
+        """
+        Set the additive term in the STIR projector.
+
+        Args:
+            additive (AcquisitionData): The additive term to set.
+        """
+        assert_validity(additive, AcquisitionData)
+        if self._stir_projector is not None:
+            self._stir_projector.set_additive_term(additive)
+            self._current_additive = additive
+
+    def get_background_term(self):
+        """
+        Get the background term from the STIR projector.
+
+        Returns:
+            AcquisitionData: The background term.
+        """
+        if self._stir_projector is None:
+            if self.acq_templ is not None:
+                return self.acq_templ.get_uniform_copy(0)
+            raise RuntimeError("Projector not set up. Call set_up() first.")
+        return self._stir_projector.get_background_term()
+
+    def set_background_term(self, background):
+        """
+        Set the background term in the STIR projector.
+
+        Args:
+            background (AcquisitionData): The background term to set.
+        """
+        assert_validity(background, AcquisitionData)
+        if self._stir_projector is not None:
+            self._stir_projector.set_background_term(background)
+
+    def get_constant_term(self):
+        """
+        Get the constant term (additive + background).
+
+        Returns:
+            AcquisitionData: The combined constant term.
+        """
+        return self.get_additive_term() + self.get_background_term()
+
+    def get_linear_acquisition_model(self):
+        """
+        Get the linear acquisition model (no additive/background terms).
+
+        Returns:
+            AcquisitionModel: The linear acquisition model.
+        """
+        if self._linear_acquisition_model is None:
+            raise RuntimeError("Linear model not initialized. Call set_up() first.")
+        return self._linear_acquisition_model
+
+    def is_linear(self):
+        """
+        Check if the acquisition model is linear (constant term is zero).
+
+        Returns:
+            bool: True if linear (no additive or background).
+        """
+        if self._stir_projector is None:
+            return True
+        return self._stir_projector.is_linear()
+
+    def is_affine(self):
+        """
+        Check if the acquisition model is affine.
+
+        Returns:
+            bool: Always True for this model.
+        """
+        return True
+
+    def direct(self, image, out=None):
+        """
+        Direct operator (alias for forward).
+
+        Provided for compatibility with CIL framework.
+
+        Args:
+            image (ImageData): Input image.
+            out (AcquisitionData, optional): Output acquisition data.
+
+        Returns:
+            AcquisitionData: Forward projected data.
+        """
+        return self.forward(
+            image, subset_num=self.subset_num, num_subsets=self.num_subsets, out=out
+        )
+
+    def adjoint(self, acquisition_data, out=None):
+        """
+        Adjoint operator (alias for backward).
+
+        Provided for compatibility with CIL framework.
+
+        Args:
+            acquisition_data (AcquisitionData): Input acquisition data.
+            out (ImageData, optional): Output image.
+
+        Returns:
+            ImageData: Backprojected image.
+        """
+        return self.backward(
+            acquisition_data,
+            subset_num=self.subset_num,
+            num_subsets=self.num_subsets,
+            out=out,
+        )
+
+
+class SimindSubsetProjector:
+    """
+    SimindSubsetProjector Class
+
+    A projector for a single subset that coordinates with a shared SimindCoordinator
+    to efficiently manage SIMIND Monte Carlo simulations across multiple subsets.
+
+    Unlike SimindProjector (which runs its own simulations), SimindSubsetProjector:
+    - References a shared SimindCoordinator
+    - Increments global iteration counter on each forward()
+    - Triggers coordinator simulation when update interval is reached
+    - Applies subset-specific residual corrections scaled by 1/num_subsets
+
+    This design enables efficient MPI-parallelized SIMIND simulation of all views,
+    with results distributed to individual subset projectors.
+
+    Attributes:
+        stir_projector (AcquisitionModel): STIR acquisition model for this subset.
+        coordinator (SimindCoordinator): Shared coordinator managing SIMIND simulations.
+        subset_indices (list): View indices handled by this subset.
+        last_cache_version (int): Tracks which coordinator cache version was last applied.
+    """
+
+    def __init__(self, stir_projector, coordinator, subset_indices):
+        """
+        Initialize the SimindSubsetProjector.
+
+        Args:
+            stir_projector (AcquisitionModel): STIR acquisition model for this subset.
+            coordinator (SimindCoordinator): Shared coordinator instance.
+            subset_indices (list): View indices for this subset.
+        """
+        assert_validity(stir_projector, AcquisitionModel)
+
+        self.stir_projector = stir_projector
+        self.coordinator = coordinator
+        self.subset_indices = subset_indices
+
+        # Templates
+        self.acq_templ = None
+        self.img_templ = None
+
+    def set_up(self, acq_templ, img_templ):
+        """
+        Set up the projector with acquisition and image templates.
+
+        Args:
+            acq_templ (AcquisitionData): Template for acquisition data (subset data).
+            img_templ (ImageData): Template for image data.
+        """
+        assert_validity(acq_templ, AcquisitionData)
+        assert_validity(img_templ, ImageData)
+
+        self.acq_templ = acq_templ
+        self.img_templ = img_templ
+
+        # Set up STIR projector (skip if already set up by partitioner)
+        try:
+            self.stir_projector.set_up(acq_templ, img_templ)
+        except RuntimeError as e:
+            if "cannot set_up const object" in str(e):
+                # Already set up - this happens when partitioner pre-sets up models
+                pass
+            else:
+                raise
+
+    def forward(self, image, subset_num=None, num_subsets=None, out=None):
+        """
+        Perform forward projection using STIR with coordinator-managed corrections.
+
+        This method:
+        1. Increments coordinator's global iteration counter
+        2. Checks if coordinator should run SIMIND simulation
+        3. Triggers simulation if needed
+        4. Applies subset-specific residual correction if new results available
+        5. Returns STIR forward projection
 
         Args:
             image (ImageData): Input image for forward projection.
-            window (int, optional): Window index for SIMIND simulation (default=1).
+            subset_num (int, optional): Subset index (ignored, managed internally).
+            num_subsets (int, optional): Total subsets (ignored, managed internally).
+            out (AcquisitionData, optional): Output acquisition data.
 
-        Raises:
-            ValueError: If required components are not initialized.
+        Returns:
+            AcquisitionData: Forward projected acquisition data.
         """
+        # Increment global iteration counter
+        self.coordinator.increment_iteration()
 
-        if self._additive_estimate is None:
-            try:
-                self._additive_estimate = self.stir_projector.get_additive_term()
-            except Exception:
-                self._additive_estimate = self.acquisition_data.get_uniform_copy(0)
+        # Check if coordinator should update
+        if self.coordinator.should_update():
+            # Run full SIMIND simulation (all views)
+            # Coordinator has its own full-data acquisition models
+            # After simulation, UpdateEtaCallback will update KL eta parameters
+            self.coordinator.run_full_simulation(image)
 
-        projected_trues = None
-        if self.residual_correction:
-            linear_am = self.stir_projector.get_linear_acquisition_model()
-            linear_am.num_subsets = 1
-            projected_trues = linear_am.forward(image)
-            projected_trues.write("projected_trues.hs")
+        # Use STIR for fast forward projection (LINEAR model, no additive)
+        # Additive correction is handled via eta in KL function, updated by UpdateEtaCallback
+        result = self.stir_projector.forward(image, subset_num, num_subsets, out)
+        # If out was provided and result is None, return out
+        if result is None and out is not None:
+            return out
+        return result
 
-        if self.update_scatter or self.residual_correction:
-            self.simind_simulator.set_source(image.copy())
-            self.simind_simulator.run_simulation()
+    def backward(self, acquisition_data, subset_num=None, num_subsets=None, out=None):
+        """
+        Perform backward projection using STIR.
 
-            simulated_total = self.simind_simulator.get_output_total(window)
-            simulated_scatter = self.simind_simulator.get_output_scatter(window)
-            ratio = self.acquisition_data.max() / simulated_total.max()
-            simulated_scatter = simulated_scatter.clone().fill(
-                simulated_scatter.as_array() * ratio
-            )
-            simulated_total = simulated_total.clone().fill(
-                simulated_total.as_array() * ratio
-            )
-            simulated_total.write("simulated_total.hs")
-            simulated_scatter.write("simulated_scatter.hs")
+        Args:
+            acquisition_data (AcquisitionData): Input acquisition data.
+            subset_num (int, optional): Subset index (ignored).
+            num_subsets (int, optional): Total subsets (ignored).
+            out (ImageData, optional): Output image data.
 
-        if self.update_scatter:
-            self._additive_estimate = simulated_scatter
+        Returns:
+            ImageData: Backward projected image data.
+        """
+        result = self.stir_projector.backward(
+            acquisition_data, subset_num, num_subsets, out
+        )
+        # If out was provided and result is None, return out
+        # (STIR modifies in-place but may not return)
+        if result is None and out is not None:
+            return out
+        return result
 
-        if self.residual_correction:
-            simulated_trues = simulated_total - simulated_scatter
-            ratio = projected_trues.max() / simulated_trues.max()
-            simulated_trues = simulated_trues.clone().fill(
-                simulated_trues.as_array() * ratio
-            )
-            simulated_trues.write("simulated_trues.hs")
+    def range_geometry(self):
+        """Get the range geometry of the projector."""
+        return self.stir_projector.range_geometry()
 
-            self._additive_correction = simulated_trues - projected_trues
+    def domain_geometry(self):
+        """Get the domain geometry of the projector."""
+        return self.stir_projector.domain_geometry()
 
-            updated_additive = (
-                self._additive_estimate + self._additive_correction
-            ).maximum(0)
-            self.stir_projector.set_additive_term(updated_additive)
+    def get_additive_term(self):
+        """Get the additive term from the STIR projector."""
+        return self.stir_projector.get_additive_term()
+
+    def set_additive_term(self, additive):
+        """Set the additive term in the STIR projector."""
+        assert_validity(additive, AcquisitionData)
+        self.stir_projector.set_additive_term(additive)
+
+    def get_background_term(self):
+        """Get the background term from the STIR projector."""
+        return self.stir_projector.get_background_term()
+
+    def set_background_term(self, background):
+        """Set the background term in the STIR projector."""
+        assert_validity(background, AcquisitionData)
+        self.stir_projector.set_background_term(background)
+
+    def is_linear(self):
+        """Check if the acquisition model is linear (constant term is zero)."""
+        return self.stir_projector.is_linear()
+
+    def is_affine(self):
+        """Check if the acquisition model is affine."""
+        return True
+
+    def direct(self, image, out=None):
+        """
+        Direct operator (alias for forward).
+
+        Provided for compatibility with CIL framework.
+
+        Args:
+            image (ImageData): Input image.
+            out (AcquisitionData, optional): Output acquisition data.
+
+        Returns:
+            AcquisitionData: Forward projected data.
+        """
+        return self.forward(image, out=out)
+
+    def adjoint(self, acquisition_data, out=None):
+        """
+        Adjoint operator (alias for backward).
+
+        Provided for compatibility with CIL framework.
+
+        Args:
+            acquisition_data (AcquisitionData): Input acquisition data.
+            out (ImageData, optional): Output image.
+
+        Returns:
+            ImageData: Backprojected image.
+        """
+        return self.backward(acquisition_data, out=out)

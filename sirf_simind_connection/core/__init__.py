@@ -6,7 +6,7 @@ Numerical core: configuration parsing, projector, simulator.
 # Lazy imports to avoid SIRF dependencies in CI
 def __getattr__(name):
     if name == "ScoringRoutine":
-        from .components import ScoringRoutine
+        from .types import ScoringRoutine
 
         return ScoringRoutine
     elif name == "SimulationConfig":
@@ -17,6 +17,14 @@ def __getattr__(name):
         from .projector import SimindProjector
 
         return SimindProjector
+    elif name == "SimindSubsetProjector":
+        from .projector import SimindSubsetProjector
+
+        return SimindSubsetProjector
+    elif name == "SimindCoordinator":
+        from .coordinator import SimindCoordinator
+
+        return SimindCoordinator
     elif name == "SimindSimulator":
         from .simulator import SimindSimulator
 
@@ -39,6 +47,8 @@ def __getattr__(name):
 __all__ = [
     "SimulationConfig",
     "SimindProjector",
+    "SimindSubsetProjector",
+    "SimindCoordinator",
     "SimindSimulator",
     "create_simulator_from_template",
     "create_penetrate_simulator",

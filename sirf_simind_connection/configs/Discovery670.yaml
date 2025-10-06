@@ -387,26 +387,26 @@ text_variables:
   8: none
 data_files:
   phantom_soft_tissue:
-    index: 7
+    index: 1
     filepath: h2o
   phantom_bone:
-    index: 8
+    index: 2
     filepath: bone
   cover_material:
-    index: 9
+    index: 3
     filepath: al
   crystal_material:
-    index: 10
+    index: 4
     filepath: nai
   image_file_phantom:
-    index: 11
+    index: 5
     filepath: tmp_density
   image_file_source:
-    index: 12
+    index: 6
     filepath: tmp_source
   backscatter_material:
-    index: 13
+    index: 7
     filepath: pmt
   energy_resolution_file:
-    index: 14
+    index: 8
     filepath: none

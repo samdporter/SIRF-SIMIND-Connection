@@ -287,6 +287,24 @@ class SimindSimulator:
 
         self.logger.info(f"Configured {len(self.energy_windows)} energy windows")
 
+    def set_collimator_routine(self, enabled: bool) -> None:
+        """
+        Enable or disable collimator modeling (penetration routine).
+
+        This sets index 53 in the SIMIND configuration:
+        - 0: No collimator modeling (geometric only)
+        - 1: Full collimator modeling (penetration, scatter, etc.)
+
+        Args:
+            enabled (bool): True to enable collimator modeling, False for
+                geometric only.
+        """
+        self.config.set_value(53, 1 if enabled else 0)
+        mode_str = "enabled" if enabled else "disabled"
+        self.logger.info(
+            f"Collimator routine {mode_str} (index 53 = {1 if enabled else 0})"
+        )
+
     def set_template_sinogram(
         self, template_sinogram: Union[str, AcquisitionData]
     ) -> None:
@@ -372,8 +390,17 @@ class SimindSimulator:
         self.config.set_flag(flag, value)
 
     def add_runtime_switch(self, switch: str, value) -> None:
-        """Add a runtime switch."""
+        """
+        Add a runtime switch.
+
+        Special handling for CC (collimator): also updates text_variables[1]
+        in the .smc file so SIMIND can find the collimator file.
+        """
         self.runtime_switches.set_switch(switch, value)
+
+        # Sync collimator to .smc file text_variables
+        if switch == "CC":
+            self.config.text_variables[1] = str(value)
 
     # =============================================================================
     # SIMULATION EXECUTION
@@ -476,12 +503,22 @@ class SimindSimulator:
 
             # Prepare orbit file if needed
             orbit_file = None
+            self.logger.debug(
+                f"Orbit file check: non_circular={self.non_circular_orbit}, "
+                f"radii_count={len(self.orbit_radii) if self.orbit_radii else 0}"
+            )
             if self.non_circular_orbit and self.orbit_radii:
                 center_of_rotation = (
                     self.source.dimensions()[1] / 2 if self.source else None
                 )
                 orbit_file = self.orbit_manager.write_orbit_file(
                     self.orbit_radii, self.output_prefix, center_of_rotation
+                )
+            else:
+                self.logger.warning(
+                    "Skipping orbit file creation: "
+                    f"non_circular_orbit={self.non_circular_orbit}, "
+                    f"orbit_radii={'empty' if not self.orbit_radii else f'{len(self.orbit_radii)} values'}"
                 )
 
             # Execute simulation

@@ -202,10 +202,54 @@ def harmonize_stir_attributes(attributes: dict) -> dict:
 
 
 def extract_attributes_from_stir(sinogram) -> dict:
+    """
+    Extract attributes from STIR sinogram.
+
+    For AcquisitionData objects, writes to a temporary header file first to
+    preserve all metadata (especially orbit/radii data for non-circular orbits),
+    then reads from the header file.
+
+    Args:
+        sinogram: Either a file path (str) or AcquisitionData object
+
+    Returns:
+        dict: Extracted attributes including orbit and radii data
+    """
+    import logging
+    import os
+    import tempfile
+
+    logger = logging.getLogger(__name__)
+
     if isinstance(sinogram, str):
         return extract_attributes_from_stir_headerfile(sinogram)
     elif isinstance(sinogram, AcquisitionData):
-        return extract_attributes_from_stir_sinogram(sinogram)
+        # Write to temporary header file to preserve all metadata
+        # AcquisitionData.get_info() doesn't include orbit/radii information
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".hs", delete=False
+        ) as temp_file:
+            temp_path = temp_file.name
+
+        try:
+            # Write AcquisitionData to header file
+            sinogram.write(temp_path)
+            logger.debug(
+                f"Wrote temporary header file {temp_path} to extract orbit data"
+            )
+
+            # Read attributes from header file (includes orbit/radii)
+            attributes = extract_attributes_from_stir_headerfile(temp_path)
+
+            return attributes
+        finally:
+            # Clean up temporary file and associated binary file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            # Also remove .s file if it exists
+            binary_path = temp_path.replace(".hs", ".s")
+            if os.path.exists(binary_path):
+                os.remove(binary_path)
 
     raise ValueError("Input must be a file path or AcquisitionData object.")
 
@@ -213,6 +257,13 @@ def extract_attributes_from_stir(sinogram) -> dict:
 def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
     """
     Parse a STIR sinogram info string (from sinogram.get_info()) and extract attributes.
+
+    DEPRECATED: This function is now obsolete. Use extract_attributes_from_stir() instead,
+    which writes the AcquisitionData to a temporary header file to preserve all metadata
+    (including orbit/radii data for non-circular orbits).
+
+    Note: This function does NOT extract orbit or radii information, as these are not
+    included in the output of AcquisitionData.get_info().
 
     Note that this probably isn't exhaustive but does work for PET and SPECT sinograms.
 
@@ -227,7 +278,7 @@ def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
         Dictionary of extracted attributes.
     """
     attributes = {}
-    info_str = sinogram.get_info()  # assuming this returns a string
+    info_str = sinogram.get_info()
     lines = info_str.splitlines()
 
     # Define generic patterns: each tuple is (regex, converter, attribute key)
