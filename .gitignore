@@ -143,6 +143,9 @@ cython_debug/
 *.swo
 *~
 
+# AI assistant documentation (local only)
+CLAUDE.md
+
 # OS specific
 .DS_Store
 Thumbs.db

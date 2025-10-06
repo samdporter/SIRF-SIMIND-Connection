@@ -7,9 +7,6 @@ pytest-cov>=2.12.0
 pytest-mock>=3.6.0
 
 # Code quality
-black>=22.0.0
-isort>=5.10.0
-autoflake>=1.4
 ruff>=0.0.279
 
 # Documentation
