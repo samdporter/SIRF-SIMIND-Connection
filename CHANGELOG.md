@@ -11,19 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Documentation Consolidation and Example Scripts
 
-- **Comprehensive Documentation Structure** (`docs/`):
-  - **New `docs/README.md`**: Complete API reference with getting started guides, API documentation, advanced features, and configuration details
-    - Getting Started: Installation, dependencies, basic simulation, OSEM with SimindProjector
-    - API Reference: Detailed documentation for SimindSimulator, SimulationConfig, SimindProjector, SimindCoordinator
-    - Advanced Features: Three correction modes, coordinator architecture, scoring routines
-    - Utility functions, conversion tools, and troubleshooting guides
-  - **Moved `examples/README.md` → `docs/examples.md`**: Consolidated example documentation
-    - Quick start guide for examples 01-08
-    - Configuration details and performance tips
-    - Choosing between SimindProjector and SimindCoordinator
-    - Update interval selection guidance
-    - Troubleshooting section
-  - **Existing `docs/coordinator_architecture.md`**: SimindCoordinator design details (unchanged)
+- **ReadTheDocs Documentation Updates** (`docs/*.rst`):
+  - **New `docs/coordinator_architecture.rst`**: Comprehensive SimindCoordinator architecture guide
+    - Overview of coordinator-based architecture and key improvements
+    - Detailed component descriptions (SimindCoordinator, SimindSubsetProjector, CIL partitioner)
+    - Three correction modes (A, B, C) with examples
+    - Comparison of old vs new workflow
+    - Scaling strategy and iteration tracking details
+    - Performance benefits and MPI parallelization
+    - Migration guide from SimindProjector
+    - Testing and further reading references
+  - **Updated `docs/examples.rst`**: Added examples 07-08
+    - Example 07: SimindProjector with OSEM (Monte Carlo corrections)
+    - Example 08: SimindCoordinator for multi-subset reconstruction
+  - **Updated `docs/api.rst`**: Added coordinator and CIL partitioner modules
+    - New section: "Projector and Coordinator" with automodule for coordinator
+    - New section: "CIL Partitioner" utilities
+  - **Updated `docs/index.rst`**: Added coordinator_architecture to table of contents
 
 - **New Example Scripts**:
   - **`examples/07_simind_projector_osem.py`**: OSEM reconstruction with SimindProjector
@@ -86,13 +90,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pytest Configuration Updates** (`pytest.ini`):
   - Added `slow` marker for tests taking >10 seconds
 
-### Documentation Structure
+### ReadTheDocs Structure
+
+All documentation now properly structured for Sphinx/ReadTheDocs:
 
 ```
 docs/
-├── README.md                      # Complete API reference and guides (NEW)
-├── examples.md                    # Detailed example documentation (MOVED)
-└── coordinator_architecture.md    # Coordinator design details (EXISTING)
+├── index.rst                      # Main documentation index
+├── intro.rst                      # Introduction
+├── installation.rst               # Installation guide
+├── usage.rst                      # Usage guide
+├── examples.rst                   # Examples (UPDATED with 07-08)
+├── api.rst                        # API reference (UPDATED with coordinator)
+├── coordinator_architecture.rst   # Coordinator guide (NEW, converted from .md)
+├── testing.rst                    # Testing guide
+├── changelog.rst                  # Changelog
+└── contributing.rst               # Contributing guide
 ```
 
 ### Fixed

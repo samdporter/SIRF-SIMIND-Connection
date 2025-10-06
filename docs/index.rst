@@ -10,6 +10,7 @@ SIRF-SIMIND-Connection Documentation
    usage
    examples
    api
+   coordinator_architecture
    testing
    changelog
    contributing

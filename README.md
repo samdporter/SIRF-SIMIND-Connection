@@ -7,19 +7,26 @@
 
 A Python wrapper integrating SIRF and SIMIND for Monte Carlo SPECT imaging simulations and reconstruction.
 
-## Features
+## Documentation
 
-- **Monte Carlo SPECT Simulation** - Fast SCATTWIN or detailed PENETRATE scoring
-- **SimindProjector** - Drop-in replacement for SIRF AcquisitionModel with MC corrections
-- **SimindCoordinator** - Efficient multi-subset SIMIND simulation management
-- **Schneider2000 Density Conversion** - Clinically validated HU-to-density (44 tissue segments)
-- **Format Conversion** - SIMIND ↔ STIR and DICOM → STIR
+📚 **[Full Documentation on ReadTheDocs](https://sirf-simind-connection.readthedocs.io/)**
 
 ## Quick Links
 
-- **[Full Documentation](docs/README.md)** - Complete API reference and guides
-- **[Examples](docs/examples.md)** - Runnable example scripts (01-08)
-- **[Coordinator Architecture](docs/coordinator_architecture.md)** - Advanced design details
+- [Installation Guide](https://sirf-simind-connection.readthedocs.io/en/latest/installation.html)
+- [Usage Guide](https://sirf-simind-connection.readthedocs.io/en/latest/usage.html)
+- [Examples](https://sirf-simind-connection.readthedocs.io/en/latest/examples.html)
+- [API Reference](https://sirf-simind-connection.readthedocs.io/en/latest/api.html)
+- [SimindCoordinator Architecture](https://sirf-simind-connection.readthedocs.io/en/latest/coordinator_architecture.html)
+- [Testing](https://sirf-simind-connection.readthedocs.io/en/latest/testing.html)
+
+## Features
+
+- **Monte Carlo SPECT Simulation** - Fast SCATTWIN or detailed PENETRATE scoring routines
+- **SimindProjector** - Drop-in replacement for SIRF AcquisitionModel with MC corrections
+- **SimindCoordinator** - Efficient multi-subset SIMIND simulation management
+- **Schneider2000 Density Conversion** - Clinically validated HU-to-density mapping (44 tissue segments)
+- **Format Conversion** - SIMIND ↔ STIR and DICOM → STIR conversion utilities
 
 ## Installation
 
@@ -27,9 +34,11 @@ A Python wrapper integrating SIRF and SIMIND for Monte Carlo SPECT imaging simul
 pip install sirf-simind-connection
 ```
 
-**Dependencies:** Python 3.8+, SIRF, SIMIND
+**Dependencies:** Python 3.8+, SIRF, SIMIND binary
 
-**Optional:** CIL (for advanced reconstruction algorithms)
+**Optional:** CIL (Core Imaging Library) for advanced reconstruction algorithms
+
+See the [installation guide](https://sirf-simind-connection.readthedocs.io/en/latest/installation.html) for detailed instructions.
 
 ## Quick Start
 
@@ -65,13 +74,13 @@ projector = SimindProjector(
     simind_simulator=simulator,
     stir_projector=stir_am,
     correction_update_interval=3,
-    residual_correction=True,  # Mode A: fast corrections
+    residual_correction=True,
 )
 projector.set_up(measured_data, initial_image)
 
 # Use with OSEM
 recon = OSMAPOSLReconstructor()
-recon.set_acquisition_model(projector)  # ← Use SimindProjector instead
+recon.set_acquisition_model(projector)
 recon.set_input(measured_data)
 recon.set_num_subsets(6)
 recon.set_num_subiterations(24)
@@ -79,65 +88,44 @@ recon.set_up(initial_image)
 recon.process()
 ```
 
-### Density Conversion (Schneider2000)
-
-```python
-from sirf_simind_connection.converters.attenuation import hu_to_density_schneider
-
-# Convert HU image to densities (44-segment clinical model)
-density_map = hu_to_density_schneider(ct_hu_image)
-```
+See the [usage guide](https://sirf-simind-connection.readthedocs.io/en/latest/usage.html) and [examples](https://sirf-simind-connection.readthedocs.io/en/latest/examples.html) for more details.
 
 ## Examples
 
-See [docs/examples.md](docs/examples.md) for runnable scripts:
+The package includes 8 example scripts demonstrating various features:
 
-- **01-06**: Basic SIMIND (simulation, conversion, configuration)
-- **07**: SimindProjector + OSEM reconstruction
-- **08**: SimindCoordinator for multi-subset algorithms
+- **01-06**: Basic SIMIND functionality (simulation, conversion, configuration, density conversion)
+- **07**: SimindProjector with OSEM reconstruction
+- **08**: SimindCoordinator for efficient multi-subset algorithms
 
-## Documentation Structure
+Run examples individually:
 
-```
-docs/
-├── README.md                      # Complete API reference and guides
-├── examples.md                    # Detailed example documentation
-└── coordinator_architecture.md    # SimindCoordinator design details
+```bash
+python examples/01_basic_simulation.py
+python examples/07_simind_projector_osem.py
 ```
 
-## SimindProjector: Three Correction Modes
+See the [examples documentation](https://sirf-simind-connection.readthedocs.io/en/latest/examples.html) for detailed descriptions.
 
-**Mode A**: Residual correction (fast, no penetration)
-- Corrects resolution modeling differences
-- `residual = SIMIND_geometric - STIR_linear`
+## SimindProjector: Monte Carlo Corrections
 
-**Mode B**: Additive update (scatter estimation)
-- Updates scatter with SIMIND
-- `scatter = SIMIND_all - SIMIND_primary`
+Three correction modes for integrating SIMIND Monte Carlo into reconstruction:
 
-**Mode C**: Both (most accurate)
-- Comprehensive scatter and resolution corrections
+- **Mode A (Residual)**: Fast resolution corrections without penetration physics
+- **Mode B (Additive)**: Scatter estimation with full penetration modeling
+- **Mode C (Both)**: Comprehensive scatter and resolution corrections
 
-See [docs/README.md#simindprojector](docs/README.md#simindprojector) for details.
+Learn more in the [API documentation](https://sirf-simind-connection.readthedocs.io/en/latest/api.html).
 
 ## SimindCoordinator: Efficient Subset Algorithms
 
-For OSEM, SPDHG, SVRG with subsets:
+For subset-based reconstruction (OSEM, SPDHG, SVRG):
 
-- **One simulation** for all subsets (vs N separate simulations)
+- **One simulation for all subsets** vs N separate simulations (major efficiency gain!)
 - **MPI-parallelized** SIMIND execution
 - **CIL integration** for advanced algorithms
 
-See [docs/coordinator_architecture.md](docs/coordinator_architecture.md) for architecture.
-
-## Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new features
-4. Submit a pull request
+See the [coordinator architecture guide](https://sirf-simind-connection.readthedocs.io/en/latest/coordinator_architecture.html) for details.
 
 ## Testing
 
@@ -145,18 +133,30 @@ Contributions welcome! Please:
 # Run all tests
 pytest
 
-# Run specific markers
-pytest -m unit                  # Fast unit tests
-pytest -m requires_sirf         # SIRF integration tests
-pytest -m requires_simind       # SIMIND simulation tests
+# Run specific test suites
+pytest tests/test_coordinator.py        # Coordinator tests
+pytest tests/test_cil_partitioner.py    # CIL partitioner tests
+pytest -m unit                          # Fast unit tests only
+pytest -m requires_sirf                 # SIRF integration tests
 ```
+
+See the [testing guide](https://sirf-simind-connection.readthedocs.io/en/latest/testing.html) for comprehensive information.
+
+## Contributing
+
+Contributions welcome! Please see our [Contributing Guide](https://sirf-simind-connection.readthedocs.io/en/latest/contributing.html).
 
 ## Citation
 
 If you use this software in your research, please cite:
 
 ```
-[Citation information to be added]
+@software{porter2025sirf_simind,
+  author = {Porter, S., Gillen, R. Varzakis, E., Deidda, D. Thielemans, K.},
+  title = {SIRF-SIMIND-Connection: Integrating SIRF, SIMIND and CIL for SPECT},
+  year = {2025},
+  url = {https://github.com/samdporter/SIRF-SIMIND-Connection}
+}
 ```
 
 ## License
@@ -166,13 +166,14 @@ Apache License 2.0 - See [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 - SIRF development team
+- My PhD colleagues, Rebecca Gillen and Efstathios Varzakis
 - SIMIND development team (Michael Ljungberg et al.)
-- Schneider et al. for the clinical density model
+- CIL development team
 
 ---
 
 **Project:** https://github.com/samdporter/SIRF-SIMIND-Connection
 
-**Issues:** https://github.com/samdporter/SIRF-SIMIND-Connection/issues
+**Documentation:** https://sirf-simind-connection.readthedocs.io/
 
-**Documentation:** [docs/README.md](docs/README.md)
+**Issues:** https://github.com/samdporter/SIRF-SIMIND-Connection/issues

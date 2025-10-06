@@ -26,15 +26,37 @@ See the following examples for comprehensive use:
    Compare SCATTWIN and PENETRATE Monte Carlo scoring routines.
 
 6. **Schneider Density Conversion** - ``examples/06_schneider_density_conversion.py``
-   
-   **NEW**: Demonstrate advanced HU-to-density conversion using the Schneider2000 model.
-   
+
+   Demonstrate advanced HU-to-density conversion using the Schneider2000 model.
+
    Features:
-   
+
    - Compare bilinear vs Schneider conversion methods
-   - Visualize density differences across tissue types  
+   - Visualize density differences across tissue types
    - Create simulated CT phantom with multiple tissue types
    - Demonstrate tissue information lookup functionality
+
+7. **SimindProjector with OSEM** - ``examples/07_simind_projector_osem.py``
+
+   **NEW**: OSEM reconstruction using SimindProjector for Monte Carlo corrections.
+
+   Features:
+
+   - SimindProjector as drop-in replacement for SIRF AcquisitionModel
+   - Mode A (residual correction) with fast SCATTWIN scoring
+   - Side-by-side comparison of standard vs SIMIND-corrected OSEM
+   - Generates comparison plots with line profiles
+
+8. **SimindCoordinator for Multi-Subset Reconstruction** - ``examples/08_simind_coordinator_subsets.py``
+
+   **NEW**: Efficient multi-subset reconstruction with SimindCoordinator.
+
+   Features:
+
+   - SimindCoordinator managing multiple subset projectors
+   - Manual OSEM-style iteration loop demonstrating coordinator API
+   - One SIMIND simulation distributed to all subsets (efficient!)
+   - Guidance on when to use coordinator vs projector
 
 Running Examples
 ----------------
