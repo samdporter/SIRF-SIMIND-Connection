@@ -10,7 +10,6 @@ Updated to work with both scattwin and penetrate scoring routines.
 """
 
 import argparse
-import itertools
 import os
 import subprocess
 import time
@@ -50,7 +49,10 @@ def convert_config_value(val):
         return True
     # Try to convert to number (int first, then float)
     try:
-        return float(val) if "." in val else int(val)
+        if "." in val:
+            return float(val)
+        else:
+            return int(val)
     except ValueError:
         return val
 
@@ -287,68 +289,64 @@ def run_simulation_with_error_handling(simulator):
     print("Running SIMIND simulation...")
 
     try:
-        return setup_and_run_simulation(simulator)
+        # Run simulation
+        simulator.run_simulation()
+        print("SIMIND simulation completed successfully")
+
+        # Get outputs based on scoring routine
+        scoring_routine = simulator.get_scoring_routine()
+
+        if scoring_routine == ScoringRoutine.SCATTWIN:
+            # Scattwin outputs
+            simind_total = simulator.get_total_output(window=1)
+            simind_scatter = simulator.get_scatter_output(window=1)
+            simind_true = simind_total - simind_scatter
+
+            outputs = {
+                "total": simind_total,
+                "scatter": simind_scatter,
+                "true": simind_true,
+                "air": simulator.get_air_output(window=1),
+            }
+
+        elif scoring_routine == ScoringRoutine.PENETRATE:
+            # Penetrate outputs - get all available components
+            all_outputs = simulator.get_outputs()
+            outputs = {}
+
+            # Map key penetrate components for analysis
+            key_components = {
+                "all_interactions": "All interactions",
+                "geom_coll_primary": "Geometrically collimated primary",
+                "septal_pen_primary": "Septal penetration (primary)",
+                "coll_scatter_primary": "Collimator scatter (primary)",
+                "geom_coll_scattered": "Geometrically collimated scattered",
+                "unscattered_unattenuated": "Unscattered/unattenuated",
+            }
+
+            for key, description in key_components.items():
+                if key in all_outputs:
+                    outputs[key] = all_outputs[key]
+
+            # If no key components found, use first few available
+            if not outputs:
+                available_keys = list(all_outputs.keys())[:6]  # Take first 6
+                for key in available_keys:
+                    outputs[key] = all_outputs[key]
+
+        else:
+            raise ValueError(f"Unsupported scoring routine: {scoring_routine}")
+
+        # Log count statistics
+        print("Simulation results:")
+        for key, data in outputs.items():
+            print(f"  - {key}: {data.sum():.0f} counts")
+
+        return outputs
+
     except Exception as e:
         print(f"Simulation failed: {e}")
         raise
-
-
-# TODO Rename this here and in `run_simulation_with_error_handling`
-def setup_and_run_simulation(simulator):
-    # Run simulation
-    simulator.run_simulation()
-    print("SIMIND simulation completed successfully")
-
-    # Get outputs based on scoring routine
-    scoring_routine = simulator.get_scoring_routine()
-
-    if scoring_routine == ScoringRoutine.SCATTWIN:
-        # Scattwin outputs
-        simind_total = simulator.get_total_output(window=1)
-        simind_scatter = simulator.get_scatter_output(window=1)
-        simind_true = simind_total - simind_scatter
-
-        outputs = {
-            "total": simind_total,
-            "scatter": simind_scatter,
-            "true": simind_true,
-            "air": simulator.get_air_output(window=1),
-        }
-
-    elif scoring_routine == ScoringRoutine.PENETRATE:
-        # Penetrate outputs - get all available components
-        all_outputs = simulator.get_outputs()
-        # Map key penetrate components for analysis
-        key_components = {
-            "all_interactions": "All interactions",
-            "geom_coll_primary": "Geometrically collimated primary",
-            "septal_pen_primary": "Septal penetration (primary)",
-            "coll_scatter_primary": "Collimator scatter (primary)",
-            "geom_coll_scattered": "Geometrically collimated scattered",
-            "unscattered_unattenuated": "Unscattered/unattenuated",
-            "geom_coll_primary_att": "Geometrically collimated primary attenuated",
-            "septal_pen_scattered": "Septal penetration (scattered)",
-            "coll_scatter_scattered": "Collimator scatter (scattered)",
-        }
-
-        outputs = {
-            key: all_outputs[key] for key in key_components if key in all_outputs
-        }
-        # If no key components found, use first few available
-        if not outputs:
-            available_keys = list(all_outputs.keys())[:6]  # Take first 6
-            for key in available_keys:
-                outputs[key] = all_outputs[key]
-
-    else:
-        raise ValueError(f"Unsupported scoring routine: {scoring_routine}")
-
-    # Log count statistics
-    print("Simulation results:")
-    for key, data in outputs.items():
-        print(f"  - {key}: {data.sum():.0f} counts")
-
-    return outputs
 
 
 def save_count_statistics(
@@ -362,15 +360,14 @@ def save_count_statistics(
         counts[f"{scoring_routine.name.lower()}_{key}"] = data.sum()
 
     # Calculate derived metrics for scattwin
-    if scoring_routine == ScoringRoutine.SCATTWIN and (
-        "total" in outputs and "scatter" in outputs
-    ):
-        total_counts = outputs["total"].sum()
-        scatter_counts = outputs["scatter"].sum()
-        if total_counts > 0:
-            counts["scatter_fraction"] = scatter_counts / total_counts
-        else:
-            counts["scatter_fraction"] = 0
+    if scoring_routine == ScoringRoutine.SCATTWIN:
+        if "total" in outputs and "scatter" in outputs:
+            total_counts = outputs["total"].sum()
+            scatter_counts = outputs["scatter"].sum()
+            if total_counts > 0:
+                counts["scatter_fraction"] = scatter_counts / total_counts
+            else:
+                counts["scatter_fraction"] = 0
 
     # Save to CSV
     csv_path = os.path.join(
@@ -402,9 +399,15 @@ def plot_comparison(
 
     # Determine vmax over all datasets for consistent color scaling
     if orientation == "axial":
-        vmax = data_list[0][0][0][slice_index].max()
+        vmax = max(
+            data[0][slice_index].max() for data, _ in data_list if data[0] is not None
+        )
     elif orientation == "coronal":
-        vmax = data_list[0][0][0][:, slice_index].max()
+        vmax = max(
+            data[0][:, :, slice_index].max()
+            for data, _ in data_list
+            if data[0] is not None
+        )
     else:
         raise ValueError("orientation must be 'axial' or 'coronal'")
 
@@ -493,11 +496,13 @@ def generate_plots(outputs, measured_data, scoring_routine, sim_config, base_fil
         ]
 
     elif scoring_routine == ScoringRoutine.PENETRATE:
-        # Penetrate component plots - show key components
+        # Penetrate component plots - show up to 6 most important
         data_list = [(measured_data.as_array(), "measured")]
 
-        # Add key penetrate components
-        for key, data in outputs.items():
+        # Add available penetrate components
+        for key, data in list(outputs.items())[
+            :5
+        ]:  # Limit to 5 to keep plots manageable
             if data is not None:
                 display_name = key.replace("_", " ").title()
                 data_list.append((data.as_array(), display_name))
@@ -520,20 +525,23 @@ def generate_plots(outputs, measured_data, scoring_routine, sim_config, base_fil
     orientations = ["axial", "coronal"]
     methods = ["sum", "index"]
 
-    for orientation, method in itertools.product(orientations, methods):
-        plot_comparison(
-            data_list,
-            slice_index,
-            orientation=orientation,
-            base_output_filename=f"{base_filename}_{routine_name}",
-            output_dir=sim_config["output_dir"],
-            profile_method=method,
-            profile_index=60,
-            font_size=14,
-            colormap=(
-                "viridis" if scoring_routine == ScoringRoutine.SCATTWIN else "plasma"
-            ),
-        )
+    for orientation in orientations:
+        for method in methods:
+            plot_comparison(
+                data_list,
+                slice_index,
+                orientation=orientation,
+                base_output_filename=f"{base_filename}_{routine_name}",
+                output_dir=sim_config["output_dir"],
+                profile_method=method,
+                profile_index=60,
+                font_size=14,
+                colormap=(
+                    "viridis"
+                    if scoring_routine == ScoringRoutine.SCATTWIN
+                    else "plasma"
+                ),
+            )
 
     print(
         f"Generated {len(orientations) * len(methods)} comparison plots for "

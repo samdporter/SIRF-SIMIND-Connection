@@ -389,6 +389,21 @@ class SimindSimulator:
         """Add a configuration flag."""
         self.config.set_flag(flag, value)
 
+    def set_scoring_routine(self, scoring_routine: Union[ScoringRoutine, int]) -> None:
+        """Update scoring routine and reconfigure related settings."""
+
+        if isinstance(scoring_routine, int):
+            scoring = ScoringRoutine(scoring_routine)
+        else:
+            scoring = scoring_routine
+
+        if scoring == self.scoring_routine:
+            return
+
+        self.scoring_routine = scoring
+        self._configure_scoring_routine()
+        self.logger.info("Scoring routine updated to %s", self.scoring_routine.name)
+
     def add_runtime_switch(self, switch: str, value) -> None:
         """
         Add a runtime switch.
