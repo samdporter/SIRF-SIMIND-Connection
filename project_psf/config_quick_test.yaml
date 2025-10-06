@@ -1,0 +1,47 @@
+# SPECT PSF Model Comparison - Quick Test Configuration
+# Faster settings for testing
+
+# Data paths
+data_path: "/home/storage/prepared_data/phantom_data/manc_nema_phantom_data/SPECT"
+
+# SIMIND configuration
+simind:
+  config: "Discovery670.yaml"
+  photon_energy: 81.5
+  energy_lower: 36.84
+  energy_upper: 126.16
+  collimator: "ge-megp"
+  source_type: "y90_frey"
+  use_mpi: true
+  num_mpi_cores: 6
+
+# Resolution modeling
+resolution:
+  psf_fwhm: [6.91, 6.91, 6.91]
+  stir_psf_params: [1.22, 0.031]
+
+# SVRG reconstruction parameters (reduced for testing)
+svrg:
+  num_subsets: 12
+  num_epochs: 5
+  initial_step_size: 0.1
+  relaxation_eta: 0.02
+
+# RDP prior parameters (single beta for testing)
+rdp:
+  beta_values: [0.1]
+  gamma: 1.0
+  epsilon: 0.001
+
+# SimindProjector update control
+projector:
+  correction_update_epochs: 2
+
+# Reconstruction selection (modes 1-2 only for quick test)
+reconstruction:
+  modes: [1, 2]
+
+# Output options
+output:
+  save_intermediate: false
+  verbose: true

@@ -1,0 +1,48 @@
+# SPECT PSF Model Comparison - Default Configuration
+
+# Data paths
+data_path: /home/storage/prepared_data/phantom_data/manc_nema_phantom_data/SPECT
+#"/home/storage/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140"
+
+# SIMIND configuration
+simind:
+  config: "/home/sam/working/sirf_simind_connection/sirf_simind_connection/configs/Discovery670.yaml"
+  photon_energy: 81.5  # keV (middle of energy window)
+  energy_lower: 36.84  # keV
+  energy_upper: 126.16  # keV
+  collimator: "ge-megp"  # Collimator type (CC runtime switch)
+  source_type: "y90_frey"  # Source type (FI runtime switch)
+  photon_multiplier: 1
+  use_mpi: true  # Use MPI parallel execution
+  num_mpi_cores: 6  # Number of MPI cores
+
+# Resolution modeling
+resolution:
+  psf_fwhm: [6.91, 6.91, 6.91]  # mm (x, y, z)
+  stir_psf_params: [1.22, 0.03]  # [intercept, slope]
+
+# SVRG reconstruction parameters
+svrg:
+  num_subsets: 24
+  num_epochs: 100
+  initial_step_size: 1
+  relaxation_eta: 0.02
+
+# RDP prior parameters
+rdp:
+  beta_values: [0, 0.01, 0.1, 1]
+  gamma: 1.0
+  epsilon: 0.0001
+
+# SimindProjector update control
+projector:
+  correction_update_epochs: 20  # Update corrections every N epochs
+
+# Reconstruction selection
+reconstruction:
+  modes: [1 ,2 ,3 ,4, 5, 6, 7]  # Which modes to run
+
+# Output options
+output:
+  save_intermediate: false
+  verbose: false
