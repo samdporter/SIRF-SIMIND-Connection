@@ -1,6 +1,6 @@
 metadata:
   comment: Test simulation
-  source_file: input.smc
+  source_file: /home/sam/working/STIR_users_MIC2023/input/input.smc
 parameters:
   source:
     photon_energy:
@@ -127,7 +127,7 @@ parameters:
   detector_crystal:
     crystal_half_length_radius:
       index: 8
-      value: 20.5
+      value: 21.25
       description: Crystal half-length/radius in cm (circular detectors use radius)
     crystal_thickness:
       index: 9
@@ -135,11 +135,11 @@ parameters:
       description: 'Crystal thickness in cm (NaI(Tl) typical: 0.95cm)'
     crystal_half_width:
       index: 10
-      value: 27.25
+      value: 27.0
       description: Crystal half-width in cm (for rectangular crystals)
     backscatter_thickness:
       index: 11
-      value: 1.6
+      value: 5.0
       description: Backscatter thickness in cm (for backscatter material)
     height_to_detector_surface:
       index: 12
@@ -416,16 +416,5 @@ data_files:
   energy_resolution_file:
     index: 8
     filepath: none
-  unkown_file_1:
-    index: 9
-    filepath: none
-  unkown_file_2:
-    index: 10
-    filepath: none
-  unkown_file_3:
-    index: 11
-    filepath: none
-  unkown_file_4:
-    index: 12
-    filepath: none
+
   
