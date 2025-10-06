@@ -29,11 +29,11 @@ get_config_value() {
     yq e "$1" "${CONFIG_FILE}"
 }
 
-# Load configuration values from YAML
-PYTHON=$(get_config_value '.project.python_executable')
-BASE_DIR=$(get_config_value '.project.base_dir')
-SCRIPTS_DIR=$(get_config_value '.project.scripts_dir')
-DEFAULT_DATA_DIR_FROM_CONFIG=$(get_config_value '.data.base_input_dir')
+# Load configuration values from YAML (new format)
+PYTHON="python3"  # Fixed default
+BASE_DIR=$(get_config_value '.project.simind_parent_dir')
+SCRIPTS_DIR="/home/sam/working/sirf_simind_connection/project/scripts"  # Fixed path
+DEFAULT_DATA_DIR_FROM_CONFIG=$(get_config_value '.project.data_dir')
 DEFAULT_OUTPUT_SUFFIX_FROM_CONFIG=$(get_config_value '.output.suffix')
 BASE_OUTPUT_DIR=$(get_config_value '.output.base_output_dir')
 SIMIND_INPUT_SMC=${BASE_DIR}/sirf_simind_connection/configs/input.smc
@@ -43,11 +43,12 @@ INITIAL_EPOCHS=$(get_config_value '.osem.initial_epochs')
 
 # TOTAL_ACTIVITY can be passed as an environment variable
 # If not passed, use the default from config
-TOTAL_ACTIVITY="${TOTAL_ACTIVITY:-$(get_config_value '.simulation.total_activity')}"
+TOTAL_ACTIVITY="${TOTAL_ACTIVITY:-$(get_config_value '.project.total_activity')}"
 
 PHOTON_MULTIPLIER=$(get_config_value '.simulation.photon_multiplier')
-NUM_ITERATIONS=$(get_config_value '.simulation.num_iterations')
-NUM_ARRAY_JOBS=$(get_config_value '.simulation.num_array_jobs')
+# Try pipeline settings first, fallback to defaults
+NUM_ITERATIONS=$(get_config_value '.pipeline.num_iterations' 2>/dev/null || echo "2")
+NUM_ARRAY_JOBS=$(get_config_value '.pipeline.num_array_jobs' 2>/dev/null || echo "1")
 WINDOW_LOWER=$(get_config_value '.simulation.window_lower')
 WINDOW_UPPER=$(get_config_value '.simulation.window_upper')
 PHOTON_ENERGY=$(get_config_value '.simulation.photon_energy')

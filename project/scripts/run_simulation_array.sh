@@ -38,13 +38,7 @@ else
     INPUT_IMAGE="${OUTPUT_DIR}/recon_osem_i${INITIAL_EPOCHS}_s${INITIAL_SUBSETS}_smoothed_${PREV_ITER}.hv"
 fi
 
-# Run the simplified simulation script - much cleaner!
+# Run the main simulation script with proper arguments
 $PYTHON ${BASE_DIR}/scripts/simulation.py \
-    --config_file="${CONFIG_FILE}" \
-    --total_activity="${TOTAL_ACTIVITY}" \
-    --data_dir="${DATA_DIR}" \
-    --image_path="${INPUT_IMAGE}" \
-    --output_prefix="${OUTPUT_PREFIX}" \
-    --output_dir="${OUTPUT_DIR}" \
-    --input_smc_file_path="${SIMIND_INPUT_SMC}" \
-    --simind_parent_dir="${BASE_DIR}"
+    --simulation_config="${CONFIG_FILE}" \
+    --scanner_config="${BASE_DIR}/sirf_simind_connection/configs/AnyScan.yaml"

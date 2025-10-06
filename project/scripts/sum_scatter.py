@@ -3,6 +3,7 @@
 Compute mean scatter image from SIMIND scatter outputs,
 normalize by predicted true counts from the forward model.
 """
+
 import argparse
 import logging
 import os
@@ -27,6 +28,7 @@ from skimage.morphology import ball, erosion
 TOTALSEGMENTATOR_AVAILABLE = False
 try:
     from totalsegmentator.python_api import totalsegmentator
+
     TOTALSEGMENTATOR_AVAILABLE = True
     logging.info("totalsegmentator is available")
 except ImportError as e:
@@ -34,14 +36,15 @@ except ImportError as e:
     logging.info("Will use threshold-based segmentation as fallback")
 
 # Constants (can be parameterized via CLI if desired)
-EROSION_RADIUS = 4       # voxels for spherical erosion
+EROSION_RADIUS = 4  # voxels for spherical erosion
 THRESHOLD_FACTOR = 0.01  # fraction of max for forward mask
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
+
 
 def average_acquisition(files):
     """
@@ -77,33 +80,38 @@ def align_segmentation(seg_nii):
     return data
 
 
-def threshold_based_segmentation(attenuation, method='adaptive'):
+def threshold_based_segmentation(attenuation, method="adaptive"):
     """
     Create body mask from attenuation map using thresholding.
     More robust than deep learning for attenuation maps.
     """
     attn_arr = attenuation.as_array()
 
-    if method == 'adaptive':
+    if method == "adaptive":
         # Adaptive threshold based on statistics
         mean_val = np.mean(attn_arr)
         std_val = np.std(attn_arr)
         threshold = mean_val + 0.5 * std_val  # Adjust multiplier as needed
 
-    elif method == 'otsu':
+    elif method == "otsu":
         # Otsu's method - automatically find optimal threshold
         try:
             from skimage.filters import threshold_otsu
+
             threshold = threshold_otsu(attn_arr)
         except ImportError:
-            logging.warning("scikit-image not available for Otsu method, using adaptive")
+            logging.warning(
+                "scikit-image not available for Otsu method, using adaptive"
+            )
             mean_val = np.mean(attn_arr)
             std_val = np.std(attn_arr)
             threshold = mean_val + 0.5 * std_val
 
-    elif method == 'percentile':
+    elif method == "percentile":
         # Percentile-based threshold
-        threshold = np.percentile(attn_arr[attn_arr > 0], 25)  # 25th percentile of non-zero values
+        threshold = np.percentile(
+            attn_arr[attn_arr > 0], 25
+        )  # 25th percentile of non-zero values
 
     else:  # 'simple'
         # Simple percentage of maximum
@@ -115,12 +123,15 @@ def threshold_based_segmentation(attenuation, method='adaptive'):
     # Remove small objects (noise) if scikit-image is available
     try:
         from skimage.morphology import remove_small_holes, remove_small_objects
+
         mask = remove_small_objects(mask, min_size=1000)
         mask = remove_small_holes(mask, area_threshold=1000)
     except ImportError:
         logging.warning("scikit-image not available for morphological operations")
 
-    logging.info(f"Threshold-based segmentation: method={method}, threshold={threshold:.4f}, mask_volume={np.sum(mask)}")
+    logging.info(
+        f"Threshold-based segmentation: method={method}, threshold={threshold:.4f}, mask_volume={np.sum(mask)}"
+    )
 
     return mask
 
@@ -139,7 +150,7 @@ def totalsegmentator_segmentation(attenuation):
 
     try:
         seg_nii = nib.load("__tmp_attn.nii")
-        seg = totalsegmentator(seg_nii, body_seg=True, task='body')
+        seg = totalsegmentator(seg_nii, body_seg=True, task="body")
         mask = align_segmentation(seg)
 
         # Clean up temporary file
@@ -160,7 +171,16 @@ def totalsegmentator_segmentation(attenuation):
         raise e
 
 
-def mask_and_forward(model, image, attenuation, erosion_radius, threshold_factor, segment=True, seg_method='adaptive', force_threshold=False):
+def mask_and_forward(
+    model,
+    image,
+    attenuation,
+    erosion_radius,
+    threshold_factor,
+    segment=True,
+    seg_method="adaptive",
+    force_threshold=False,
+):
     """
     Segment body, erode mask, apply to attenuation and forward-project.
     Tries totalsegmentator first, falls back to threshold method.
@@ -192,7 +212,9 @@ def mask_and_forward(model, image, attenuation, erosion_radius, threshold_factor
     selem = ball(erosion_radius)
     eroded = erosion(mask, selem)
 
-    logging.info(f"Mask erosion: original_volume={np.sum(mask)}, eroded_volume={np.sum(eroded)}")
+    logging.info(
+        f"Mask erosion: original_volume={np.sum(mask)}, eroded_volume={np.sum(eroded)}"
+    )
 
     # Apply eroded mask to attenuation
     attn_arr = attenuation.as_array()
@@ -249,9 +271,7 @@ def get_spect_am(spect_data, args, keep_cache=False):
     mat = SPECTUBMatrix()
     mat.set_attenuation_image(spect_data["attenuation"])
     mat.set_keep_all_views_in_cache(keep_cache)
-    mat.set_resolution_model(
-        args.spect_res[0], args.spect_res[1], args.spect_res[2]
-    )
+    mat.set_resolution_model(args.spect_res[0], args.spect_res[1], args.spect_res[2])
     gauss = SeparableGaussianImageFilter()
     gauss.set_fwhms(args.spect_gauss_fwhm)
     spect_am = AcquisitionModelUsingMatrix(mat)
@@ -260,81 +280,206 @@ def get_spect_am(spect_data, args, keep_cache=False):
 
 
 def parse_spect_res(x):
-    vals = x.split(',')
+    vals = x.split(",")
     if len(vals) != 3:
         raise argparse.ArgumentTypeError("spect_res must be 3 values: float,float,bool")
-    return float(vals[0]), float(vals[1]), vals[2].lower() == 'true'
+    return float(vals[0]), float(vals[1]), vals[2].lower() == "true"
+
+
+def get_penetrate_component_files(input_dir, pattern_base, component_nums):
+    """
+    Get penetrate component files for specified component numbers.
+
+    Args:
+        input_dir: Path to directory containing component files
+        pattern_base: Base pattern (e.g., '*_iter1_*')
+        component_nums: List of component numbers to include
+
+    Returns:
+        List of component files matching the criteria
+    """
+    files = []
+    for comp_num in component_nums:
+        comp_pattern = f"{pattern_base}_component_{comp_num:02d}.hs"
+        comp_files = list(input_dir.glob(comp_pattern))
+        files.extend(comp_files)
+    return files
+
+
+def detect_scoring_routine(input_dir):
+    """
+    Detect which scoring routine was used based on output files.
+
+    Returns:
+        'scattwin' if scatter files found, 'penetrate' if component files found
+    """
+    # Check for scattwin files
+    if list(input_dir.glob("*_sca_w*.hs")):
+        return "scattwin"
+
+    # Check for penetrate component files
+    if list(input_dir.glob("*_component_*.hs")):
+        return "penetrate"
+
+    raise ValueError("Cannot determine scoring routine from output files")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Compute and normalize mean scatter from SIMIND outputs."
     )
-    parser.add_argument("--input_dir",          required=True,
-                        help="Dir with scatter/total files.")
-    parser.add_argument("--data_dir",           required=True,
-                        help="Dir with acquisition & attenuation files.")
-    parser.add_argument("--output_file_prefix", required=True,
-                        help="Prefix path (no extension) for all outputs.")
-    parser.add_argument("--scatter_pattern",
-                       default="*_sca_w1.hs",
-                        help="glob for scatter files (e.g. '*_iter${i}_*_sca_w1.hs')")
-    parser.add_argument("--total_pattern",
-                       default="*_tot_w1.hs",
-                        help="glob for total   files (e.g. '*_iter${i}_*_tot_w1.hs')")
-    parser.add_argument("--image_pattern",
-                        default="recon_osem.hv",
-                        help="glob for image   files (e.g. 'recon_osem_i*_s*_smoothed_${i}.hv')")
-    parser.add_argument("--delete_files", action='store_true')
-    parser.add_argument("--normalise", action='store_true',
-                        help="Normalize scatter by forward projection of image.")
-    parser.add_argument("--no_segment_body", action='store_false',
-                        dest='segment_body',
-                        help="Disable body segmentation from attenuation.")
-    parser.add_argument("--force_threshold", action='store_true',
-                        help="Force use of threshold-based segmentation (skip totalsegmentator).")
-    parser.add_argument("--segmentation_method",
-                        choices=['adaptive', 'otsu', 'percentile', 'simple'],
-                        default='adaptive',
-                        help="Method for threshold-based body segmentation (fallback).")
+    parser.add_argument(
+        "--input_dir", required=True, help="Dir with scatter/total files."
+    )
+    parser.add_argument(
+        "--data_dir", required=True, help="Dir with acquisition & attenuation files."
+    )
+    parser.add_argument(
+        "--output_file_prefix",
+        required=True,
+        help="Prefix path (no extension) for all outputs.",
+    )
+    parser.add_argument(
+        "--scatter_pattern",
+        default="*_sca_w1.hs",
+        help="glob for scatter files (e.g. '*_iter${i}_*_sca_w1.hs')",
+    )
+    parser.add_argument(
+        "--total_pattern",
+        default="*_tot_w1.hs",
+        help="glob for total   files (e.g. '*_iter${i}_*_tot_w1.hs')",
+    )
+    parser.add_argument(
+        "--scoring_routine",
+        choices=["scattwin", "penetrate", "auto"],
+        default="auto",
+        help="Scoring routine used: scattwin, penetrate, or auto-detect",
+    )
+    parser.add_argument(
+        "--penetrate_base_pattern",
+        default="*_iter*",
+        help="Base pattern for penetrate component files (before '_component_XX.hs')",
+    )
+    parser.add_argument(
+        "--image_pattern",
+        default="recon_osem.hv",
+        help="glob for image   files (e.g. 'recon_osem_i*_s*_smoothed_${i}.hv')",
+    )
+    parser.add_argument("--delete_files", action="store_true")
+    parser.add_argument(
+        "--normalise",
+        action="store_true",
+        help="Normalize scatter by forward projection of image.",
+    )
+    parser.add_argument(
+        "--no_segment_body",
+        action="store_false",
+        dest="segment_body",
+        help="Disable body segmentation from attenuation.",
+    )
+    parser.add_argument(
+        "--force_threshold",
+        action="store_true",
+        help="Force use of threshold-based segmentation (skip totalsegmentator).",
+    )
+    parser.add_argument(
+        "--segmentation_method",
+        choices=["adaptive", "otsu", "percentile", "simple"],
+        default="adaptive",
+        help="Method for threshold-based body segmentation (fallback).",
+    )
     parser.add_argument(
         "--spect_gauss_fwhm",
         type=float,
         nargs=3,
         default=(13.4, 13.4, 13.4),
-        help="Gaussian FWHM for smoothing."
+        help="Gaussian FWHM for smoothing.",
     )
     parser.add_argument(
-    "--spect_res",
-    type=parse_spect_res,
-    default=(1.22, 0.03, False),
-    help="Tuple of (float, float, bool) for SPECT resolution and use flag (e.g. 0.0923,0.03,True)"
+        "--spect_res",
+        type=parse_spect_res,
+        default=(1.22, 0.03, False),
+        help="Tuple of (float, float, bool) for SPECT resolution and use flag (e.g. 0.0923,0.03,True)",
     )
     args = parser.parse_args()
 
     # Log segmentation method that will be used
     if args.segment_body:
         if args.force_threshold:
-            logging.info(f"Forced to use threshold-based segmentation ({args.segmentation_method})")
+            logging.info(
+                f"Forced to use threshold-based segmentation ({args.segmentation_method})"
+            )
         elif TOTALSEGMENTATOR_AVAILABLE:
-            logging.info(f"Will try totalsegmentator first, fallback to {args.segmentation_method}")
+            logging.info(
+                f"Will try totalsegmentator first, fallback to {args.segmentation_method}"
+            )
         else:
-            logging.info(f"totalsegmentator not available, using {args.segmentation_method}")
+            logging.info(
+                f"totalsegmentator not available, using {args.segmentation_method}"
+            )
     else:
         logging.info("Body segmentation disabled")
 
     input_dir = Path(args.input_dir)
-    # gather files
-    scatter_files = list(input_dir.glob(args.scatter_pattern))
-    total_files   = list(input_dir.glob(args.total_pattern))
-    if not scatter_files or not total_files:
-        logging.error("No scatter or total files found.")
-        sys.exit(1)
 
-    # Average projections
-    sum_scatter = average_acquisition(scatter_files)
-    sum_total   = average_acquisition(total_files)
-    sum_trues   = sum_total - sum_scatter
+    # Determine scoring routine
+    if args.scoring_routine == "auto":
+        routine = detect_scoring_routine(input_dir)
+        logging.info(f"Auto-detected scoring routine: {routine}")
+    else:
+        routine = args.scoring_routine
+        logging.info(f"Using specified scoring routine: {routine}")
+
+    # Gather files based on routine
+    if routine == "scattwin":
+        # Traditional scattwin files
+        scatter_files = list(input_dir.glob(args.scatter_pattern))
+        total_files = list(input_dir.glob(args.total_pattern))
+        if not scatter_files or not total_files:
+            logging.error("No scattwin scatter or total files found.")
+            sys.exit(1)
+
+        # Average projections
+        sum_scatter = average_acquisition(scatter_files)
+        sum_total = average_acquisition(total_files)
+        sum_trues = sum_total - sum_scatter
+
+    elif routine == "penetrate":
+        # Penetrate component files (based on SIMIND manual)
+        # Primary (geometric collimator primary with attenuation): component 02
+        primary_components = [2]
+        # Total component: 01 (all interactions)
+        total_components = [1]
+
+        total_files = get_penetrate_component_files(
+            input_dir, args.penetrate_base_pattern, total_components
+        )
+        primary_files = get_penetrate_component_files(
+            input_dir, args.penetrate_base_pattern, primary_components
+        )
+
+        if not primary_files:
+            logging.error("No penetrate geometric primary component (02) files found.")
+            sys.exit(1)
+        if not total_files:
+            logging.error("No penetrate total component (01) files found.")
+            sys.exit(1)
+
+        # For penetrate:
+        # trues = geometric collimator primary (component 02)
+        # total = all interactions (component 01)
+        # additive = total - trues (everything except geometric primary)
+        sum_trues = average_acquisition(primary_files)
+        sum_total = average_acquisition(total_files)
+        sum_scatter = sum_total - sum_trues
+
+        logging.info(
+            "Using penetrate routine: total (b01) - geometric_primary (b02) = additive"
+        )
+
+    else:
+        logging.error(f"Unknown scoring routine: {routine}")
+        sys.exit(1)
 
     # write unnormalized outputs
     sum_scatter.write(f"{args.output_file_prefix}_scatter_unscaled.hs")
@@ -346,7 +491,7 @@ def main():
 
     # Setup SPECT model
     spect_data = get_spect_data(args.data_dir)
-    spect_am   = get_spect_am(spect_data, args, keep_cache=True)
+    spect_am = get_spect_am(spect_data, args, keep_cache=True)
     spect_am.set_up(spect_data["acquisition_data"], spect_data["initial_image"])
 
     # Normalize by forward true counts
@@ -358,33 +503,33 @@ def main():
         image = ImageData(str(image_files[0]))
 
         forward, fwd_mask = mask_and_forward(
-                spect_am,
-                image,
-                spect_data["attenuation"],
-                EROSION_RADIUS,
-                THRESHOLD_FACTOR,
-                segment=args.segment_body,
-                seg_method=args.segmentation_method,
-                force_threshold=args.force_threshold
-            )
+            spect_am,
+            image,
+            spect_data["attenuation"],
+            EROSION_RADIUS,
+            THRESHOLD_FACTOR,
+            segment=args.segment_body,
+            seg_method=args.segmentation_method,
+            force_threshold=args.force_threshold,
+        )
 
         # compute counts for scaling
-        true_masked  = sum_trues.clone()
+        true_masked = sum_trues.clone()
         true_masked *= fwd_mask
-        trues_count  = true_masked.sum()
+        trues_count = true_masked.sum()
 
-        fwd_masked   = forward.clone()
-        fwd_masked   *= fwd_mask
-        fwd_count    = fwd_masked.sum()
+        fwd_masked = forward.clone()
+        fwd_masked *= fwd_mask
+        fwd_count = fwd_masked.sum()
 
         scale = fwd_count / trues_count
         logging.info(f"Scatter scaling factor: {scale:.4f}")
-        with open(f"{args.output_file_prefix}_scatter_scaling.txt", 'w') as f:
+        with open(f"{args.output_file_prefix}_scatter_scaling.txt", "w") as f:
             f.write(str(scale))
 
         sum_scatter *= scale
-        sum_total   *= scale
-        sum_trues   *= scale
+        sum_total *= scale
+        sum_trues *= scale
 
         forward.write(f"{args.output_file_prefix}_forward.hs")
         logging.info("Wrote forward projection.")
@@ -405,8 +550,8 @@ def main():
         scale = measured_count / total_count
         logging.info(f"Scatter scaling factor: {scale:.4f}")
         sum_scatter *= scale
-        sum_total   *= scale
-        sum_trues   *= scale
+        sum_total *= scale
+        sum_trues *= scale
 
     # Write outputs
     sum_scatter.write(f"{args.output_file_prefix}_scatter.hs")
@@ -424,7 +569,8 @@ def main():
                 except Exception as e:
                     logging.warning(f"Could not delete {f}: {e}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     start = time.time()
     main()
-    logging.info(f"Done in {time.time()-start:.1f} seconds.")
+    logging.info(f"Done in {time.time() - start:.1f} seconds.")

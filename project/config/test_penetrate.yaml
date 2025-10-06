@@ -1,0 +1,49 @@
+# Test Configuration for Penetrate Routine
+# Compatible with main simulation.py script
+
+# Project paths and settings  
+project:
+  total_activity: 358.7
+  data_dir: "/home/sam/working/PSF_estimation/Y90/data/spect/PS_140"
+  image_path: "/home/sam/working/sirf_simind_connection/output/test_penetrate/recon_osem_i2_s12_smoothed_0.hv"  # Will be updated dynamically
+  output_dir: "/home/sam/working/sirf_simind_connection/output/test_penetrate"
+  output_prefix: "output_iter1_"  # Will be updated dynamically  
+  simind_parent_dir: "/home/sam/working/sirf_simind_connection"
+  axial_slice: 32
+
+# Simulation parameters
+simulation:
+  photon_multiplier: 1  # Reduced for testing speed
+  photon_energy: 150
+  window_lower: 75
+  window_upper: 225
+  time_per_projection: 40
+  source_type: "y90_frey"
+  collimator: "ma-megp"
+  kev_per_channel: 10
+  max_energy: 2080
+  scoring_routine: 4  # Penetrate routine
+  collimator_routine: 1
+  photon_direction: 3
+  half_life: 64.6
+
+# Data file names (relative to data_dir)
+data:
+  mu_map_filename: false
+  measured_data_filename: "peak.hs"
+
+# OSEM Settings (for pipeline compatibility)
+osem:
+  initial_subsets: 12
+  initial_epochs: 2
+  smoothing: true
+
+# Pipeline Settings (for pipeline compatibility)  
+pipeline:
+  num_iterations: 2
+  num_array_jobs: 1
+
+# Output settings (for pipeline compatibility)
+output:
+  base_output_dir: "/home/sam/working/sirf_simind_connection/output"
+  suffix: "test_penetrate"

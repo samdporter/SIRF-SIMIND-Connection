@@ -1,58 +1,64 @@
-# General Project Settings
-project:
-  base_dir: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND"
-  scripts_dir: "/home/sam/working/sirf_simind_connection/project/scripts"
-  python_executable: "python3"
+# Anthropomorphic Phantom Configuration
+# Compatible with main simulation.py script
 
-# Data and Output Settings (can be overridden for specific runs)
+# Project paths and settings
+project:
+  total_activity: 358.7
+  data_dir: "/home/sporter/synergistic_Y90/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140"
+  image_path: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND/output/anthro/recon_osem_i5_s12_smoothed_0.hv"  # Will be updated dynamically
+  output_dir: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND/output/anthro"
+  output_prefix: "output_iter1_"  # Will be updated dynamically
+  simind_parent_dir: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND"
+  axial_slice: 32
+
+# Data file names (relative to data_dir)
 data:
-  # Default DATA_DIR for phantom data. This will be overridden for patient data runs.
-  base_input_dir: "/home/sporter/synergistic_Y90/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140"
   mu_map_filename: "umap_zoomed.hv"
   measured_data_filename: "peak.hs"
-  input_smc_filename: "input/input.smc" # Relative to base_dir
 
-output:
-  base_output_dir: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND/output"
-  suffix: "phantom_140" # Will be appended to output path. Can be changed per run (e.g., patient ID)
-  
-# OSEM Reconstruction Settings
-osem:
-  initial_subsets: 12
-  initial_epochs: 5
-  smoothing: true
-
-# Simulation Settings
+# Simulation parameters
 simulation:
-  total_activity: 160.8 # Default for phantom. This will be overridden for patient data.
-  photon_multiplier: 100
-  num_iterations: 5
-  num_array_jobs: 10 # For SGE array jobs
-  window_lower: 75 # Default for phantom, note: 50 for patients
-  window_upper: 225 # Default for phantom, note: 150 for patients
-  photon_energy: 150 # Default for phantom, note: 100 for patients
-  time_per_projection: 40 # Default for phantom, note: 20 for patients
+  photon_multiplier: 10
+  photon_energy: 150
+  window_lower: 75
+  window_upper: 225
+  time_per_projection: 40
   source_type: "y90_frey"
   collimator: "ma-megp"
   kev_per_channel: 10
   max_energy: 2080
-  scoring_routine: 1
+  scoring_routine: 1  # scattwin
   collimator_routine: 1
   photon_direction: 3
   crystal_thickness: 9.5
   crystal_half_length_radius: 195
   crystal_half_width: 265
   half_life: 64.6
-  dual_collimator_simulation: true  # <-- Add this line for bremsstrahlung correction
+
+# OSEM Settings (for pipeline compatibility)
+osem:
+  initial_subsets: 12
+  initial_epochs: 5
+  smoothing: true
+
+# Pipeline Settings (for pipeline compatibility)
+pipeline:
+  num_iterations: 5
+  num_array_jobs: 10
+
+# Output settings (for pipeline compatibility)
+output:
+  base_output_dir: "/home/sporter/synergistic_Y90/MIC23_STIR_SIMIND/output"
+  suffix: "anthro"
 
 # Sum Scatter Settings
 sum_scatter:
-  scatter_pattern: "*_iter%ITER%_*_sca_w1.hs" # %ITER% is a placeholder for iteration
-  total_pattern: "*_iter%ITER%_*_tot_w1.hs"   # %ITER% is a placeholder for iteration
-  image_pattern: "recon_osem_i*_s*_smoothed_%PREV_ITER%.hv" # %PREV_ITER% is a placeholder
+  scatter_pattern: "*_iter%ITER%_*_sca_w1.hs"
+  total_pattern: "*_iter%ITER%_*_tot_w1.hs"
+  image_pattern: "recon_osem_i*_s*_smoothed_%PREV_ITER%.hv"
 
-# Specific Patient Data Processing
+# Patient Processing Settings
 patient_processing:
-  patient_data_root: "/home/sporter/synergistic_Y90/prepared_data" # Where to find 'oxford_patient_data'
+  patient_data_root: "/home/sporter/synergistic_Y90/prepared_data"
   activities_csv_filename: "activities.csv"
-  spect_activity_column_index: 2 # 1-based index for the column (SPECT Activity)
+  spect_activity_column_index: 2

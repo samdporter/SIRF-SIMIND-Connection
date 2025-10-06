@@ -37,6 +37,7 @@ PYTHON="${PYTHON}"
 INITIAL_SUBSETS=$(get_config_value '.osem.initial_subsets')
 INITIAL_EPOCHS=$(get_config_value '.osem.initial_epochs')
 SMOOTHING=$(get_config_value '.osem.smoothing')
+MU_MAP_FILENAME=$(get_config_value '.data.mu_map_filename')
 
 if [ -z "${ITERATION:-}" ]; then
     INDEX="0"
@@ -54,4 +55,5 @@ $PYTHON "${SCRIPTS_DIR}/osem.py" \
     --output_path="${OUTPUT_DIR}" \
     ${ADDITIVE} \
     --smoothing="${SMOOTHING}" \
-    --index="${INDEX}"
+    --index="${INDEX}" \
+    --mu_map_filename="${MU_MAP_FILENAME}"
