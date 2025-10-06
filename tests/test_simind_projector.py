@@ -8,6 +8,7 @@ from sirf_simind_connection.core.components import ScoringRoutine
 from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,
+    create_stir_acqdata,
 )
 
 
@@ -33,11 +34,12 @@ def test_projector_set_up():
 
     # Create test templates
     phantom = create_simple_phantom()
+    acq_template = create_stir_acqdata([128, 128], 120, [4.42, 4.42])
     stir_am = AcquisitionModelUsingRayTracingMatrix()
 
     # Create projector and set up
     projector = SimindProjector(stir_projector=stir_am)
-    projector.set_up(phantom.get_uniform_copy(0), phantom)
+    projector.set_up(acq_template, phantom)
 
     assert projector.acq_templ is not None
     assert projector.img_templ is not None
@@ -50,10 +52,11 @@ def test_iteration_tracking():
     from sirf.STIR import AcquisitionModelUsingRayTracingMatrix
 
     phantom = create_simple_phantom()
+    acq_template = create_stir_acqdata([128, 128], 120, [4.42, 4.42])
     stir_am = AcquisitionModelUsingRayTracingMatrix()
 
     projector = SimindProjector(stir_projector=stir_am)
-    projector.set_up(phantom.get_uniform_copy(0), phantom)
+    projector.set_up(acq_template, phantom)
 
     # Check initial state
     assert projector._iteration_counter == 0
@@ -109,10 +112,11 @@ def test_acquisition_model_interface():
     from sirf.STIR import AcquisitionModelUsingRayTracingMatrix
 
     phantom = create_simple_phantom()
+    acq_template = create_stir_acqdata([128, 128], 120, [4.42, 4.42])
     stir_am = AcquisitionModelUsingRayTracingMatrix()
 
     projector = SimindProjector(stir_projector=stir_am)
-    projector.set_up(phantom.get_uniform_copy(0), phantom)
+    projector.set_up(acq_template, phantom)
 
     # Test interface methods
     assert projector.is_affine()
@@ -138,10 +142,11 @@ def test_direct_and_adjoint():
     from sirf.STIR import AcquisitionModelUsingRayTracingMatrix
 
     phantom = create_simple_phantom()
+    acq_template = create_stir_acqdata([128, 128], 120, [4.42, 4.42])
     stir_am = AcquisitionModelUsingRayTracingMatrix()
 
     projector = SimindProjector(stir_projector=stir_am)
-    projector.set_up(phantom.get_uniform_copy(0), phantom)
+    projector.set_up(acq_template, phantom)
 
     # Test direct (should call forward)
     fwd_result = projector.forward(phantom)
@@ -161,10 +166,11 @@ def test_additive_and_background_terms():
     from sirf.STIR import AcquisitionModelUsingRayTracingMatrix
 
     phantom = create_simple_phantom()
+    acq_template = create_stir_acqdata([128, 128], 120, [4.42, 4.42])
     stir_am = AcquisitionModelUsingRayTracingMatrix()
 
     projector = SimindProjector(stir_projector=stir_am)
-    projector.set_up(phantom.get_uniform_copy(0), phantom)
+    projector.set_up(acq_template, phantom)
 
     # Get initial additive term
     additive = projector.get_additive_term()
@@ -195,6 +201,7 @@ def test_correction_modes_integration():
             config, temp_dir, scoring_routine=ScoringRoutine.PENETRATE
         )
         phantom = create_simple_phantom()
+        acq_template = create_stir_acqdata([128, 128], 120, [4.42, 4.42])
         mu_map = create_attenuation_map(phantom)
 
         simulator.set_source(phantom)
@@ -213,7 +220,7 @@ def test_correction_modes_integration():
             update_additive=False,
             residual_correction=True,
         )
-        projector_a.set_up(phantom.get_uniform_copy(0), phantom)
+        projector_a.set_up(acq_template, phantom)
 
         # Mode A should disable collimator routine
         assert hasattr(projector_a, "_update_corrections")
@@ -226,7 +233,7 @@ def test_correction_modes_integration():
             update_additive=True,
             residual_correction=False,
         )
-        projector_b.set_up(phantom.get_uniform_copy(0), phantom)
+        projector_b.set_up(acq_template, phantom)
 
         # Test Mode C: Both
         projector_c = SimindProjector(
@@ -236,7 +243,7 @@ def test_correction_modes_integration():
             update_additive=True,
             residual_correction=True,
         )
-        projector_c.set_up(phantom.get_uniform_copy(0), phantom)
+        projector_c.set_up(acq_template, phantom)
 
 
 def test_set_collimator_routine():
