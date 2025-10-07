@@ -233,16 +233,17 @@ docs/
     - Creates `OperatorCompositionFunction(KullbackLeibler(b=data_subset), projector)`
     - Returns list of CIL-compatible objective functions and projectors
   - **`create_svrg_objective_with_rdp()`**: Combines SVRG function with SIRF RDP prior
-    - Uses CIL's `SumFunction` to combine `SVRGFunction` with `CudaRelativeDifferencePrior`
+    - Uses CIL's `SumFunction` to combine SVRG with the SETR `RelativeDifferencePrior`
     - Handles negation for maximization with ISTA minimizer
     - Proper setup and initialization of all components
 
 - **Updated `compare_psf_models.py`**: Integrated coordinator-based architecture
   - **New `partition_data_once_cil()`**: Replaces SIRF-only partitioner with CIL-compatible version
-  - **New `run_svrg_with_prior_cil()`**: Uses CIL objectives with SVRG and RDP prior
+  - **New `run_svrg_with_prior_cil()`**: Uses CIL objectives with SVRG and SETR RDP prior
   - **Updated `_run_mode_core()`**: Creates coordinator once per mode, partitions with CIL objectives
   - **Automatic coordinator reset**: Resets iteration counter between different beta values
   - **Preconditioner computation**: Computes BSREM preconditioner from subset projector sensitivity
+    and combines it with the SETR `RelativeDifferencePrior` Hessian diagonal via a Lehmer mean
 
 - **Comprehensive Documentation** (`docs/coordinator_architecture.md`): Complete guide to coordinator-based architecture
   - Architecture overview and key benefits

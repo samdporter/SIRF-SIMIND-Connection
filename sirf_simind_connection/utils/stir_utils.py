@@ -11,6 +11,8 @@ import warnings
 
 import numpy as np
 
+from . import get_array
+
 
 # Conditional import for SIRF to avoid CI dependencies
 try:
@@ -946,7 +948,7 @@ def create_simple_phantom():
 
     # Create empty image
     phantom = create_stir_image(matrix_dim, voxel_size)
-    phantom_array = phantom.as_array()
+    phantom_array = get_array(phantom)
 
     # Add cylindrical background (body)
     center = [32, 32, 32]
@@ -980,7 +982,7 @@ def create_attenuation_map(phantom):
     # For simplicity, use uniform attenuation where phantom > 0
     mu_water_140keV = 0.15  # cm^-1 approximate for 140 keV
 
-    attn_array = phantom.as_array().copy()
+    attn_array = get_array(phantom).copy()
     attn_array[attn_array > 0] = mu_water_140keV
 
     mu_map = phantom.clone()

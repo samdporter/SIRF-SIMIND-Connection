@@ -9,6 +9,9 @@ Monte Carlo simulation process for SPECT imaging.
 """
 
 # Conditional import for SIRF to avoid CI dependencies
+from sirf_simind_connection.utils import get_array
+
+
 try:
     from sirf.STIR import AcquisitionData, AcquisitionModel, ImageData, assert_validity
 
@@ -377,7 +380,7 @@ class SimindProjector:
             # Scale SIMIND to match STIR
             scale_factor = linear_proj.sum() / max(b01.sum(), 1e-10)
             b01_scaled = b01.clone()
-            b01_scaled.fill(b01.as_array() * scale_factor)
+            b01_scaled.fill(get_array(b01) * scale_factor)
 
             # Compute residual
             residual = b01_scaled - linear_proj
@@ -407,9 +410,9 @@ class SimindProjector:
             # Scale using b02 vs linear projection
             scale_factor = linear_proj.sum() / max(b02.sum(), 1e-10)
             b01_scaled = b01.clone()
-            b01_scaled.fill(b01.as_array() * scale_factor)
+            b01_scaled.fill(get_array(b01) * scale_factor)
             b02_scaled = b02.clone()
-            b02_scaled.fill(b02.as_array() * scale_factor)
+            b02_scaled.fill(get_array(b02) * scale_factor)
 
             # Compute additive as scatter (b01 - b02)
             additive_simind = b01_scaled - b02_scaled
@@ -435,7 +438,7 @@ class SimindProjector:
             # Scale using b02 vs linear projection
             scale_factor = linear_proj.sum() / max(b02.sum(), 1e-10)
             b01_scaled = b01.clone()
-            b01_scaled.fill(b01.as_array() * scale_factor)
+            b01_scaled.fill(get_array(b01) * scale_factor)
 
             # Get full STIR projection (with current additive)
             stir_full_proj = self._stir_projector.forward(image)

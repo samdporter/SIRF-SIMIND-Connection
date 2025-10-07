@@ -24,19 +24,22 @@ resolution:
 # SVRG reconstruction parameters
 svrg:
   num_subsets: 24
-  num_epochs: 100
+  num_epochs: 50
   initial_step_size: 1
-  relaxation_eta: 0.02
+  relaxation_eta: 0.01
 
 # RDP prior parameters
 rdp:
-  beta_values: [0, 0.01, 0.1, 1]
+  beta_values: [0.1, 0.3, 1]
   gamma: 1.0
-  epsilon: 0.0001
+  epsilon: 0.01
+  stencil: 18
+  both_directions: true
+  boundary_condition: "Periodic"
 
 # SimindProjector update control
 projector:
-  correction_update_epochs: 20  # Update corrections every N epochs
+  correction_update_epochs: 10  # Update corrections every N epochs
 
 # Reconstruction selection
 reconstruction:
@@ -46,3 +49,18 @@ reconstruction:
 output:
   save_intermediate: false
   verbose: false
+
+# Cluster submission defaults (used when --execution cluster)
+cluster:
+  job_name: psf_mode_beta
+  runtime: "48:00:00"
+  memory: "60G"
+  cores: 4
+  queue: null
+  gpu: false
+  submit: false           # Set true to submit by default
+  python_executable: python
+  env_setup_script: null
+  logs_subdir: logs
+  job_script: project_psf/cluster/psf_sweep_job.sh
+  qsub_extra_args: []

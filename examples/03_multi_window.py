@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
 from sirf_simind_connection.core.components import ScoringRoutine
+from sirf_simind_connection.utils import get_array
 
 
 def setup_tew_windows():
@@ -156,9 +157,9 @@ def main():
 
     # view input images and resultant projections
     fig, ax = plt.subplots(1, 2, figsize=(12, 4))
-    axim0 = ax[0].imshow(phantom.as_array()[32, :, :], cmap="viridis")
+    axim0 = ax[0].imshow(get_array(phantom)[32, :, :], cmap="viridis")
     ax[0].set_title("Phantom (Axial Slice)")
-    axim1 = ax[1].imshow(mu_map.as_array()[32, :, :], cmap="gray")
+    axim1 = ax[1].imshow(get_array(mu_map)[32, :, :], cmap="gray")
     ax[1].set_title("Attenuation Map (Axial Slice)")
     plt.colorbar(axim0, ax=ax[0])
     plt.colorbar(axim1, ax=ax[1])
@@ -166,15 +167,15 @@ def main():
     plt.savefig(output_dir / "phantom_and_attenuation.png")
 
     fig, ax = plt.subplots(1, 5, figsize=(18, 6))
-    axim0 = ax[0].imshow(scatter_counts.as_array()[0, :, 60, :], cmap="hot")
+    axim0 = ax[0].imshow(get_array(scatter_counts)[0, :, 60, :], cmap="hot")
     ax[0].set_title("Scatter Counts (Projection)")
-    axim1 = ax[1].imshow(scatter_estimate.as_array()[0, :, 60, :], cmap="hot")
+    axim1 = ax[1].imshow(get_array(scatter_estimate)[0, :, 60, :], cmap="hot")
     ax[1].set_title("TEW Scatter Estimate (Projection)")
-    axim2 = ax[2].imshow(true_counts.as_array()[0, :, 60, :], cmap="hot")
+    axim2 = ax[2].imshow(get_array(true_counts)[0, :, 60, :], cmap="hot")
     ax[2].set_title("True Counts (Projection)")
-    axim3 = ax[3].imshow(corrected.as_array()[0, :, 60, :], cmap="hot")
+    axim3 = ax[3].imshow(get_array(corrected)[0, :, 60, :], cmap="hot")
     ax[3].set_title("TEW Corrected Counts (Projection)")
-    axim4 = ax[4].imshow(total_counts.as_array()[0, :, 60, :], cmap="hot")
+    axim4 = ax[4].imshow(get_array(total_counts)[0, :, 60, :], cmap="hot")
     ax[4].set_title("Total Counts (Projection)")
     plt.colorbar(axim0, ax=ax[0])
     plt.colorbar(axim1, ax=ax[1])

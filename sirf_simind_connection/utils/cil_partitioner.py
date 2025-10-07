@@ -230,7 +230,7 @@ def create_svrg_objective_with_rdp(
 
     Args:
         kl_objectives (list): List of CIL KL objective functions.
-        rdp_prior: SIRF CudaRelativeDifferencePrior.
+        rdp_prior: SETR RelativeDifferencePrior (or compatible Function).
         sampler: CIL Sampler for SVRG.
         snapshot_update_interval (int): SVRG snapshot update interval.
         initial_image: Initial image for setup.

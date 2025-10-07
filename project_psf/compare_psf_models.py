@@ -11,7 +11,7 @@ Tests 7 reconstruction approaches:
 6. Fast + Full residual correction (additive + residual)
 7. Accurate + Full residual correction
 
-Uses STIR's CudaRelativeDifferencePrior with SVRG optimization.
+Uses SETR's RelativeDifferencePrior with SVRG optimization.
 
 IMPORTANT: For efficiency, partitions data ONCE per mode, then loops over beta values.
 """
@@ -19,6 +19,10 @@ IMPORTANT: For efficiency, partitions data ONCE per mode, then loops over beta v
 import argparse
 import logging
 import os
+import shlex
+import shutil
+import subprocess
+import sys
 import time
 
 import numpy as np
@@ -26,7 +30,7 @@ import yaml
 
 # CIL imports
 from cil.optimisation.algorithms import ISTA
-from cil.optimisation.functions import IndicatorBox
+from cil.optimisation.functions import IndicatorBox, ScaledFunction
 from cil.optimisation.utilities import Sampler, StepSizeRule
 from setr.cil_extensions.callbacks import (
     PrintObjectiveCallback,
@@ -35,20 +39,21 @@ from setr.cil_extensions.callbacks import (
 )
 
 # SETR imports
-from setr.cil_extensions.preconditioners import BSREMPreconditioner
-from setr.utils import get_spect_am, get_spect_data
-from setr.utils.sirf import get_array
-from sirf.STIR import (
-    AcquisitionData,
-    CudaRelativeDifferencePrior,
-    MessageRedirector,
+from setr.cil_extensions.preconditioners import (
+    BSREMPreconditioner,
+    ImageFunctionPreconditioner,
+    LehmerMeanPreconditioner,
 )
+from setr.priors import RelativeDifferencePrior
+from setr.utils import get_spect_am, get_spect_data
+from sirf.STIR import AcquisitionData, MessageRedirector
 
 # SIRF-SIMIND imports
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.configs import get
 from sirf_simind_connection.core.components import ScoringRoutine
 from sirf_simind_connection.core.coordinator import SimindCoordinator
+from sirf_simind_connection.utils import get_array
 from sirf_simind_connection.utils.cil_partitioner import (
     create_svrg_objective_with_rdp,
     partition_data_with_cil_objectives,
@@ -107,6 +112,19 @@ Examples:
         help="Override config values (e.g., --override svrg.num_epochs=10)",
     )
 
+    parser.add_argument(
+        "--execution",
+        choices=["local", "cluster"],
+        default="local",
+        help="Run locally (default) or stage/submit an SGE cluster sweep.",
+    )
+
+    parser.add_argument(
+        "--submit",
+        action="store_true",
+        help="Submit jobs immediately in cluster mode (otherwise stage only).",
+    )
+
     return parser.parse_args()
 
 
@@ -141,6 +159,168 @@ def apply_overrides(config, overrides):
         logging.info(f"Override: {key_path} = {parsed_value}")
 
     return config
+
+
+def _format_literal(value):
+    """Return a string representation safe for literal evaluation."""
+    if isinstance(value, (int, float)):
+        return repr(value)
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    if value is None:
+        return "None"
+    return repr(value)
+
+
+def _generate_mode_beta_combinations(config):
+    """Return sorted list of (mode, beta_literal) pairs for cluster runs."""
+    modes = sorted(int(mode) for mode in config["reconstruction"]["modes"])
+    betas = config["rdp"]["beta_values"]
+    combinations = []
+    for mode in modes:
+        for beta in betas:
+            combinations.append((mode, _format_literal(beta)))
+    return combinations
+
+
+def run_cluster_sweep(args, config):
+    """Launch or stage an SGE array sweep over (mode, beta) combinations."""
+
+    combinations = _generate_mode_beta_combinations(config)
+    if not combinations:
+        logging.error("No (mode, beta) combinations available for cluster run")
+        return
+
+    cluster_cfg = config.get("cluster", {})
+    job_name = cluster_cfg.get("job_name", "psf_mode_beta")
+    runtime = cluster_cfg.get("runtime", "48:00:00")
+    memory = cluster_cfg.get("memory", "60G")
+    queue = cluster_cfg.get("queue")
+    cores = int(cluster_cfg.get("cores", 1))
+    gpu = bool(cluster_cfg.get("gpu", False))
+    submit_jobs = bool(args.submit or cluster_cfg.get("submit", False))
+    python_exec = cluster_cfg.get("python_executable", sys.executable)
+    env_setup = cluster_cfg.get("env_setup_script")
+    logs_subdir = cluster_cfg.get("logs_subdir", "_logs")
+    qsub_extra = cluster_cfg.get("qsub_extra_args", [])
+
+    if isinstance(qsub_extra, str):
+        qsub_extra = shlex.split(qsub_extra)
+    elif not isinstance(qsub_extra, (list, tuple)):
+        qsub_extra = []
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    job_script_default = os.path.join(script_dir, "cluster", "psf_sweep_job.sh")
+    job_script = os.path.abspath(cluster_cfg.get("job_script", job_script_default))
+
+    if not os.path.isfile(job_script):
+        raise FileNotFoundError(
+            f"Cluster job script not found: {job_script}. Check config['cluster']['job_script']."
+        )
+
+    config_path = os.path.abspath(args.config)
+    output_root = os.path.abspath(args.output_path)
+    os.makedirs(output_root, exist_ok=True)
+
+    cluster_root = os.path.join(output_root, "_cluster")
+    os.makedirs(cluster_root, exist_ok=True)
+
+    task_file = os.path.join(cluster_root, f"{job_name}_tasks.csv")
+    with open(task_file, "w", encoding="utf-8") as f:
+        for mode, beta_literal in combinations:
+            f.write(f"{mode},{beta_literal}\n")
+
+    overrides_file = None
+    if args.override:
+        overrides_file = os.path.join(cluster_root, f"{job_name}_overrides.txt")
+        with open(overrides_file, "w", encoding="utf-8") as f:
+            for override in args.override:
+                f.write(f"{override}\n")
+
+    if env_setup:
+        env_setup = os.path.abspath(env_setup)
+
+    logs_dir = os.path.join(cluster_root, logs_subdir)
+    os.makedirs(logs_dir, exist_ok=True)
+
+    env_exports = {
+        "PSF_SCRIPT": os.path.abspath(__file__),
+        "CONFIG_PATH": config_path,
+        "OUTPUT_ROOT": output_root,
+        "TASK_FILE": task_file,
+        "PYTHON_EXECUTABLE": python_exec,
+    }
+
+    if overrides_file:
+        env_exports["OVERRIDES_FILE"] = overrides_file
+    if env_setup:
+        env_exports["ENV_SETUP_SCRIPT"] = env_setup
+    env_exports["CLUSTER_CORES"] = str(cores)
+
+    def _escape_env_value(value):
+        text = str(value)
+        text = text.replace("\\", "\\\\")
+        text = text.replace(",", "\\,")
+        text = text.replace(" ", "\\ ")
+        return text
+
+    env_export_str = ",".join(
+        f"{key}={_escape_env_value(value)}" for key, value in env_exports.items()
+    )
+
+    total_tasks = len(combinations)
+    task_range = f"1-{total_tasks}"
+
+    qsub_cmd = [
+        "qsub",
+        "-t",
+        task_range,
+        "-N",
+        job_name,
+        "-l",
+        f"h_rt={runtime}",
+    ]
+
+    if gpu:
+        qsub_cmd.extend(["-l", "gpu=true", "-l", f"tmem={memory}"])
+    else:
+        qsub_cmd.extend(["-l", f"h_vmem={memory}"])
+
+    if queue:
+        qsub_cmd.extend(["-q", queue])
+
+    if cores > 1:
+        qsub_cmd.extend(["-pe", "smp", str(cores)])
+
+    qsub_cmd.extend(["-o", logs_dir, "-e", logs_dir])
+
+    qsub_cmd.extend(qsub_extra)
+
+    qsub_cmd.extend(["-v", env_export_str, job_script])
+
+    logging.info("Prepared %d SGE tasks (modes × betas).", total_tasks)
+    logging.info("Task file: %s", task_file)
+    logging.info("Logs directory: %s", logs_dir)
+    logging.info("Job script: %s", job_script)
+    logging.info("Sample command: %s", " ".join(shlex.quote(arg) for arg in qsub_cmd))
+
+    if submit_jobs:
+        if shutil.which("qsub") is None:
+            logging.error("qsub command not found in PATH; cannot submit jobs.")
+            return
+
+        logging.info("Submitting SGE array job...")
+        try:
+            subprocess.run(qsub_cmd, check=True)
+        except subprocess.CalledProcessError as exc:
+            logging.error("qsub submission failed: %s", exc)
+            return
+
+        logging.info("SGE submission successful. Monitor with qstat -u $USER")
+    else:
+        logging.info(
+            "Cluster run staged only. Re-run with --submit or set cluster.submit=true to submit."
+        )
 
 
 def create_simind_simulator(config, spect_data, output_dir):
@@ -387,13 +567,17 @@ def run_svrg_with_prior_cil(
 
     num_subsets = len(kl_objectives)
 
+    rdp_prior = None
     if beta > 0:
-        # Create RDP prior for this beta
-        prior = CudaRelativeDifferencePrior()
-        prior.set_penalisation_factor(beta)
-        prior.set_gamma(config["rdp"]["gamma"])
-        prior.set_epsilon(config["rdp"]["epsilon"])
-        prior.set_up(initial_image)
+        rdp_prior = RelativeDifferencePrior(
+            domain_geometry=initial_image,
+            gamma=config["rdp"].get("gamma", 1.0),
+            epsilon=config["rdp"].get("epsilon", 1e-6),
+            stencil=str(config["rdp"].get("stencil", "18")),
+            both_directions=config["rdp"].get("both_directions", True),
+            bnd_cond=config["rdp"].get("boundary_condition", "Periodic"),
+        )
+        prior = ScaledFunction(rdp_prior, -beta)
     else:
         prior = False
 
@@ -425,6 +609,28 @@ def run_svrg_with_prior_cil(
     s_inv = compute_sensitivity_inverse(projectors)
     bsrem_precond = BSREMPreconditioner(s_inv, 1, np.inf, epsilon=1e-6, smooth=False)
 
+    if rdp_prior is not None:
+        update_interval = num_subsets
+
+        def rdp_inv_hessian(image):
+            inv_diag = rdp_prior.inv_hessian_diag(image)
+            inv_diag.abs(out=inv_diag)
+            inv_diag.divide(max(beta, 1e-12), out=inv_diag)
+            return inv_diag
+
+        prior_precond = ImageFunctionPreconditioner(
+            rdp_inv_hessian,
+            update_interval=update_interval,
+            epsilon=config["rdp"].get("preconditioner_epsilon", 1e-8),
+        )
+        preconditioner = LehmerMeanPreconditioner(
+            [bsrem_precond, prior_precond],
+            update_interval=update_interval,
+            epsilon=config["rdp"].get("lehmer_epsilon", 1e-8),
+        )
+    else:
+        preconditioner = bsrem_precond
+
     callbacks = [
         PrintObjectiveCallback(interval=update_interval),
         SaveObjectiveCallback(
@@ -451,7 +657,7 @@ def run_svrg_with_prior_cil(
         g=g,
         step_size=step_size_rule,
         update_objective_interval=update_interval,
-        preconditioner=bsrem_precond,
+        preconditioner=preconditioner,
     )
 
     # Run reconstruction
@@ -744,28 +950,18 @@ def run_mode_7(spect_data, config, output_dir):
 def main():
     """Main entry point."""
     args = parse_args()
-    AcquisitionData.set_storage_scheme("memory")
-
-    # Load config
     config = load_config(args.config)
-
-    # Apply overrides
     config = apply_overrides(config, args.override)
 
-    # Configure logging
     configure_logging(config["output"]["verbose"])
-    msg = MessageRedirector()
 
-    # Create output directory
-    os.makedirs(args.output_path, exist_ok=True)
-
-    # Log configuration
     logging.info("=" * 80)
     logging.info("SPECT PSF Model Comparison")
     logging.info("=" * 80)
     logging.info(f"Config: {args.config}")
     logging.info(f"Data: {config['data_path']}")
     logging.info(f"Output: {args.output_path}")
+    logging.info(f"Execution mode: {args.execution}")
     logging.info(f"Modes: {config['reconstruction']['modes']}")
     logging.info(f"Beta values: {config['rdp']['beta_values']}")
     logging.info(
@@ -776,6 +972,16 @@ def main():
         f"[{config['simind']['energy_lower']}, {config['simind']['energy_upper']}] keV"
     )
     logging.info("=" * 80)
+
+    # Ensure output path exists for both modes
+    os.makedirs(args.output_path, exist_ok=True)
+
+    if args.execution == "cluster":
+        run_cluster_sweep(args, config)
+        return
+
+    AcquisitionData.set_storage_scheme("memory")
+    msg = MessageRedirector()
 
     # Load data ONCE
     start_time = time.time()

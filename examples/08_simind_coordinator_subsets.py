@@ -29,6 +29,7 @@ from sirf_simind_connection.configs import get
 from sirf_simind_connection.core.components import ScoringRoutine
 from sirf_simind_connection.core.coordinator import SimindCoordinator
 from sirf_simind_connection.core.projector import SimindSubsetProjector
+from sirf_simind_connection.utils import get_array
 from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,
@@ -117,8 +118,8 @@ def run_coordinator_osem(
             fwd = proj.forward(current_image)
 
             # Compute ratio (measured / estimated)
-            fwd_arr = fwd.as_array()
-            measured_arr = measured_data.as_array()
+            fwd_arr = get_array(fwd)
+            measured_arr = get_array(measured_data)
 
             ratio = measured_data.clone()
             ratio.fill(np.divide(measured_arr, fwd_arr + 1e-10))
@@ -127,8 +128,8 @@ def run_coordinator_osem(
             correction = proj.backward(ratio)
 
             # Multiplicative update
-            current_arr = current_image.as_array()
-            corr_arr = correction.as_array()
+            current_arr = get_array(current_image)
+            corr_arr = get_array(correction)
             current_arr *= corr_arr / num_subsets
             current_image.fill(np.maximum(current_arr, 0))  # Enforce non-negativity
 
@@ -140,10 +141,10 @@ def run_coordinator_osem(
 
 def plot_comparison(phantom, measured_data, recon_std, recon_coord, output_dir):
     """Create comparison plots."""
-    phantom_arr = phantom.as_array()
-    measured_arr = measured_data.as_array()
-    std_arr = recon_std.as_array()
-    coord_arr = recon_coord.as_array()
+    phantom_arr = get_array(phantom)
+    measured_arr = get_array(measured_data)
+    std_arr = get_array(recon_std)
+    coord_arr = get_array(recon_coord)
 
     mid_z = phantom_arr.shape[0] // 2
     mid_proj = measured_arr.shape[0] // 2
@@ -239,12 +240,12 @@ def main():
         measured_data = simulator.run_simulation()
 
         # Add noise
-        measured_arr = measured_data.as_array()
+        measured_arr = get_array(measured_data)
         scale = 1e6 / measured_arr.sum()
         measured_arr_noisy = np.random.poisson(measured_arr * scale) / scale
         measured_data.fill(measured_arr_noisy)
 
-        print(f"  Total counts: {measured_data.as_array().sum():.2e}")
+        print(f"  Total counts: {get_array(measured_data).sum():.2e}")
 
         # ============================================================
         # STEP 3: Create SimindCoordinator

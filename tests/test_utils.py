@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from sirf_simind_connection.utils import get_array
 from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,
@@ -30,7 +31,7 @@ def test_create_simple_phantom():
     assert all(d > 0 for d in dims)
 
     # Check that phantom has some activity
-    phantom_array = phantom.as_array()
+    phantom_array = get_array(phantom)
     assert phantom_array.max() > 0
 
 
@@ -48,7 +49,7 @@ def test_create_attenuation_map():
     assert phantom_dims == mu_dims
 
     # Check that attenuation values are reasonable
-    mu_array = mu_map.as_array()
+    mu_array = get_array(mu_map)
     assert mu_array.max() > 0
     assert mu_array.max() < 1.0  # Reasonable for tissue at 140keV
 
@@ -81,7 +82,7 @@ def test_create_stir_acqdata():
     assert acqdata is not None
 
     # Check that it has expected structure
-    acq_array = acqdata.as_array()
+    acq_array = get_array(acqdata)
     assert acq_array.shape[1] == proj_matrix[0]  # First dimension
     assert acq_array.shape[2] == num_projections  # Number of projections
     assert acq_array.shape[3] == proj_matrix[1]  # Second dimension
@@ -120,7 +121,7 @@ def test_parse_interfile():
 def test_phantom_properties():
     """Test that created phantom has expected properties."""
     phantom = create_simple_phantom()
-    phantom_array = phantom.as_array()
+    phantom_array = get_array(phantom)
 
     # Should have background activity (~10) and hot spot activity (~40)
     unique_values = np.unique(phantom_array)

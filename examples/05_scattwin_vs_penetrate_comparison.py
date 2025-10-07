@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
 from sirf_simind_connection.core.components import ScoringRoutine
+from sirf_simind_connection.utils import get_array
 
 
 # Create output directory
@@ -108,22 +109,22 @@ def main():
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
 
     # SCATTWIN plots (top row)
-    axes[0, 0].imshow(scatt_total.as_array()[0, :, 32, :], cmap="hot")
+    axes[0, 0].imshow(get_array(scatt_total)[0, :, 32, :], cmap="hot")
     axes[0, 0].set_title("SCATTWIN: Total Counts")
     axes[0, 0].axis("off")
 
-    axes[0, 1].imshow(scatt_primary.as_array()[0, :, 32, :], cmap="hot")
+    axes[0, 1].imshow(get_array(scatt_primary)[0, :, 32, :], cmap="hot")
     axes[0, 1].set_title("SCATTWIN: Primary Counts")
     axes[0, 1].axis("off")
 
-    axes[0, 2].imshow(scatt_scatter.as_array()[0, :, 32, :], cmap="hot")
+    axes[0, 2].imshow(get_array(scatt_scatter)[0, :, 32, :], cmap="hot")
     axes[0, 2].set_title("SCATTWIN: Scatter Counts")
     axes[0, 2].axis("off")
 
     # PENETRATE plots (bottom row) - show first 3 available outputs
     pen_keys = list(pen_outputs.keys())[:3]
     for i, key in enumerate(pen_keys):
-        axes[1, i].imshow(pen_outputs[key].as_array()[0, :, 32, :], cmap="plasma")
+        axes[1, i].imshow(get_array(pen_outputs[key])[0, :, 32, :], cmap="plasma")
         axes[1, i].set_title(f"PENETRATE: {key.replace('_', ' ').title()}")
         axes[1, i].axis("off")
 

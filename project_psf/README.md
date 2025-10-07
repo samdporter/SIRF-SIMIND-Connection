@@ -36,7 +36,29 @@ python compare_psf_models.py \
     --config config_default.yaml \
     --output_path /path/to/output \
     --override reconstruction.modes=[1,2]
+
+# Stage an SGE array sweep (no submission)
+python compare_psf_models.py \
+    --config config_default.yaml \
+    --output_path /cluster/output_root \
+    --execution cluster
+
+# Stage and submit directly to SGE
+python compare_psf_models.py \
+    --config config_default.yaml \
+    --output_path /cluster/output_root \
+    --execution cluster \
+    --submit
 ```
+
+## Cluster Execution (SGE)
+
+- Enable cluster mode with `--execution cluster` to create an SGE array sweep over all mode/beta pairs.
+- The staging step writes helper files to `output_path/_cluster/`, including the task table and optional override list.
+- Jobs run via `project_psf/cluster/psf_sweep_job.sh`, which reuses this script in local mode per task.
+- Configure resource requests in the `cluster` section of your YAML config (runtime, memory, cores, queue, etc.).
+- Use `--submit` or set `cluster.submit: true` to automatically call `qsub`; otherwise the command is logged for manual submission.
+- The job array passes overrides from the CLI/config to each task, so you can tweak modes or solver settings once.
 
 ## Configuration Files
 
@@ -82,6 +104,9 @@ rdp:
   beta_values: [0.01, 0.1, 1.0]
   gamma: 2.0
   epsilon: 0.0001
+  stencil: 18
+  both_directions: true
+  boundary_condition: "Periodic"
 
 # SimindProjector
 projector:
@@ -109,6 +134,13 @@ Override any config parameter without editing the file:
 --override svrg.num_epochs=20 \
 --override rdp.beta_values=[0.1,1.0,10.0] \
 --override reconstruction.modes=[1,2,3]
+
+# Adjust RDP stencil/directions (defaults: stencil=18, both_directions=true)
+--override rdp.stencil=6 \
+--override rdp.both_directions=False
+
+# Switch boundary condition (default: "Periodic")
+--override rdp.boundary_condition="Neumann"
 
 # Override nested values
 --override data.data_path="/new/path" \

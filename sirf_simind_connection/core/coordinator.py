@@ -13,6 +13,8 @@ import logging
 
 import numpy as np
 
+from sirf_simind_connection.utils import get_array
+
 from .types import ScoringRoutine
 
 
@@ -457,7 +459,7 @@ class SimindCoordinator:
             return self.cached_linear_proj.get_uniform_copy(0)
 
         # Extract subset views from full residual
-        residual_np = residual_full.as_array()
+        residual_np = get_array(residual_full)
         subset_array = residual_np[:, :, subset_indices, :]
         subset_array = subset_array[0]  # remove segment axis
         subset_array = np.transpose(subset_array, (1, 0, 2))

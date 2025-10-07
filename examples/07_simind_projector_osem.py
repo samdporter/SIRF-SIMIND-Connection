@@ -24,6 +24,7 @@ from sirf.STIR import (
 from sirf_simind_connection import SimindProjector, SimindSimulator, SimulationConfig
 from sirf_simind_connection.configs import get
 from sirf_simind_connection.core.components import ScoringRoutine
+from sirf_simind_connection.utils import get_array
 from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,
@@ -103,10 +104,10 @@ def run_simind_osem(
 
 def plot_comparison(phantom, measured_data, recon_std, recon_simind, output_dir):
     """Create comparison plots."""
-    phantom_arr = phantom.as_array()
-    measured_arr = measured_data.as_array()
-    std_arr = recon_std.as_array()
-    simind_arr = recon_simind.as_array()
+    phantom_arr = get_array(phantom)
+    measured_arr = get_array(measured_data)
+    std_arr = get_array(recon_std)
+    simind_arr = get_array(recon_simind)
 
     mid_z = phantom_arr.shape[0] // 2
     mid_proj = measured_arr.shape[0] // 2
@@ -205,12 +206,12 @@ def main():
         measured_data = simulator.run_simulation()
 
         # Add Poisson noise
-        measured_arr = measured_data.as_array()
+        measured_arr = get_array(measured_data)
         scale = 1e6 / measured_arr.sum()
         measured_arr_noisy = np.random.poisson(measured_arr * scale) / scale
         measured_data.fill(measured_arr_noisy)
 
-        print(f"  Total counts: {measured_data.as_array().sum():.2e}")
+        print(f"  Total counts: {get_array(measured_data).sum():.2e}")
 
         # ============================================================
         # STEP 3: Create Initial Estimate

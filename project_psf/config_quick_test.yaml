@@ -32,6 +32,9 @@ rdp:
   beta_values: [0.1]
   gamma: 1.0
   epsilon: 0.001
+  stencil: 18
+  both_directions: true
+  boundary_condition: "Periodic"
 
 # SimindProjector update control
 projector:
@@ -45,3 +48,18 @@ reconstruction:
 output:
   save_intermediate: false
   verbose: true
+
+# Cluster submission defaults
+cluster:
+  job_name: psf_mode_beta
+  runtime: "02:00:00"
+  memory: "16G"
+  cores: 1
+  queue: null
+  gpu: false
+  submit: false
+  python_executable: python
+  env_setup_script: null
+  logs_subdir: logs
+  job_script: project_psf/cluster/psf_sweep_job.sh
+  qsub_extra_args: []

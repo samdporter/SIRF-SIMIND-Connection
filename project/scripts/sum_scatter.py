@@ -23,6 +23,8 @@ from sirf.STIR import (
 )
 from skimage.morphology import ball, erosion
 
+from sirf_simind_connection.utils import get_array
+
 
 # Try to import totalsegmentator, but don't fail if it's not available
 TOTALSEGMENTATOR_AVAILABLE = False
@@ -85,7 +87,7 @@ def threshold_based_segmentation(attenuation, method="adaptive"):
     Create body mask from attenuation map using thresholding.
     More robust than deep learning for attenuation maps.
     """
-    attn_arr = attenuation.as_array()
+    attn_arr = get_array(attenuation)
 
     if method == "adaptive":
         # Adaptive threshold based on statistics
@@ -205,7 +207,7 @@ def mask_and_forward(
 
     else:
         # Simple threshold when segmentation is disabled
-        mask = attenuation.as_array() > threshold_factor * attenuation.max()
+        mask = get_array(attenuation) > threshold_factor * attenuation.max()
         logging.info("Using simple threshold for body mask (segmentation disabled)")
 
     # Erode mask (spherical)
@@ -217,14 +219,14 @@ def mask_and_forward(
     )
 
     # Apply eroded mask to attenuation
-    attn_arr = attenuation.as_array()
+    attn_arr = get_array(attenuation)
     attn_arr[~eroded] = 0.0
     attenuation.fill(attn_arr)
 
     # Forward project attenuation
     fwd_attn = model.forward(attenuation)
     thresh = threshold_factor * fwd_attn.max()
-    fwd_arr = fwd_attn.as_array() >= thresh
+    fwd_arr = get_array(fwd_attn) >= thresh
     fwd_attn.fill(fwd_arr)
 
     return model.forward(image), fwd_attn

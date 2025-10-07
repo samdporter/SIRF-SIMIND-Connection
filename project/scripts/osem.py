@@ -4,6 +4,8 @@ import time
 
 from sirf.STIR import *
 
+from sirf_simind_connection.utils import get_array
+
 
 def parse_spect_res(x):
     vals = x.split(",")
@@ -57,7 +59,7 @@ def get_spect_data(path, mu_map_filename="umap_zoomed.hv"):
     if mu_map_filename and mu_map_filename != "false":
         spect_data["attenuation"] = ImageData(os.path.join(path, mu_map_filename))
         # Apply necessary coordinate flip
-        attn_arr = spect_data["attenuation"].as_array()
+        attn_arr = get_array(spect_data["attenuation"])
         attn_arr = np.flip(attn_arr, axis=-1)
         spect_data["attenuation"].fill(attn_arr)
     else:

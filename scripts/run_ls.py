@@ -10,6 +10,7 @@ import numpy as np
 from sirf.STIR import AcquisitionData
 
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
+from sirf_simind_connection.utils import get_array
 from sirf_simind_connection.utils.simind_utils import create_window_file
 
 
@@ -237,7 +238,7 @@ def plot_sinos(
     for i, (label, sino) in enumerate(sinos.items()):
         if i >= 3:  # Only plot first 3
             break
-        arr = sino.asarray()
+        arr = get_array(sino)
         im = axes_top[i].imshow(arr[0, :, 1], cmap=cmasher.fall)
 
         # Use full label if available
@@ -296,7 +297,7 @@ def plot_sinos(
 
     # Plot profiles
     for label, sino in sinos.items():
-        arr = sino.asarray()[0]
+        arr = get_array(sino)[0]
         centre_line = np.sum(
             np.nan_to_num(arr[y_idx - y_range // 2 - 1 : y_idx + y_range // 2, :]),
             axis=(0, 1),
@@ -525,7 +526,7 @@ def process_simulation_case(
     # Generate FWHM plots
     sorted_labels = sorted(primaries.keys(), key=lambda x: int(float(x)))
     fig, fwhms = plot_peak_profiles_arrays(
-        arrays=[primaries[label].asarray() for label in sorted_labels],
+        arrays=[get_array(primaries[label]) for label in sorted_labels],
         labels=sorted_labels,
         y_idx=config.plot_y_index,
         y_range=config.plot_y_range,

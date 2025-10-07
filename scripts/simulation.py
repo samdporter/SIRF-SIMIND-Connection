@@ -22,6 +22,7 @@ from sirf.STIR import AcquisitionData, ImageData, MessageRedirector
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.core import ScoringRoutine
+from sirf_simind_connection.utils import get_array
 
 
 msg = MessageRedirector()
@@ -113,7 +114,7 @@ def prepare_image_data(image_path, threshold_fraction=0.01):
     image = ImageData(image_path)
 
     # Zero out low values to save simulation time
-    image_array = image.as_array()
+    image_array = get_array(image)
     threshold = threshold_fraction * image.max()
     low_value_count = np.sum(image_array < threshold)
 
@@ -489,15 +490,15 @@ def generate_plots(outputs, measured_data, scoring_routine, sim_config, base_fil
     if scoring_routine == ScoringRoutine.SCATTWIN:
         # Traditional scattwin plots
         data_list = [
-            (outputs["total"].as_array(), "simind total"),
-            (measured_data.as_array(), "measured"),
-            (outputs["true"].as_array(), "simind true"),
-            (outputs["scatter"].as_array(), "simind scatter"),
+            (get_array(outputs["total"]), "simind total"),
+            (get_array(measured_data), "measured"),
+            (get_array(outputs["true"]), "simind true"),
+            (get_array(outputs["scatter"]), "simind scatter"),
         ]
 
     elif scoring_routine == ScoringRoutine.PENETRATE:
         # Penetrate component plots - show up to 6 most important
-        data_list = [(measured_data.as_array(), "measured")]
+        data_list = [(get_array(measured_data), "measured")]
 
         # Add available penetrate components
         for key, data in list(outputs.items())[
@@ -505,15 +506,15 @@ def generate_plots(outputs, measured_data, scoring_routine, sim_config, base_fil
         ]:  # Limit to 5 to keep plots manageable
             if data is not None:
                 display_name = key.replace("_", " ").title()
-                data_list.append((data.as_array(), display_name))
+                data_list.append((get_array(data), display_name))
 
     else:
         # Default: just show available outputs
-        data_list = [(measured_data.as_array(), "measured")]
+        data_list = [(get_array(measured_data), "measured")]
         for key, data in list(outputs.items())[:5]:
             if data is not None:
                 display_name = key.replace("_", " ").title()
-                data_list.append((data.as_array(), display_name))
+                data_list.append((get_array(data), display_name))
 
     # Filter out None values
     data_list = [(data, title) for data, title in data_list if data[0] is not None]

@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
 from sirf_simind_connection.core.components import ScoringRoutine
+from sirf_simind_connection.utils import get_array
 
 
 # Create output directory
@@ -83,9 +84,9 @@ def main():
 
     # Create visualizations
     fig, ax = plt.subplots(1, 2, figsize=(12, 4))
-    axim0 = ax[0].imshow(phantom.as_array()[32, :, :], cmap="viridis")
+    axim0 = ax[0].imshow(get_array(phantom)[32, :, :], cmap="viridis")
     ax[0].set_title("Phantom (Axial Slice)")
-    axim1 = ax[1].imshow(mu_map.as_array()[32, :, :], cmap="gray")
+    axim1 = ax[1].imshow(get_array(mu_map)[32, :, :], cmap="gray")
     ax[1].set_title("Attenuation Map (Axial Slice)")
     plt.colorbar(axim0, ax=ax[0])
     plt.colorbar(axim1, ax=ax[1])
@@ -93,11 +94,11 @@ def main():
     plt.savefig(output_dir / "phantom_and_attenuation.png")
 
     fig, ax = plt.subplots(1, 3, figsize=(18, 6))
-    axim0 = ax[0].imshow(total_counts.as_array()[0, :, 32, :], cmap="hot")
+    axim0 = ax[0].imshow(get_array(total_counts)[0, :, 32, :], cmap="hot")
     ax[0].set_title("Total Counts (Projection)")
-    axim1 = ax[1].imshow(scatter_counts.as_array()[0, :, 32, :], cmap="hot")
+    axim1 = ax[1].imshow(get_array(scatter_counts)[0, :, 32, :], cmap="hot")
     ax[1].set_title("Scatter Counts (Projection)")
-    axim2 = ax[2].imshow(primary_counts.as_array()[0, :, 32, :], cmap="hot")
+    axim2 = ax[2].imshow(get_array(primary_counts)[0, :, 32, :], cmap="hot")
     ax[2].set_title("Primary Counts (Projection)")
     plt.colorbar(axim0, ax=ax[0])
     plt.colorbar(axim1, ax=ax[1])
