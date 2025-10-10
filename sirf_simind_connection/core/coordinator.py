@@ -68,6 +68,7 @@ class SimindCoordinator:
         update_additive (bool): Enable additive term update mode.
         linear_acquisition_model (AcquisitionModel): Full-data STIR linear model.
         stir_acquisition_model (AcquisitionModel): Full-data STIR model with additive.
+        total_iterations (int, optional): Total subiterations for reconstruction.
     """
 
     def __init__(
@@ -80,6 +81,7 @@ class SimindCoordinator:
         linear_acquisition_model=None,
         stir_acquisition_model=None,
         output_dir=None,
+        total_iterations=None,
     ):
         """
         Initialize the SimindCoordinator.
@@ -94,6 +96,9 @@ class SimindCoordinator:
                 Required for residual correction modes. Will be set to num_subsets=1, subset_num=0.
             stir_acquisition_model (AcquisitionModel, optional): Full-data STIR model with additive.
                 Required for mode_both.
+            total_iterations (int, optional): Total number of subiterations for the reconstruction.
+                If provided, updates will be skipped in the final correction_update_interval block
+                to avoid wasting computation on corrections that won't be used.
         """
         self.simind_simulator = simind_simulator
         self.num_subsets = num_subsets
@@ -101,14 +106,11 @@ class SimindCoordinator:
         self.residual_correction = residual_correction
         self.update_additive = update_additive
         self.output_dir = output_dir
+        self.total_iterations = total_iterations
 
         # Store full-data acquisition models
         self.linear_acquisition_model = linear_acquisition_model
         self.stir_acquisition_model = stir_acquisition_model
-
-        # Global iteration tracking
-        self.global_subiteration = 0
-        self.last_update_iteration = -1
 
         # Cached full simulation results
         self.cached_b01 = None  # Full PENETRATE output (all interactions)
@@ -120,6 +122,8 @@ class SimindCoordinator:
 
         # Track cumulative additive term for eta updates
         self.cumulative_additive = None  # Full additive term (all views)
+
+        self.algorithm = False
 
         # Determine correction mode
         self.mode_residual_only = residual_correction and not update_additive
@@ -192,15 +196,6 @@ class SimindCoordinator:
                 "SIMIND configured: Mode B/C (scoring=PENETRATE, penetration=ON, photon_direction=3)"
             )
 
-    def increment_iteration(self):
-        """
-        Increment global subiteration counter.
-
-        Called by any SimindProjector.forward() to track total subiterations
-        across all subsets.
-        """
-        self.global_subiteration += 1
-
     def initialize_with_additive(self, initial_additive):
         """
         Initialize coordinator cache with existing additive term.
@@ -214,6 +209,7 @@ class SimindCoordinator:
         """
         # Store initial cumulative additive (will be updated after simulations)
         self.cumulative_additive = initial_additive.clone()
+        self.initial_additive = initial_additive.clone()
 
         # Mark cache as initialized (version 0 -> no updates yet)
         # Subsets will use their initial additive terms until first simulation
@@ -236,8 +232,26 @@ class SimindCoordinator:
             return False
 
         # Check if we've hit the update interval
-        iterations_since_update = self.global_subiteration - self.last_update_iteration
-        return iterations_since_update >= self.correction_update_interval
+        iterations_since_update = self.algorithm.iteration - self.last_update_iteration
+        interval_reached = iterations_since_update >= self.correction_update_interval
+
+        if not interval_reached:
+            return False
+
+        # If total_iterations is set, check if we're too close to the end
+        # Don't update if we're in the final correction_update_interval block
+        if self.total_iterations is not None:
+            # Calculate the start of the "do-not-simulate" zone
+            final_block_start = self.total_iterations - self.correction_update_interval
+            if self.algorithm.iteration >= final_block_start:
+                logging.info(
+                    f"Skipping update at iteration {self.algorithm.iteration}: "
+                    f"too close to end (total={self.total_iterations}, "
+                    f"final_block_start={final_block_start})"
+                )
+                return False
+
+        return True
 
     def run_full_simulation(self, image):
         """
@@ -251,8 +265,11 @@ class SimindCoordinator:
         """
         from sirf_simind_connection.core.components import PenetrateOutputType
 
+        if not self.algorithm:
+            raise ValueError("Algorithm must be set")
+
         logging.info(
-            f"Running full SIMIND simulation at subiteration {self.global_subiteration}"
+            f"Running full SIMIND simulation at subiteration {self.algorithm.iteration}"
         )
 
         # Compute STIR linear projection upfront to align geometries
@@ -356,8 +373,11 @@ class SimindCoordinator:
         if residual_full is not None:
             self.cumulative_additive = self.cumulative_additive + residual_full
 
+        # Needs to ensure non-negativity in additive data
+        self.cumulative_additive = self.cumulative_additive.maximum(0)
+
         # Update tracking
-        self.last_update_iteration = self.global_subiteration
+        self.last_update_iteration = self.algorithm.iteration
         self.cache_version += 1
 
         # Save intermediate results if output_dir is set
@@ -471,11 +491,11 @@ class SimindCoordinator:
 
         Returns the cumulative additive term that has been built up through SIMIND simulations:
         - Mode A (residual_only): cumulative_additive = sum of all (b02_scaled - linear_proj)
-          Corrects the projection (geometric modeling)
+            Corrects the projection (geometric modeling)
         - Mode B (additive_only): cumulative_additive = b01_scaled - b02_scaled (latest)
-          Corrects the additive term (scatter estimate) - REPLACES each time
+            Corrects the additive term (scatter estimate) - REPLACES each time
         - Mode C (both): cumulative_additive = sum of all (b01 - old_additive - linear_proj)
-          Simplifies to: b01 - linear_proj (corrects both projection and additive)
+            Simplifies to: b01 - linear_proj (corrects both projection and additive)
 
         Returns:
             AcquisitionData: Full cumulative additive term (all views), or None if not initialized.
@@ -490,6 +510,6 @@ class SimindCoordinator:
         Useful for multi-stage reconstructions where you want to restart
         the correction update schedule.
         """
-        self.global_subiteration = 0
         self.last_update_iteration = -1
+        self._last_algorithm_iteration = None
         logging.info("SimindCoordinator iteration counter reset")

@@ -63,6 +63,7 @@ class ScoringRoutine(Enum):
 class PenetrateOutputType(Enum):
     """Enum for different penetrate routine output components."""
 
+    # Without backscatter (*.b10-*.b17)
     ALL_INTERACTIONS = 1  # *.b01
     GEOM_COLL_PRIMARY_ATT = 2  # *.b02
     SEPTAL_PENETRATION_PRIMARY_ATT = 3  # *.b03
@@ -93,9 +94,9 @@ SIMIND_VOXEL_UNIT_CONVERSION = 10  # mm to cm
 # Maximum normalised value of source image
 # You would have expected this to be 65535, but it is not
 # I have no understanding why, but it is the case
-# 500 seems a reasonable value that maximises precision
+# 500 seems a reasonable value that improves precision
 # whilst not exceeding the maximum value (weird things happen)
-MAX_SOURCE = 10  # 500
+MAX_SOURCE = 500
 ORBIT_FILE_EXTENSION = ".cor"
 OUTPUT_EXTENSIONS = [".h00", ".a00", ".hs"]
 

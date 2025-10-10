@@ -771,10 +771,6 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
                         attributes["orbit"] = "non-circular"
                         attributes["radii"] = values
                         attributes["height_to_detector_surface"] = mean_value
-                        warnings.warn(
-                            "Non-circular orbit detected. Handle this case manually.",
-                            UserWarning,
-                        )
                     else:
                         attributes["orbit"] = "Circular"
                     attributes["height_to_detector_surface"] = mean_value

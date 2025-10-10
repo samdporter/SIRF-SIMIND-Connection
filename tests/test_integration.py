@@ -13,6 +13,9 @@ pytestmark = [
 
 
 @pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.requires_simind
+@pytest.mark.requires_sirf
 def test_run_all_examples():
     """Test running all examples as an integration test."""
     script_path = os.path.join(

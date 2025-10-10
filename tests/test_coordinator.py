@@ -258,6 +258,98 @@ class TestIterationTracking:
 
         assert coordinator.should_update() is False
 
+    def test_should_not_update_near_end_of_reconstruction(
+        self, simind_simulator, linear_acquisition_model
+    ):
+        """Test that update is skipped if it's in the final update interval block."""
+        total_iterations = 1800  # e.g., 100 epochs * 18 subsets
+        update_interval = 360  # e.g., update every 20 epochs
+
+        coordinator = SimindCoordinator(
+            simind_simulator=simind_simulator,
+            num_subsets=18,
+            correction_update_interval=update_interval,
+            residual_correction=True,
+            update_additive=False,
+            linear_acquisition_model=linear_acquisition_model,
+            total_iterations=total_iterations,
+        )
+
+        # The "do-not-simulate" zone starts at: 1800 - 360 = 1440
+
+        # Simulate an update just before the final block
+        # last update was at 1079 (1439 - 360)
+        coordinator.last_update_iteration = 1079
+        coordinator.global_subiteration = 1439  # 1439 - 1079 = 360
+
+        # This update should run because 1439 < 1440
+        assert coordinator.should_update() is True
+
+        # Mark this update as done
+        coordinator.last_update_iteration = 1439
+
+        # Now, simulate the final scheduled update
+        coordinator.global_subiteration = 1799  # 1799 - 1439 = 360
+
+        # This update should be SKIPPED because 1799 >= 1440
+        assert coordinator.should_update() is False
+
+    def test_algorithm_iteration_tracking(
+        self, simind_simulator, linear_acquisition_model
+    ):
+        """Test that algorithm iteration tracking prevents double counting."""
+
+        class DummyAlgorithm:
+            def __init__(self):
+                self.iteration = 0
+
+        coordinator = SimindCoordinator(
+            simind_simulator=simind_simulator,
+            num_subsets=6,
+            correction_update_interval=2,
+            residual_correction=True,
+            update_additive=False,
+            linear_acquisition_model=linear_acquisition_model,
+        )
+
+        algorithm = DummyAlgorithm()
+
+        # Initial increment with iteration=0 should not trigger an update
+        coordinator.increment_iteration(algorithm)
+        assert coordinator.global_subiteration == 0
+        assert coordinator.should_update() is False
+
+        # Repeated call within the same algorithm iteration should not change the counter
+        coordinator.increment_iteration(algorithm)
+        assert coordinator.global_subiteration == 0
+        assert coordinator.should_update() is False
+
+        # Advance algorithm iteration
+        algorithm.iteration = 1
+        coordinator.increment_iteration(algorithm)
+        assert coordinator.global_subiteration == 1
+        assert coordinator.should_update() is True
+
+        # Simulate that an update has occurred
+        coordinator.last_update_iteration = coordinator.global_subiteration
+
+        # Another call within the same iteration should not trigger a new update
+        coordinator.increment_iteration(algorithm)
+        assert coordinator.global_subiteration == 1
+        assert coordinator.should_update() is False
+
+        # Move to the next iteration → not enough progress yet for another update
+        algorithm.iteration = 2
+        coordinator.increment_iteration(algorithm)
+        assert coordinator.global_subiteration == 2
+        assert coordinator.should_update() is False
+
+        # Once enough algorithm iterations have passed, the update is due again
+        algorithm.iteration = 3
+        coordinator.increment_iteration(algorithm)
+        assert coordinator.global_subiteration == 3
+        assert coordinator.should_update() is True
+
 
 class TestSubsetIndices:
     """Test subset index calculation and validation."""

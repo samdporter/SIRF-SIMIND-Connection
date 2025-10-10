@@ -11,6 +11,10 @@ Tests cover:
 import tempfile
 
 import pytest
+from sirf.STIR import AcquisitionData
+
+
+AcquisitionData.set_storage_scheme("memory")
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.configs import get
@@ -57,8 +61,9 @@ def measured_data():
     # 60 projections, 64x64 matrix
     acq_data = create_stir_acqdata([64, 64], 60, [4.42, 4.42])
     # Fill with some counts
-    acq_data.fill(acq_data.get_uniform_copy(100.0))
-    return acq_data
+    result = acq_data.clone()
+    result.fill(acq_data.get_uniform_copy(100.0))
+    return result
 
 
 @pytest.fixture
@@ -113,7 +118,7 @@ class TestCILAcquisitionModelAdapter:
         result = adapter.forward(basic_phantom)
 
         assert result is not None
-        assert result.shape() == measured_data.shape()
+        assert result.shape == measured_data.shape
 
     def test_adapter_backward_method(self, basic_phantom, measured_data):
         """Test adapter's backward method."""
@@ -127,7 +132,7 @@ class TestCILAcquisitionModelAdapter:
         result = adapter.backward(measured_data)
 
         assert result is not None
-        assert result.shape() == basic_phantom.shape()
+        assert result.shape == basic_phantom.shape
 
     def test_adapter_direct_adjoint_methods(self, basic_phantom, measured_data):
         """Test CIL-compatible direct/adjoint methods."""
@@ -301,8 +306,8 @@ class TestPartitionDataWithCoordinator:
 
             linear_am = AcquisitionModelUsingRayTracingMatrix()
             linear_am.set_up(measured_data, basic_phantom)
-            linear_am.set_num_subsets(1)
-            linear_am.set_subset_num(0)
+            linear_am.num_subsets = 1
+            linear_am.subset_num = 0
 
             coordinator = SimindCoordinator(
                 simind_simulator=simulator,

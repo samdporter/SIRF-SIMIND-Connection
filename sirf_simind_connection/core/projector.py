@@ -676,8 +676,6 @@ class SimindSubsetProjector:
         Returns:
             AcquisitionData: Forward projected acquisition data.
         """
-        # Increment global iteration counter
-        self.coordinator.increment_iteration()
 
         # Check if coordinator should update
         if self.coordinator.should_update():
