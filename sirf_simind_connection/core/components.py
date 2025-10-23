@@ -12,6 +12,8 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from sirf_simind_connection.utils import get_array
+
 # Import types that don't depend on SIRF
 from .types import (
     MAX_SOURCE,
@@ -264,7 +266,7 @@ class DataFileManager:
 
     def prepare_source_file(self, source: ImageData, output_prefix: str) -> str:
         """Prepare source data file for SIMIND."""
-        source_arr = source.as_array()
+        source_arr = get_array(source)
 
         # Normalize to uint16 range
         source_max = source.max()
@@ -294,12 +296,12 @@ class DataFileManager:
                 attenuation_to_density,
             )
 
-            mu_map_arr = mu_map.as_array()
+            mu_map_arr = get_array(mu_map)
             mu_map_arr = (
                 attenuation_to_density(mu_map_arr, photon_energy, input_dir) * 1000
             )
         else:
-            mu_map_arr = np.zeros(mu_map.as_array().shape)
+            mu_map_arr = np.zeros(get_array(mu_map).shape)
 
         mu_map_arr = mu_map_arr.astype(np.uint16)
 

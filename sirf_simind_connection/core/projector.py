@@ -1,14 +1,21 @@
 """
-SimindProjector Module
+CoordinatedProjector Module
 
-This module defines the SimindProjector class, which integrates the SIMIND Monte
-Carlo SPECT simulator with the STIR library.
-The SimindProjector class facilitates accurate forward projections, scatter
-updates, and residual corrections to optimize the
-Monte Carlo simulation process for SPECT imaging.
+This module defines projector classes that work with Coordinator instances:
+- CoordinatedProjector: Single-projector with coordinator-based corrections
+- CoordinatedSubsetProjector: Subset-projector for parallelized reconstruction
+
+These classes facilitate accurate forward projections, scatter updates, and
+residual corrections using either SIMIND Monte Carlo or STIR PSF-based coordinators.
+
+Legacy names (SimindProjector, SimindSubsetProjector) are maintained for
+backward compatibility.
 """
 
 # Conditional import for SIRF to avoid CI dependencies
+from sirf_simind_connection.utils import get_array
+
+
 try:
     from sirf.STIR import AcquisitionData, AcquisitionModel, ImageData, assert_validity
 
@@ -28,27 +35,26 @@ except ImportError:
             )
 
 
-class SimindProjector:
+class CoordinatedProjector:
     """
-    SimindProjector Class
+    CoordinatedProjector Class
 
-    The SimindProjector combines the SIMIND Monte Carlo SPECT simulator and the
-    STIR library to provide an AcquisitionModel-compatible interface with
-    Monte Carlo-based corrections. It can be used as a drop-in replacement for
+    The CoordinatedProjector combines a Coordinator (managing accurate projections)
+    with STIR's fast projection to provide an AcquisitionModel-compatible interface
+    with coordinator-based corrections. It can be used as a drop-in replacement for
     STIR's AcquisitionModel in reconstruction algorithms.
 
-    Supports three correction modes:
-    1. Residual correction only: Corrects resolution modeling using geometric SIMIND
-    2. Additive update only: Replaces scatter estimate with SIMIND (b01-b02)
-    3. Both: Updates both scatter and resolution via residual (b01 - STIR projection)
+    Works with any Coordinator implementation:
+    - SimindCoordinator: SIMIND Monte Carlo corrections (3 modes)
+    - StirPsfCoordinator: STIR PSF residual corrections
 
     Attributes:
-        simind_simulator (SimindSimulator): The SIMIND Monte Carlo simulator instance.
+        simind_simulator (SimindSimulator): LEGACY - The SIMIND simulator instance.
         stir_projector (AcquisitionModel): The STIR acquisition model instance.
         correction_update_interval (int): Interval for updating corrections in
             iterative processes.
-        update_additive (bool): Replace additive term with SIMIND scatter.
-        residual_correction (bool): Apply residual correction for resolution modeling.
+        update_additive (bool): LEGACY - Replace additive term with coordinator output.
+        residual_correction (bool): LEGACY - Apply residual correction.
     """
 
     def __init__(
@@ -98,6 +104,7 @@ class SimindProjector:
         # Cached acquisition models and terms
         self._linear_acquisition_model = None
         self._current_additive = None
+        self._initial_additive = None  # Store the initial additive term
         self._last_update_image = None
 
         # Deprecated - kept for backwards compatibility
@@ -306,6 +313,7 @@ class SimindProjector:
 
             # Initialize current additive term
             self._current_additive = self._stir_projector.get_additive_term()
+            self._initial_additive = self._current_additive.clone()
 
     def reset_iteration_counter(self):
         """
@@ -377,15 +385,18 @@ class SimindProjector:
             # Scale SIMIND to match STIR
             scale_factor = linear_proj.sum() / max(b01.sum(), 1e-10)
             b01_scaled = b01.clone()
-            b01_scaled.fill(b01.as_array() * scale_factor)
+            b01_scaled.fill(get_array(b01) * scale_factor)
 
             # Compute residual
             residual = b01_scaled - linear_proj
 
             # Update additive
-            if self._current_additive is None:
-                self._current_additive = self.acq_templ.get_uniform_copy(0)
-            new_additive = self._current_additive + residual
+            if self._initial_additive is None:
+                # If no initial additive, the new term is just the residual
+                new_additive = residual
+            else:
+                # New additive = initial_additive + current residual
+                new_additive = self._initial_additive + residual
 
         # Mode B: Additive update only (needs penetrate)
         elif mode_additive_only:
@@ -407,9 +418,9 @@ class SimindProjector:
             # Scale using b02 vs linear projection
             scale_factor = linear_proj.sum() / max(b02.sum(), 1e-10)
             b01_scaled = b01.clone()
-            b01_scaled.fill(b01.as_array() * scale_factor)
+            b01_scaled.fill(get_array(b01) * scale_factor)
             b02_scaled = b02.clone()
-            b02_scaled.fill(b02.as_array() * scale_factor)
+            b02_scaled.fill(get_array(b02) * scale_factor)
 
             # Compute additive as scatter (b01 - b02)
             additive_simind = b01_scaled - b02_scaled
@@ -435,28 +446,25 @@ class SimindProjector:
             # Scale using b02 vs linear projection
             scale_factor = linear_proj.sum() / max(b02.sum(), 1e-10)
             b01_scaled = b01.clone()
-            b01_scaled.fill(b01.as_array() * scale_factor)
+            b01_scaled.fill(get_array(b01) * scale_factor)
 
-            # Get full STIR projection (with current additive)
-            stir_full_proj = self._stir_projector.forward(image)
-
-            # Residual implicitly updates both scatter and resolution
-            residual = b01_scaled - stir_full_proj
-
-            # Update additive
-            if self._current_additive is None:
-                self._current_additive = self.acq_templ.get_uniform_copy(0)
-            new_additive = self._current_additive + residual
+            # The new additive term is the full difference between the accurate
+            # SIMIND projection and the fast STIR linear projection.
+            # This replaces the previous additive term entirely.
+            new_additive = b01_scaled - linear_proj
 
         else:
             # No correction mode enabled
             return
 
-        # Apply maximum(0) to avoid negative values
-        new_additive = new_additive.maximum(0)
+        # The STIR projector requires a non-negative additive term for
+        # likelihood-based reconstruction. We apply maximum(0) only for the
+        # term passed to the wrapped projector.
+        stir_additive_term = new_additive.maximum(0)
+        self._stir_projector.set_additive_term(stir_additive_term)
 
-        # Update STIR projector and cache
-        self._stir_projector.set_additive_term(new_additive)
+        # However, we cache the full additive term (with potential negatives)
+        # to ensure that the next update is calculated correctly.
         self._current_additive = new_additive
         self._last_update_image = image.clone()
 
@@ -484,6 +492,7 @@ class SimindProjector:
         if self._stir_projector is not None:
             self._stir_projector.set_additive_term(additive)
             self._current_additive = additive
+            self._initial_additive = additive.clone()
 
     def get_background_term(self):
         """
@@ -587,36 +596,36 @@ class SimindProjector:
         )
 
 
-class SimindSubsetProjector:
+class CoordinatedSubsetProjector:
     """
-    SimindSubsetProjector Class
+    CoordinatedSubsetProjector Class
 
-    A projector for a single subset that coordinates with a shared SimindCoordinator
-    to efficiently manage SIMIND Monte Carlo simulations across multiple subsets.
+    A projector for a single subset that coordinates with a shared Coordinator
+    to efficiently manage accurate projections across multiple subsets.
 
-    Unlike SimindProjector (which runs its own simulations), SimindSubsetProjector:
-    - References a shared SimindCoordinator
+    Unlike CoordinatedProjector (which manages its own coordinator),
+    CoordinatedSubsetProjector:
+    - References a shared Coordinator (SimindCoordinator or StirPsfCoordinator)
     - Increments global iteration counter on each forward()
-    - Triggers coordinator simulation when update interval is reached
-    - Applies subset-specific residual corrections scaled by 1/num_subsets
+    - Triggers coordinator accurate projection when update interval is reached
+    - Applies subset-specific corrections
 
-    This design enables efficient MPI-parallelized SIMIND simulation of all views,
+    This design enables efficient parallelized accurate projections across all views,
     with results distributed to individual subset projectors.
 
     Attributes:
         stir_projector (AcquisitionModel): STIR acquisition model for this subset.
-        coordinator (SimindCoordinator): Shared coordinator managing SIMIND simulations.
+        coordinator (Coordinator): Shared coordinator managing accurate projections.
         subset_indices (list): View indices handled by this subset.
-        last_cache_version (int): Tracks which coordinator cache version was last applied.
     """
 
     def __init__(self, stir_projector, coordinator, subset_indices):
         """
-        Initialize the SimindSubsetProjector.
+        Initialize the CoordinatedSubsetProjector.
 
         Args:
             stir_projector (AcquisitionModel): STIR acquisition model for this subset.
-            coordinator (SimindCoordinator): Shared coordinator instance.
+            coordinator (Coordinator): Shared coordinator instance.
             subset_indices (list): View indices for this subset.
         """
         assert_validity(stir_projector, AcquisitionModel)
@@ -659,8 +668,8 @@ class SimindSubsetProjector:
 
         This method:
         1. Increments coordinator's global iteration counter
-        2. Checks if coordinator should run SIMIND simulation
-        3. Triggers simulation if needed
+        2. Checks if coordinator should run accurate projection
+        3. Triggers accurate projection if needed
         4. Applies subset-specific residual correction if new results available
         5. Returns STIR forward projection
 
@@ -673,15 +682,13 @@ class SimindSubsetProjector:
         Returns:
             AcquisitionData: Forward projected acquisition data.
         """
-        # Increment global iteration counter
-        self.coordinator.increment_iteration()
 
         # Check if coordinator should update
         if self.coordinator.should_update():
-            # Run full SIMIND simulation (all views)
+            # Run accurate projection (all views)
             # Coordinator has its own full-data acquisition models
-            # After simulation, UpdateEtaCallback will update KL eta parameters
-            self.coordinator.run_full_simulation(image)
+            # After projection, UpdateEtaCallback will update KL eta parameters
+            self.coordinator.run_accurate_projection(image)
 
         # Use STIR for fast forward projection (LINEAR model, no additive)
         # Additive correction is handled via eta in KL function, updated by UpdateEtaCallback
@@ -776,3 +783,8 @@ class SimindSubsetProjector:
             ImageData: Backprojected image.
         """
         return self.backward(acquisition_data, out=out)
+
+
+# Backward compatibility aliases
+SimindProjector = CoordinatedProjector
+SimindSubsetProjector = CoordinatedSubsetProjector

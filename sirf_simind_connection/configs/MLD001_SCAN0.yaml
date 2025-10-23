@@ -1,12 +1,12 @@
 metadata:
   comment: MLD001_SCAN0
-  source_file: /home/sam/working/STIR_users_MIC2023/input/MLD001_SCAN0.smc
+  source_file: MLD001_SCAN0.smc
 parameters:
   source:
     photon_energy:
       index: 1
-      value: 75.0
-      description: Photon energy in keV
+      value: 208.0
+      description: Photon energy in keV (e.g., 140 for 99mTc, 208 for 177Lu)
     source_half_length:
       index: 2
       value: 28.267
@@ -22,7 +22,7 @@ parameters:
     source_type:
       index: 15
       value: -1.0
-      description: Source type code
+      description: Source type code (0=sphere, 1=cylinder, etc.) - check SIMIND manual
     shift_source_x:
       index: 16
       value: 0.0
@@ -38,7 +38,7 @@ parameters:
     photon_direction:
       index: 19
       value: 2.0
-      description: Photon direction code
+      description: Photon direction code (2=isotropic typical)
     emitted_photons_per_decay:
       index: 24
       value: 0.879
@@ -50,15 +50,15 @@ parameters:
     number_photon_histories:
       index: 26
       value: 1.0
-      description: Number of photon histories to simulate
+      description: Number of photon histories to simulate (10^6 typical minimum)
     matrix_size_source_map_i:
       index: 79
       value: 128.0
-      description: Matrix size for source map (i-direction)
+      description: Matrix size for source map (i-direction) - 128x128 standard
     matrix_size_source_map_j:
       index: 82
       value: 0.0
-      description: Matrix size for source map (j-direction)
+      description: Matrix size for source map (j-direction) - 128x128 standard
   phantom:
     phantom_half_length:
       index: 5
@@ -128,137 +128,139 @@ parameters:
     crystal_half_length_radius:
       index: 8
       value: 20.0
-      description: Crystal half-length/radius in cm
+      description: Crystal half-length/radius in cm (circular detectors use radius)
     crystal_thickness:
       index: 9
       value: 0.9525
-      description: Crystal thickness in cm
+      description: 'Crystal thickness in cm (NaI(Tl) typical: 0.95cm)'
     crystal_half_width:
       index: 10
       value: 27.0
-      description: Crystal half-width in cm
+      description: Crystal half-width in cm (for rectangular crystals)
     height_to_detector_surface:
       index: 12
       value: 20.0
-      description: Height to detector surface (cm)
+      description: Height from collimator to detector surface (cm)
     cover_thickness:
       index: 13
       value: 0.1
-      description: Cover thickness (cm)
+      description: Cover thickness in cm (typically Al or Be window)
     energy_resolution:
       index: 22
-      value: 9.1
-      description: Energy resolution (%)
+      value: 12.0
+      description: Energy resolution FWHM (%) at reference energy (9-12% typical at
+        140keV)
     intrinsic_resolution:
       index: 23
-      value: 0.34
-      description: Intrinsic resolution (cm)
+      value: 0.55
+      description: Intrinsic spatial resolution FWHM (cm) (3-4mm typical)
     voltage:
       index: 91
       value: 0.0
-      description: Applied voltage (V)
+      description: Applied voltage (V) for semiconductor detectors
     mobility_life_electrons:
       index: 92
       value: 0.0
-      description: Mobility-life product for electrons
+      description: Mobility-life product for electrons (semiconductor detectors)
     mobility_life_holes:
       index: 93
       value: 0.0
-      description: Mobility-life product for holes
+      description: Mobility-life product for holes (semiconductor detectors)
     contact_pad_size:
       index: 94
       value: 0.0
-      description: Contact pad size (cm)
+      description: Contact pad size (cm) for pixelated detectors
     anode_element_pitch:
       index: 95
       value: 0.0
-      description: Anode element pitch (cm)
+      description: Anode element pitch (cm) for pixelated detectors
     exponential_decay_constant_tau:
       index: 96
       value: 0.0
-      description: Exponential decay constant tau
+      description: Exponential decay constant tau for charge collection
     components_hecht_formula:
       index: 97
       value: 0.0
-      description: Components for Hecht formula
+      description: Components for Hecht formula (charge collection efficiency)
     energy_resolution_model:
       index: 98
       value: 0.0
-      description: Energy resolution model code
+      description: Energy resolution model code (check SIMIND manual for options)
     cloud_mobility:
       index: 99
       value: 0.0
-      description: Cloud mobility parameter
+      description: Cloud mobility parameter for charge collection
     detector_array_size_i:
       index: 100
       value: 0.0
-      description: Detector array size (i-direction)
+      description: Detector array size (i-direction) for pixelated systems
     detector_array_size_j:
       index: 101
       value: 0.0
-      description: Detector array size (j-direction)
+      description: Detector array size (j-direction) for pixelated systems
   collimator:
     hole_size_x:
       index: 46
       value: 0.25
-      description: Collimator hole size in x-direction (cm)
+      description: 'Collimator hole diameter (cm) - LEHR: 0.111cm, HEGP: 0.24cm'
     hole_size_y:
       index: 47
       value: 0.28868
-      description: Collimator hole size in y-direction (cm)
+      description: Collimator hole diameter (cm) - should match hole_size_x for round
+        holes
     distance_between_holes_x:
       index: 48
       value: 0.03
-      description: Distance between holes in x-direction (cm)
+      description: 'Distance between hole centers (cm) - LEHR: 0.16cm septal thickness'
     distance_between_holes_y:
       index: 49
       value: 0.1963
-      description: Distance between holes in y-direction (cm)
+      description: Distance between hole centers (cm) - hexagonal pattern spacing
     shift_center_hole_x:
       index: 50
       value: 0.14
-      description: Shift of center hole in x-direction (cm)
+      description: Shift of center hole in x-direction (cm) for alignment
     shift_center_hole_y:
       index: 51
       value: 0.24249
-      description: Shift of center hole in y-direction (cm)
+      description: Shift of center hole in y-direction (cm) for alignment
     collimator_thickness:
       index: 52
       value: 4.1
-      description: Collimator thickness (cm)
+      description: 'Collimator thickness (cm) - LEHR: 2.405cm, HEGP: 5.9cm'
     collimator_routine:
       index: 53
       value: 0.0
-      description: Collimator routine code
+      description: Collimator routine code (0=no collimator, 1=parallel holes, etc.)
     hole_shape:
       index: 54
       value: 3.0
-      description: Hole shape code
+      description: Hole shape code (0=round, 1=square, 2=hexagonal)
     distance_collimator_detector:
       index: 56
       value: 0.0
-      description: Distance from collimator to detector (cm)
+      description: Distance from collimator face to detector surface (cm)
     random_collimator_movement:
       index: 59
       value: 0.0
-      description: Random collimator movement parameter
+      description: Random collimator movement parameter (for manufacturing variations)
   energy_analysis:
     upper_window_threshold:
       index: 20
       value: -100.0
-      description: Upper energy window threshold (keV)
+      description: Upper energy window threshold (keV) - set to -100 for automatic
     lower_window_threshold:
       index: 21
       value: -100.0
-      description: Lower energy window threshold (keV)
+      description: Lower energy window threshold (keV) - set to -100 for automatic
     kev_per_channel:
       index: 27
       value: 0.5
-      description: keV per channel
+      description: keV per channel for energy spectrum binning
     energy_spectra_channels:
       index: 80
       value: 512.0
-      description: Number of energy spectra channels
+      description: Number of energy spectra channels (512 typical)
     cutoff_energy_terminate_photon_history:
       index: 83
       value: 0.0
@@ -267,69 +269,69 @@ parameters:
     pixel_size_simulated_image:
       index: 28
       value: 0.44167
-      description: Pixel size for simulated images (cm)
+      description: Pixel size for simulated images (cm) - affects resolution vs FOV
     spect_no_projections:
       index: 29
       value: 120.0
-      description: Number of SPECT projections
+      description: Number of SPECT projections (64, 120, 128 typical)
     spect_rotation:
       index: 30
       value: 2.0
-      description: SPECT rotation parameter
+      description: "SPECT rotation parameter (2=360\xB0 typical)"
     spect_starting_angle:
       index: 41
       value: 0.0
-      description: SPECT starting angle (degrees)
+      description: "SPECT starting angle (degrees) - 0\xB0 = anterior"
     spect_orbital_rotation_fraction:
       index: 42
       value: -1.0
-      description: SPECT orbital rotation fraction
+      description: SPECT orbital rotation fraction (1.0 = full orbit)
     camera_offset_x:
       index: 43
       value: 0.0
-      description: Camera offset in x-direction (cm)
+      description: Camera offset in x-direction (cm) from rotation center
     camera_offset_y:
       index: 44
       value: 0.0
-      description: Camera offset in y-direction (cm)
+      description: Camera offset in y-direction (cm) from rotation center
     matrix_size_image_i:
       index: 76
       value: 128.0
-      description: Matrix size for images (i-direction)
+      description: Matrix size for images (i-direction) - 128x128 standard
     matrix_size_image_j:
       index: 77
       value: 128.0
-      description: Matrix size for images (j-direction)
+      description: Matrix size for images (j-direction) - 128x128 standard
   simulation_control:
     step_size_photon_path_simulation:
       index: 38
       value: 0.44167
-      description: Step size for photon path simulation (cm)
+      description: Step size for photon path simulation (cm) - smaller = more accurate
     type:
       index: 55
       value: 0.0
-      description: General type parameter
+      description: General type parameter - check SIMIND manual for current meaning
     scoring_routine:
       index: 84
       value: 1.0
-      description: Scoring routine code
+      description: Scoring routine code - affects output data collection
     csv_file_content:
       index: 85
       value: 0.0
-      description: CSV file content parameter
+      description: CSV file content parameter - for custom data output
   unused_parameters:
     unused_parameter_1:
       index: 57
       value: 0.0
-      description: Unused parameter 1
+      description: Unused parameter 1 - reserved for future use
     unused_parameter_2:
       index: 58
       value: 0.0
-      description: Unused parameter 2
+      description: Unused parameter 2 - reserved for future use
     unused_parameter_3:
       index: 60
       value: 0.0
-      description: Unused parameter 3
+      description: Unused parameter 3 - reserved for future use
 simulation_flags:
   write_results_to_screen:
     index: 1
@@ -377,7 +379,7 @@ simulation_flags:
     index: 15
     enabled: false
 text_variables:
-  1: ge-megp
+  1: ge-legp
   2: none
   3: none
   4: none
@@ -409,4 +411,16 @@ data_files:
     filepath: pmt
   energy_resolution_file:
     index: 8
+    filepath: none
+  unknown_file_1:
+    index: 9
+    filepath: none
+  unknown_file_2:
+    index: 10
+    filepath: none
+  unknown_file_3:
+    index: 11
+    filepath: none
+  unknown_file_4:
+    index: 12
     filepath: none

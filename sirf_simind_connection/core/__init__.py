@@ -13,6 +13,14 @@ def __getattr__(name):
         from .config import SimulationConfig
 
         return SimulationConfig
+    elif name == "CoordinatedProjector":
+        from .projector import CoordinatedProjector
+
+        return CoordinatedProjector
+    elif name == "CoordinatedSubsetProjector":
+        from .projector import CoordinatedSubsetProjector
+
+        return CoordinatedSubsetProjector
     elif name == "SimindProjector":
         from .projector import SimindProjector
 
@@ -21,10 +29,18 @@ def __getattr__(name):
         from .projector import SimindSubsetProjector
 
         return SimindSubsetProjector
+    elif name == "Coordinator":
+        from .coordinator import Coordinator
+
+        return Coordinator
     elif name == "SimindCoordinator":
         from .coordinator import SimindCoordinator
 
         return SimindCoordinator
+    elif name == "StirPsfCoordinator":
+        from .coordinator import StirPsfCoordinator
+
+        return StirPsfCoordinator
     elif name == "SimindSimulator":
         from .simulator import SimindSimulator
 
@@ -46,9 +62,13 @@ def __getattr__(name):
 
 __all__ = [
     "SimulationConfig",
-    "SimindProjector",
-    "SimindSubsetProjector",
+    "CoordinatedProjector",
+    "CoordinatedSubsetProjector",
+    "SimindProjector",  # Backward compatibility alias
+    "SimindSubsetProjector",  # Backward compatibility alias
+    "Coordinator",
     "SimindCoordinator",
+    "StirPsfCoordinator",
     "SimindSimulator",
     "create_simulator_from_template",
     "create_penetrate_simulator",

@@ -13,4 +13,16 @@ def __getattr__(name):
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
-__all__ = ["io_utils", "simind_utils", "stir_utils"]
+def get_array(obj):
+    """Return the fastest available NumPy view of a SIRF-backed object."""
+
+    if hasattr(obj, "asarray"):
+        return obj.asarray()
+    if hasattr(obj, "as_array"):
+        return obj.as_array()
+    raise AttributeError(
+        f"Object {type(obj)} has neither asarray() nor as_array() method"
+    )
+
+
+__all__ = ["get_array", "io_utils", "simind_utils", "stir_utils"]
