@@ -25,8 +25,8 @@ Architecture Components
 
 **Key Features**:
 
-- **Global iteration tracking**: Incremented on every ``forward()`` call from any subset
-- **Periodic full simulation**: Runs SIMIND (all views) when ``global_subiteration % correction_update_interval == 0``
+- **Algorithm iteration tracking**: Uses CIL algorithm's ``iteration`` counter to track progress
+- **Periodic full simulation**: Runs SIMIND (all views) when ``algorithm.iteration - last_update_iteration >= correction_update_interval``
 - **Result caching**: Stores b01, b02, scale_factor, and cache_version
 - **Subset distribution**: Extracts subset-specific views and distributes corrections
 
@@ -59,17 +59,17 @@ Example::
 **Key Features**:
 
 - **No simulation overhead**: References shared coordinator instead of running own simulations
-- **Automatic iteration tracking**: Increments ``coordinator.global_subiteration`` on each ``forward()``
-- **Cache-based updates**: Checks ``coordinator.cache_version`` to detect new results
+- **Automatic update triggering**: Calls ``coordinator.should_update()`` on each ``forward()`` to check if simulation is needed
+- **Cache-based updates**: Coordinator tracks ``cache_version`` to signal new results
 - **CIL-compatible**: Implements ``direct()`` and ``adjoint()`` for CIL framework
 
 **Workflow**:
 
 1. ``forward(image)`` called by optimizer
-2. Increment coordinator's global counter
+2. Check ``coordinator.should_update()`` using algorithm's iteration counter
 3. If update interval reached, coordinator runs full SIMIND simulation
-4. If new cache available, apply subset-specific residual correction
-5. Return STIR forward projection (fast, with updated additive term)
+4. Apply corrections via KL function's ``eta`` parameter (updated by ``UpdateEtaCallback``)
+5. Return STIR forward projection (fast, LINEAR model with eta handling additive)
 
 Example::
 
@@ -99,9 +99,33 @@ Wraps SIRF's partitioner to create CIL objectives:
 
 1. Uses ``sirf.contrib.partitioner.data_partition()`` to get subset acquisition models
 2. Wraps each in ``SimindSubsetProjector`` (if coordinator provided)
-3. Creates ``OperatorCompositionFunction(KullbackLeibler(b=data_subset), projector)``
+3. Creates ``OperatorCompositionFunction(ResidualCorrectedKullbackLeibler(f=data_subset), projector)``
 
-**Important Note**: The projectors are LINEAR acquisition models (no additive term). The additive corrections are handled via the KL function's ``eta`` parameter, which is updated after each SIMIND simulation.
+**Important Note**: The projectors are LINEAR acquisition models (no additive term). The additive and residual corrections are handled inside the residual-aware KL function – the callback updates its ``additive`` and ``residual`` parameters after each SIMIND or STIR-PSF simulation.
+
+Residual-Aware vs Classical KL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+``ResidualCorrectedKullbackLeibler`` now uses the Jordan decomposition of the
+residual correction. For each bin we split ``r = r^{+} - r^{-}`` with
+``r^{+} = \max(r, 0)`` and ``r^{-} = \max(-r, 0)`` and define the effective
+prediction and data counts
+
+.. math::
+
+    \mu_{\text{eff}} = (x + b) + r^{+}, \qquad f_{\text{eff}} = f + r^{-}.
+
+The objective becomes the ordinary Poisson KL evaluated at
+``(\mu_{\text{eff}}, f_{\text{eff}})``. This guarantees ``\mu_{\text{eff}} > 0``
+and ``f_{\text{eff}} \ge 0`` regardless of the sign of the residual, so the
+function stays convex and smooth. The gradient retains the familiar form
+``1 - f_{\text{eff}} / \mu_{\text{eff}}``.
+
+To handle empty acquisition bins, the effective data ``f_{\text{eff}}`` is
+floored to ``counts_floor`` (default ``1\times10^{-8}``) before evaluating the
+logarithm. This avoids ``\log(0)`` while leaving the gradient with respect to
+the prediction unchanged.
 
 ``create_svrg_objective_with_rdp()``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -139,7 +163,7 @@ Basic Setup::
         num_subsets=12,
         initial_image=initial_image,
         create_acq_model=lambda: AcquisitionModelUsingRayTracingMatrix(),
-        simind_coordinator=coordinator,
+        coordinator=coordinator,
         mode="staggered",
     )
 
@@ -244,36 +268,48 @@ This is correct because:
 Iteration Tracking
 ------------------
 
-Global Counter
-~~~~~~~~~~~~~~
+Algorithm Iteration Counter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The coordinator maintains a ``global_subiteration`` counter that increments on every ``forward()`` call from any subset projector.
+The coordinator uses the CIL algorithm's ``iteration`` counter (which tracks subiterations) to determine when to run SIMIND simulations.
+
+The coordinator must have a reference to the algorithm::
+
+    coordinator.algorithm = algorithm  # Set before running
 
 Example with 12 subsets, update interval = 24::
 
     # Epoch 1
-    Subset 0 forward() → global_subiteration = 1
-    Subset 1 forward() → global_subiteration = 2
+    Subset 0 forward() → algorithm.iteration = 1
+    Subset 1 forward() → algorithm.iteration = 2
     ...
-    Subset 11 forward() → global_subiteration = 12
+    Subset 11 forward() → algorithm.iteration = 12
 
     # Epoch 2
-    Subset 0 forward() → global_subiteration = 13
+    Subset 0 forward() → algorithm.iteration = 13
     ...
-    Subset 11 forward() → global_subiteration = 24 → TRIGGER UPDATE!
+    Subset 11 forward() → algorithm.iteration = 24
+    # If last_update = 0, then 24 - 0 = 24 >= 24 → TRIGGER UPDATE!
 
 Update Triggering
 ~~~~~~~~~~~~~~~~~
 
 Update happens when::
 
-    (global_subiteration % correction_update_interval == 0)
+    (algorithm.iteration - last_update_iteration >= correction_update_interval)
+
+**Important**: The coordinator's ``algorithm`` attribute must be set before running reconstruction::
+
+    coordinator.algorithm = algorithm
+    algorithm.run(num_iterations)
 
 **Recommended Intervals**:
 
 - **Every epoch**: ``correction_update_interval = num_subsets`` (e.g., 12)
 - **Every 2 epochs**: ``correction_update_interval = 2 * num_subsets`` (e.g., 24)
 - **Every 5 epochs**: ``correction_update_interval = 5 * num_subsets`` (e.g., 60)
+
+**UpdateEtaCallback**: After each SIMIND simulation, use the ``UpdateEtaCallback`` to update the KL function's ``eta`` parameter with the new cumulative additive term from the coordinator.
 
 Cache Versioning
 ~~~~~~~~~~~~~~~~

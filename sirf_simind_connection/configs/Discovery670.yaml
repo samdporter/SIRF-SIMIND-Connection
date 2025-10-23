@@ -147,11 +147,11 @@ parameters:
       description: Cover thickness (cm)
     energy_resolution:
       index: 22
-      value: 12.0
+      value: 9.1
       description: Energy resolution (%)
     intrinsic_resolution:
       index: 23
-      value: 0.55
+      value: 0.34
       description: Intrinsic resolution (cm)
     voltage:
       index: 91
@@ -348,7 +348,7 @@ simulation_flags:
     enabled: true
   include_characteristic_xray_emissions:
     index: 6
-    enabled: false
+    enabled: true
   include_backscattering_material:
     index: 7
     enabled: true
@@ -360,7 +360,7 @@ simulation_flags:
     enabled: false
   include_interactions_in_cover:
     index: 10
-    enabled: false
+    enabled: true
   include_interactions_in_phantom:
     index: 11
     enabled: true

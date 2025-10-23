@@ -7,7 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Critical: Coordinator Update Timing Fix** - Fixed off-by-one error in coordinator update scheduling
+  - **Issue**: Coordinator updates were occurring at iteration N, but callbacks (UpdateEtaCallback, ArmijoTriggerCallback)
+    ran AFTER the step was taken, causing Armijo line search to run one iteration late with a mismatched objective function
+  - **Fix**: Modified `SimindCoordinator.should_update()` and `StirPsfCoordinator.should_update()` to trigger updates
+    ONE iteration early (at `correction_update_interval - 1` instead of `correction_update_interval`)
+  - **Impact**: Ensures proper callback ordering:
+    1. Coordinator updates at iteration N-1 (during forward projection)
+    2. Callbacks update KL parameters at iteration N-1 (UpdateEtaCallback applies new additive/residual terms)
+    3. Armijo line search runs at iteration N with correct new objective function
+  - **Example**: With `correction_update_interval=12`, updates now occur at iteration 11 (not 12),
+    allowing callbacks to prepare corrections before iteration 12's Armijo search
+  - **Files modified**:
+    - `sirf_simind_connection/core/coordinator.py`: Updated `should_update()` in both coordinator classes
+    - `project_psf/compare_psf_models.py`: Enhanced UpdateEtaCallback logging
+    - `project_psf/step_size_rules.py`: Enhanced ArmijoTriggerCallback and Armijo logging
+  - **Result**: Eliminates divergence caused by taking steps with wrong objective, ensures convexity is maintained
+
 ### Added
+
+- **ShiftedKullbackLeibler Support**: Added conditional support for SETR's `ShiftedKullbackLeibler` in data partitioning
+  - New `use_shifted_kl` parameter in `partition_data_with_cil_objectives()` function
+  - New `shift_amount` parameter to control the shift value (default: 5)
+  - Configuration via `data_fidelity.shift_kl` and `data_fidelity.shift_amount` in YAML configs
+  - Automatic fallback to standard `KullbackLeibler` when SETR is not available
+  - Updated `compare_psf_models.py` to read and pass shift settings from config
+- **ResidualCorrectedKullbackLeibler Jordan Split**: Residual-aware KL now decomposes
+  residuals into positive/negative parts (`r = r^+ - r^-`) to build effective
+  counts `μ_eff = μ + r^+`, `f_eff = f + r^-`, keeping the objective convex and
+  allowing arbitrary residual signs. NumPy/Numba paths and callbacks adjusted to
+  use the new representation.
 
 #### Documentation Consolidation and Example Scripts
 
@@ -150,8 +181,8 @@ docs/
   - **Impact**: Clean separation of concerns - projectors stay linear, additive corrections managed via KL eta updates
   - **Architecture**:
     - `SimindSubsetProjector.forward()` triggers coordinator simulations, returns linear projection
-    - `UpdateEtaCallback` detects new `cache_version`, extracts subset-specific additive from `coordinator.cumulative_additive`, updates KL `eta`
-    - CIL gradient computation uses updated `eta` automatically
+    - `UpdateEtaCallback` detects new `cache_version`, extracts subset-specific additive from `coordinator.current_additive`, updates the residual-aware KL parameters
+    - CIL gradient computation uses the updated additive/residual automatically
   - **Files Modified**: `sirf_simind_connection/core/projector.py`
 
 - **Cleanup: Removed Unused Cache Tracking** (`sirf_simind_connection/core/projector.py`):
@@ -176,24 +207,24 @@ docs/
   - Automatically invoked during SVRG reconstruction when coordinator is present
 
 - **Cumulative Additive Tracking in `SimindCoordinator`**:
-  - Added `cumulative_additive` attribute to track total additive term across all simulations
+  - Added `current_additive` attribute to track the total additive term for the current update.
   - Initialized via `initialize_with_additive(initial_additive)` method
-  - New `get_full_additive_term()` method returns cumulative additive for eta updates
-  - Properly handles all three correction modes with different accumulation strategies
+  - New `get_full_additive_term()` method returns the current additive for eta updates.
+  - Properly handles all three correction modes with different update/replacement strategies.
 
 ### Fixed
 
 - **Critical: Corrected Residual Computation Modes** (`sirf_simind_connection/core/coordinator.py`):
-  - **Mode A (residual_only)**: Now correctly uses `b02_scaled - linear_proj` (geometric SIMIND vs geometric STIR)
-    - **Previous (WRONG)**: Used `b01_scaled - linear_proj` (full SIMIND vs geometric STIR)
-    - **Corrects**: Projection modeling using geometric SIMIND output
-  - **Mode B (additive_only)**: Correctly replaces additive with `b01_scaled - b02_scaled` (scatter estimate)
-    - **Behavior**: REPLACES cumulative additive each simulation (not additive)
-    - **Corrects**: Additive term (scatter) using full SIMIND physics
-  - **Mode C (both)**: Now correctly computes `residual = b01_scaled - old_cumulative - linear_proj`
-    - **Result**: `new_cumulative = b01_scaled - linear_proj`
-    - **Corrects**: Both projection modeling and additive term simultaneously
-  - Updated both `run_full_simulation()` (for cumulative tracking) and `get_subset_residual()` (for subset updates)
+  - **Mode A (residual_only)**: `current_additive = initial_additive`
+    - **Behavior**: Leaves the scatter estimate untouched; only the residual channel is updated.
+    - **Corrects**: The projection model.
+  - **Mode B (additive_only)**: `current_additive = simind_scatter_estimate`
+    - **Behavior**: REPLACES the additive term with a new scatter estimate from SIMIND.
+    - **Corrects**: The additive term (scatter).
+  - **Mode C (both)**: `current_additive = simind_full_projection - simind_geometric`
+    - **Behavior**: Stores SIMIND scatter in the additive channel while residuals capture the geometric correction.
+    - **Corrects**: Both the projection model and the additive term.
+  - Updated `run_full_simulation()` to implement this logic.
 
 - **Critical: Removed Incorrect 1/num_subsets Scaling** (`sirf_simind_connection/core/coordinator.py`):
   - **Issue**: `get_subset_residual()` was incorrectly scaling residuals by `1/num_subsets`
@@ -230,7 +261,7 @@ docs/
   - **`partition_data_with_cil_objectives()`**: Wraps SIRF's partitioner to create CIL objectives
     - Uses `sirf.contrib.partitioner.data_partition()` to get subset acquisition models
     - Wraps each STIR model in `SimindSubsetProjector` (if coordinator provided)
-    - Creates `OperatorCompositionFunction(KullbackLeibler(b=data_subset), projector)`
+    - Creates `OperatorCompositionFunction(ResidualCorrectedKullbackLeibler(f=data_subset), projector)`
     - Returns list of CIL-compatible objective functions and projectors
   - **`create_svrg_objective_with_rdp()`**: Combines SVRG function with SIRF RDP prior
     - Uses CIL's `SumFunction` to combine SVRG with the SETR `RelativeDifferencePrior`

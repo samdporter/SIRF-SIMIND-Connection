@@ -20,12 +20,21 @@ resolution:
   psf_fwhm: [6.91, 6.91, 6.91]
   stir_psf_params: [1.22, 0.031]
 
-# SVRG reconstruction parameters (reduced for testing)
-svrg:
+# Data fidelity
+data_fidelity:
+  eta_floor: 1.0e-5
+  counts_floor: 1.0e-8
+
+# Stochastic reconstruction parameters (reduced for testing)
+stochastic:
+  algorithm: SVRG
   num_subsets: 12
   num_epochs: 5
   initial_step_size: 0.1
   relaxation_eta: 0.02
+  positivity_cap:
+    enabled: true
+    theta: 0.1
 
 # RDP prior parameters (single beta for testing)
 rdp:
@@ -35,6 +44,26 @@ rdp:
   stencil: 18
   both_directions: true
   boundary_condition: "Periodic"
+
+# Preconditioning options
+preconditioner:
+  type: "poisson_hessian"  # Options: poisson_hessian, bsrem, both
+  update_interval: 1
+  poisson_hessian:
+    mode: "ema"
+    ema_decay: 0.9
+    reset_interval: 12
+    epsilon: 1.0e-8
+    hessian_floor: 1.0e-12
+    scale_to_full: true
+  both:
+    scales: [0.5, 0.5]
+  prior:
+    epsilon: 1.0e-8
+    combine: "lehmer"
+  lehmer:
+    p: 0.1
+    epsilon: 1.0e-8
 
 # SimindProjector update control
 projector:
@@ -48,6 +77,8 @@ reconstruction:
 output:
   save_intermediate: false
   verbose: true
+  save_preconditioner: false
+  preconditioner_interval: 12
 
 # Cluster submission defaults
 cluster:

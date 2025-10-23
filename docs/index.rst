@@ -11,6 +11,7 @@ SIRF-SIMIND-Connection Documentation
    examples
    api
    coordinator_architecture
+   coordinator_timing
    testing
    changelog
    contributing
