@@ -12,9 +12,47 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 DICOM_FILE=""
-if [[ -n "$1" ]]; then
-    DICOM_FILE="$1"
-fi
+BACKEND=""
+
+# Parse command-line options
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --backend)
+            BACKEND="$2"
+            if [[ "$BACKEND" != "sirf" && "$BACKEND" != "stir" ]]; then
+                echo -e "${RED}Error: Invalid backend '$BACKEND'. Must be 'sirf' or 'stir'${NC}"
+                exit 1
+            fi
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [DICOM_FILE] [--backend sirf|stir]"
+            echo ""
+            echo "Options:"
+            echo "  DICOM_FILE          Optional DICOM file for example 02"
+            echo "  --backend BACKEND   Force a specific backend (sirf or stir)"
+            echo "  -h, --help          Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0                          # Run with auto-detected backend"
+            echo "  $0 --backend stir           # Force STIR Python backend"
+            echo "  $0 patient.dcm              # Run example 02 with a DICOM file"
+            echo "  $0 patient.dcm --backend sirf  # Run example 02 with a DICOM file using SIRF"
+            exit 0
+            ;;
+        *)
+            # Assume it's a DICOM file if it doesn't start with --
+            if [[ ! "$1" =~ ^-- ]]; then
+                DICOM_FILE="$1"
+            else
+                echo -e "${RED}Error: Unknown option '$1'${NC}"
+                echo "Use --help for usage information"
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
 
 # Track results
 PASSED=()
@@ -48,6 +86,9 @@ run_example() {
         return 0
     fi
 
+    # Build command with optional backend argument
+    local cmd="python3 $example"
+
     # Special handling for DICOM example (02)
     if [[ "$example" == "02_dicom_conversion.py" ]]; then
         if [[ -z "$DICOM_FILE" ]]; then
@@ -55,26 +96,16 @@ run_example() {
             SKIPPED+=("$example")
             return 0
         fi
-        # Run with DICOM file argument
-        if python "$example" "$DICOM_FILE" > "$log_file" 2>&1; then
-            echo -e "${GREEN}✓ PASSED${NC}"
-            PASSED+=("$example")
-            rm -f "$log_file"
-            return 0
-        else
-            local exit_code=$?
-            echo -e "${RED}✗ FAILED (exit code: ${exit_code})${NC}"
-            echo -e "${RED}  Error log saved to: ${log_file}${NC}"
-            FAILED+=("$example")
-            ERROR_LOGS+=("$log_file")
-            echo -e "${RED}  Last 5 lines of error:${NC}"
-            tail -n 5 "$log_file" | sed 's/^/    /'
-            return 1
-        fi
+        cmd="$cmd $DICOM_FILE"
     fi
 
-    # Run the example and capture output
-    if python "$example" > "$log_file" 2>&1; then
+    # Add backend argument if specified
+    if [[ -n "$BACKEND" ]]; then
+        cmd="$cmd --backend $BACKEND"
+    fi
+
+    # Run the command and capture output
+    if eval "$cmd" > "$log_file" 2>&1; then
         echo -e "${GREEN}✓ PASSED${NC}"
         PASSED+=("$example")
         rm -f "$log_file"  # Remove log on success
@@ -100,10 +131,15 @@ echo "Running SIRF-SIMIND-Connection Examples"
 echo "======================================"
 echo ""
 echo "Total examples: ${#EXAMPLES[@]}"
+if [[ -n "$BACKEND" ]]; then
+    echo "Backend: $BACKEND (forced)"
+else
+    echo "Backend: auto-detect"
+fi
 if [[ -n "$DICOM_FILE" ]]; then
     echo "DICOM file: $DICOM_FILE"
 else
-    echo "Note: Example 02 will be skipped (no DICOM file provided)"
+    echo "Note: Example 02 will be skipped unless a DICOM file is supplied"
 fi
 echo ""
 

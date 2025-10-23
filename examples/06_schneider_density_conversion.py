@@ -11,6 +11,7 @@ densities, providing clinically accurate tissue density mappings for SPECT
 simulation.
 """
 
+import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -294,4 +295,22 @@ def create_ct_image_example(output_dir):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Demonstrate Schneider density conversion functionality",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["sirf", "stir"],
+        help="Force a specific backend (sirf or stir). Note: This example doesn't use backends but the argument is provided for consistency.",
+    )
+    args = parser.parse_args()
+
+    # Note: This example doesn't actually use the backend, but we accept the argument for consistency
+    if args.backend:
+        print(
+            f"Note: Backend argument '{args.backend}' specified but not used in this example."
+        )
+
     main()

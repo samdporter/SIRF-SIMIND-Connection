@@ -8,10 +8,9 @@ SIRF-SIMIND-Connection Documentation
    intro
    installation
    usage
+   backends
    examples
    api
-   coordinator_architecture
-   coordinator_timing
    testing
    changelog
    contributing

@@ -20,19 +20,95 @@ def __getattr__(name):
 
 
 def get_array(obj):
-    """Return the fastest available NumPy view of a SIRF-backed object."""
+    """Return NumPy array from SIRF or STIR object.
 
+    This function works with both SIRF and STIR Python backends:
+    - SIRF: Uses .asarray() or .as_array()
+    - STIR: Uses stirextra.to_numpy()
+    - Backend wrappers: Uses .as_array() method
+
+    Args:
+        obj: Image or acquisition data object (SIRF, STIR, or wrapped)
+
+    Returns:
+        np.ndarray: NumPy array view of the data
+
+    Raises:
+        AttributeError: If object cannot be converted to array
+    """
+    # Check if it's a wrapped backend object
+    if hasattr(obj, "as_array") and callable(obj.as_array):
+        return obj.as_array()
+
+    # Try SIRF native methods
     if hasattr(obj, "asarray"):
         return obj.asarray()
     if hasattr(obj, "as_array"):
         return obj.as_array()
+
+    # Try STIR native conversion
+    try:
+        import stirextra
+
+        return stirextra.to_numpy(obj)
+    except (ImportError, TypeError, AttributeError):
+        pass
+
     raise AttributeError(
-        f"Object {type(obj)} has neither asarray() nor as_array() method"
+        f"Cannot convert {type(obj)} to numpy array. "
+        f"Object must have asarray(), as_array() method, or be a STIR object."
     )
+
+
+def to_projdata_in_memory(proj_data):
+    """Convert ProjData to ProjDataInMemory for arithmetic operations.
+
+    STIR's ProjData objects don't support arithmetic operations directly.
+    This function converts them to ProjDataInMemory which does.
+
+    Args:
+        proj_data: STIR ProjData object or SIRF AcquisitionData
+
+    Returns:
+        ProjDataInMemory object (STIR) or cloned AcquisitionData (SIRF)
+
+    Note:
+        For SIRF AcquisitionData, this returns a clone since SIRF already
+        supports arithmetic operations.
+    """
+    # Check if it's SIRF (has clone method and supports arithmetic)
+    if hasattr(proj_data, "clone") and not hasattr(proj_data, "get_proj_data_info"):
+        return proj_data.clone()
+
+    # STIR backend: convert to ProjDataInMemory
+    try:
+        import stir
+
+        # Check if already ProjDataInMemory
+        if isinstance(proj_data, stir.ProjDataInMemory):
+            return proj_data
+
+        # Convert ProjData to ProjDataInMemory
+        proj_data_in_mem = stir.ProjDataInMemory(
+            proj_data.get_exam_info(), proj_data.get_proj_data_info()
+        )
+
+        # Copy data segment by segment
+        for seg_num in range(
+            proj_data.get_min_segment_num(), proj_data.get_max_segment_num() + 1
+        ):
+            seg = proj_data.get_segment_by_sinogram(seg_num)
+            proj_data_in_mem.set_segment(seg)
+
+        return proj_data_in_mem
+    except ImportError:
+        # Neither SIRF nor STIR available - return original
+        return proj_data
 
 
 __all__ = [
     "get_array",
+    "to_projdata_in_memory",
     "io_utils",
     "simind_utils",
     "stir_utils",

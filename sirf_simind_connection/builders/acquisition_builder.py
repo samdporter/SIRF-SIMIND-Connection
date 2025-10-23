@@ -3,7 +3,25 @@ import warnings
 
 import numpy as np
 import pydicom
-from sirf.STIR import AcquisitionData
+
+
+# Conditional import for SIRF to avoid CI dependencies
+try:
+    from sirf.STIR import AcquisitionData
+
+    SIRF_AVAILABLE = True
+except ImportError:
+    AcquisitionData = type(None)
+    SIRF_AVAILABLE = False
+
+# Import backend factory for creating acquisition data objects
+try:
+    from sirf_simind_connection.backends import create_acquisition_data
+
+    BACKEND_AVAILABLE = True
+except ImportError:
+    BACKEND_AVAILABLE = False
+    create_acquisition_data = None
 
 
 class STIRSPECTAcquisitionDataBuilder:
@@ -96,7 +114,11 @@ class STIRSPECTAcquisitionDataBuilder:
 
         # Create the AcquisitionData object from the header file.
         # We do this and fill because of the ordering described above.
-        acqdata = AcquisitionData(header_path)
+        if BACKEND_AVAILABLE:
+            # Return wrapped backend-agnostic object
+            acqdata = create_acquisition_data(header_path)
+        else:
+            acqdata = AcquisitionData(header_path)
         # need to flip in last axis for some reason #TODO
         self.pixel_array = np.flip(self.pixel_array, axis=-1)
         acqdata = acqdata.clone().fill(self.pixel_array)

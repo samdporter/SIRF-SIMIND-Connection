@@ -5,13 +5,17 @@ DICOM to STIR Conversion Example
 This example demonstrates how to convert SPECT DICOM files to STIR format
 and prepare them for SIMIND simulation.
 
+Compatible with both SIRF and STIR Python backends.
+
 Note: This example primarily uses the builder classes and doesn't require
 the new SimindSimulator API, so minimal changes are needed.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
+from sirf_simind_connection.backends import get_backend, set_backend
 from sirf_simind_connection.builders import STIRSPECTAcquisitionDataBuilder
 
 
@@ -100,25 +104,14 @@ def show_new_api_usage(acq_data):
     )
 
 
-def main():
+def main(dicom_file, output_dir):
     """Main conversion routine."""
-    if len(sys.argv) < 2:
-        print("Usage: python 02_dicom_conversion.py <dicom_file> [output_dir]")
-        print("\nExample:")
-        print("  python 02_dicom_conversion.py patient_spect.dcm output/")
-        sys.exit(1)
-
-    dicom_file = Path(sys.argv[1])
+    dicom_file = Path(dicom_file)
     if not dicom_file.exists():
         print(f"Error: DICOM file not found: {dicom_file}")
         sys.exit(1)
 
-    # Set output directory
-    if len(sys.argv) > 2:
-        output_dir = Path(sys.argv[2])
-    else:
-        output_dir = Path("output/dicom_conversion")
-
+    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -146,4 +139,33 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Convert SPECT DICOM files to STIR format",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("dicom_file", type=str, help="Path to DICOM file")
+    parser.add_argument(
+        "output_dir",
+        type=str,
+        nargs="?",
+        default="output/dicom_conversion",
+        help="Output directory (default: output/dicom_conversion)",
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["sirf", "stir"],
+        help="Force a specific backend (sirf or stir). If not specified, auto-detection is used.",
+    )
+    args = parser.parse_args()
+
+    # Set backend if specified
+    if args.backend:
+        set_backend(args.backend)
+
+    # Print which backend is being used
+    print(f"\n{'=' * 60}")
+    print(f"Using backend: {get_backend().upper()}")
+    print(f"{'=' * 60}\n")
+
+    main(args.dicom_file, args.output_dir)

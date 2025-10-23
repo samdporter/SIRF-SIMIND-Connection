@@ -38,6 +38,15 @@ except ImportError:
     ImageData = type(None)
     SIRF_AVAILABLE = False
 
+# Import backend factory for creating acquisition data objects
+try:
+    from sirf_simind_connection.backends import create_acquisition_data
+
+    BACKEND_AVAILABLE = True
+except ImportError:
+    BACKEND_AVAILABLE = False
+    create_acquisition_data = None
+
 
 # =============================================================================
 # DATA CLASSES
@@ -477,7 +486,7 @@ class OutputProcessor:
     def process_outputs(
         self,
         output_prefix: str,
-        template_sinogram: Optional[AcquisitionData] = None,
+        template_sinogram_path: Optional[str] = None,
         source: Optional[ImageData] = None,
         scoring_routine: ScoringRoutine = ScoringRoutine.SCATTWIN,
     ) -> Dict[str, AcquisitionData]:
@@ -486,7 +495,7 @@ class OutputProcessor:
 
         Args:
             output_prefix: Prefix used for output files
-            template_sinogram: Template sinogram for geometry
+            template_sinogram_path: Path to template sinogram header file (.hs)
             source: Source image for geometry reference
             scoring_routine: Scoring routine that was used
 
@@ -496,11 +505,11 @@ class OutputProcessor:
 
         if scoring_routine == ScoringRoutine.SCATTWIN:
             return self._process_scattwin_outputs(
-                output_prefix, template_sinogram, source
+                output_prefix, template_sinogram_path, source
             )
         elif scoring_routine == ScoringRoutine.PENETRATE:
             return self._process_penetrate_outputs(
-                output_prefix, template_sinogram, source
+                output_prefix, template_sinogram_path, source
             )
         else:
             raise ValueError(
@@ -510,7 +519,7 @@ class OutputProcessor:
     def _process_scattwin_outputs(
         self,
         output_prefix: str,
-        template_sinogram: Optional[AcquisitionData],
+        template_sinogram_path: Optional[str],
         source: Optional[ImageData],
     ) -> Dict[str, AcquisitionData]:
         """Process scattwin routine outputs (existing functionality)."""
@@ -522,7 +531,7 @@ class OutputProcessor:
 
         # Process each file
         for h00_file in h00_files:
-            self._process_single_scattwin_file(h00_file, template_sinogram, source)
+            self._process_single_scattwin_file(h00_file, template_sinogram_path, source)
 
         # Load and organize converted files
         return self._load_converted_scattwin_files(output_prefix)
@@ -558,14 +567,14 @@ class OutputProcessor:
     def _process_single_scattwin_file(
         self,
         h00_file: Path,
-        template_sinogram: Optional[AcquisitionData],
+        template_sinogram_path: Optional[str],
         source: Optional[ImageData],
     ) -> None:
         """Process a single scattwin output file with corrections."""
         try:
             # Apply template-based corrections
-            if template_sinogram:
-                self._apply_template_corrections(h00_file, template_sinogram)
+            if template_sinogram_path:
+                self._apply_template_corrections(h00_file, template_sinogram_path)
 
             if source:
                 self._validate_scaling_factors(h00_file, source)
@@ -579,16 +588,21 @@ class OutputProcessor:
             raise OutputError(f"Failed to process {h00_file}: {e}")
 
     def _apply_template_corrections(
-        self, h00_file: Path, template_sinogram: AcquisitionData
+        self, h00_file: Path, template_sinogram_path: str
     ) -> None:
-        """Apply corrections based on template sinogram."""
+        """Apply corrections based on template sinogram header file.
+
+        Args:
+            h00_file: SIMIND output file to correct
+            template_sinogram_path: Path to template sinogram header file (.hs)
+        """
         try:
-            # Extract attributes from template sinogram
+            # Extract attributes from template sinogram (backend-agnostic!)
             from sirf_simind_connection.utils.stir_utils import (
                 extract_attributes_from_stir,
             )
 
-            attributes = extract_attributes_from_stir(template_sinogram)
+            attributes = extract_attributes_from_stir(template_sinogram_path)
 
             # Template correction 1: Set acquisition time (projections × time per
             # projection)
@@ -674,7 +688,11 @@ class OutputProcessor:
             try:
                 # Extract scatter type and window from filename
                 key = self._extract_output_key(hs_file.name)
-                output[key] = AcquisitionData(str(hs_file))
+                if BACKEND_AVAILABLE:
+                    # Return wrapped backend-agnostic object
+                    output[key] = create_acquisition_data(str(hs_file))
+                else:
+                    output[key] = AcquisitionData(str(hs_file))
             except Exception as e:
                 self.logger.error(f"Failed to load {hs_file}: {e}")
                 continue

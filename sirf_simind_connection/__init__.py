@@ -12,7 +12,7 @@ from typing import Any
 try:  # installed (pip/poetry)
     __version__ = _meta.version(__name__)
 except _meta.PackageNotFoundError:  # editable / source checkout
-    __version__ = "0.2.2"
+    __version__ = "0.3.0"
 
 
 def __getattr__(name: str) -> Any:
@@ -20,7 +20,7 @@ def __getattr__(name: str) -> Any:
         mod = importlib.import_module(f".{name}", __name__)
         globals()[name] = mod
         return mod
-    elif name in {"SimindSimulator", "SimindProjector", "SimulationConfig"}:
+    elif name in {"SimindSimulator", "SimulationConfig"}:
         core = importlib.import_module(".core", __name__)
         obj = getattr(core, name)
         globals()[name] = obj
@@ -30,7 +30,6 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "SimulationConfig",
-    "SimindProjector",
     "SimindSimulator",
     "builders",
     "configs",

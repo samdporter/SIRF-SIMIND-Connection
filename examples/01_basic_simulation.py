@@ -1,16 +1,20 @@
 #!/usr/bin/env python
 """
-Basic SIMIND Simulation Example (Updated)
+Basic SIMIND Simulation Example
 
 This example demonstrates how to run a basic SPECT Monte Carlo simulation
 using SIRF-SIMIND-Connection with the new API.
+
+Compatible with both SIRF and STIR Python backends.
 """
 
+import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
+from sirf_simind_connection.backends import get_backend, set_backend
 from sirf_simind_connection.core.components import ScoringRoutine
 from sirf_simind_connection.utils import get_array
 
@@ -110,4 +114,25 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run basic SIMIND simulation",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["sirf", "stir"],
+        help="Force a specific backend (sirf or stir). If not specified, auto-detection is used.",
+    )
+    args = parser.parse_args()
+
+    # Set backend if specified
+    if args.backend:
+        set_backend(args.backend)
+
+    # Print which backend is being used
+    print(f"\n{'=' * 60}")
+    print(f"Using backend: {get_backend().upper()}")
+    print(f"{'=' * 60}\n")
+
     main()

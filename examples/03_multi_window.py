@@ -4,15 +4,19 @@ Multi-Energy Window Simulation Example (Updated)
 
 This example demonstrates how to simulate SPECT with multiple energy windows,
 useful for scatter correction techniques like TEW (Triple Energy Window).
+
+Compatible with both SIRF and STIR Python backends.
 """
 
+import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
+from sirf_simind_connection.backends import get_backend, set_backend
 from sirf_simind_connection.core.components import ScoringRoutine
-from sirf_simind_connection.utils import get_array
+from sirf_simind_connection.utils import get_array, to_projdata_in_memory
 
 
 def setup_tew_windows():
@@ -63,17 +67,36 @@ def calculate_tew_correction(outputs, window_widths):
         Corrected photopeak data
     """
     # TEW assumes linear interpolation of scatter under photopeak
-    lower_scatter = outputs["tot_w1"]
-    photopeak_total = outputs["tot_w2"]
-    upper_scatter = outputs["tot_w3"]
+    # Convert to ProjDataInMemory for arithmetic operations (STIR compatibility)
+    lower_scatter = to_projdata_in_memory(outputs["tot_w1"])
+    photopeak_total = to_projdata_in_memory(outputs["tot_w2"])
+    upper_scatter = to_projdata_in_memory(outputs["tot_w3"])
 
     # Scatter estimate under photopeak
     scatter_estimate = lower_scatter * (
         window_widths[1] / (2 * window_widths[0])
     ) + upper_scatter * (window_widths[1] / (2 * window_widths[2]))
 
-    # Corrected photopeak
-    corrected = (photopeak_total - scatter_estimate).maximum(0)  # Ensure non-negative
+    # Corrected photopeak - ensure non-negative
+    corrected = photopeak_total - scatter_estimate
+
+    # Apply maximum(0) operation - works for both SIRF and STIR
+    if hasattr(corrected, "maximum"):
+        corrected = corrected.maximum(0)
+    else:
+        # For STIR: use numpy to apply max operation and copy back
+        import numpy as np
+
+        try:
+            arr = get_array(corrected)
+            arr_clipped = np.maximum(arr, 0)
+            # Create new ProjDataInMemory and fill with clipped values
+            corrected_clipped = to_projdata_in_memory(corrected)
+            corrected_clipped.fill(arr_clipped)
+            corrected = corrected_clipped
+        except ImportError:
+            # Fallback: just return without clipping
+            pass
 
     return corrected, scatter_estimate
 
@@ -144,7 +167,10 @@ def main():
     corrected.write(str(output_dir / "photopeak_corrected.hs"))
     scatter_counts = outputs["sca_w2"]
     scatter_counts.write(str(output_dir / "scatter_counts.hs"))
-    true_counts = total_counts - scatter_counts
+    # Convert to ProjDataInMemory for arithmetic (STIR compatibility)
+    true_counts = to_projdata_in_memory(total_counts) - to_projdata_in_memory(
+        scatter_counts
+    )
     true_counts.write(str(output_dir / "true_counts.hs"))
 
     # Calculate scatter fractions
@@ -189,4 +215,25 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Run multi-energy window SIMIND simulation",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["sirf", "stir"],
+        help="Force a specific backend (sirf or stir). If not specified, auto-detection is used.",
+    )
+    args = parser.parse_args()
+
+    # Set backend if specified
+    if args.backend:
+        set_backend(args.backend)
+
+    # Print which backend is being used
+    print(f"\n{'=' * 60}")
+    print(f"Using backend: {get_backend().upper()}")
+    print(f"{'=' * 60}\n")
+
     main()

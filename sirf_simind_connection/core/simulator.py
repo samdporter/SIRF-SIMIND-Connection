@@ -20,6 +20,19 @@ except ImportError:
     ImageData = type(None)
     SIRF_AVAILABLE = False
 
+# Import backend factory and interfaces for type hints
+try:
+    from sirf_simind_connection.backends import (
+        AcquisitionDataInterface,
+        create_acquisition_data,
+    )
+
+    BACKEND_AVAILABLE = True
+except ImportError:
+    BACKEND_AVAILABLE = False
+    create_acquisition_data = None
+    AcquisitionDataInterface = type(None)
+
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
 
@@ -110,7 +123,9 @@ class SimindSimulator:
         # Simulation state
         self.source: Optional[ImageData] = None
         self.mu_map: Optional[ImageData] = None
+        # Template sinogram: store both filepath (backend-agnostic) and wrapped object
         self.template_sinogram: Optional[AcquisitionData] = None
+        self.template_sinogram_path: Optional[str] = None
         self.energy_windows: List[EnergyWindow] = []
         self.rotation_params: Optional[RotationParameters] = None
         self.non_circular_orbit = False
@@ -306,20 +321,46 @@ class SimindSimulator:
         )
 
     def set_template_sinogram(
-        self, template_sinogram: Union[str, AcquisitionData]
+        self, template_sinogram: Union[str, AcquisitionData, AcquisitionDataInterface]
     ) -> None:
-        """Set template sinogram and extract acquisition parameters."""
+        """Set template sinogram and extract acquisition parameters.
+
+        Args:
+            template_sinogram: Either a filepath to .hs header, AcquisitionData object,
+                or AcquisitionDataInterface wrapper
+        """
+        import tempfile
+
         if isinstance(template_sinogram, str):
-            self.template_sinogram = AcquisitionData(template_sinogram)
+            # Store filepath directly (backend-agnostic)
+            self.template_sinogram_path = template_sinogram
+            # Load wrapped object
+            if BACKEND_AVAILABLE:
+                self.template_sinogram = create_acquisition_data(template_sinogram)
+            else:
+                self.template_sinogram = AcquisitionData(template_sinogram)
+
         elif isinstance(template_sinogram, AcquisitionData):
+            # Object provided - write to temp file to get filepath
+            temp_file = tempfile.NamedTemporaryFile(
+                mode="w", suffix=".hs", delete=False, dir=str(self.output_dir)
+            )
+            temp_path = temp_file.name
+            temp_file.close()
+
+            # Write object to file
+            template_sinogram.write(temp_path)
+            self.template_sinogram_path = temp_path
+
+            # Clone the object
             self.template_sinogram = template_sinogram.clone()
         else:
             raise TypeError(
                 "template_sinogram must be a string path or AcquisitionData object"
             )
 
-        # Extract parameters from template
-        attributes = extract_attributes_from_stir(self.template_sinogram)
+        # Extract parameters from template using filepath (backend-agnostic!)
+        attributes = extract_attributes_from_stir(self.template_sinogram_path)
 
         # Set up rotation parameters
         direction = (
@@ -553,15 +594,21 @@ class SimindSimulator:
         if self._outputs is None:
             self._outputs = self.output_processor.process_outputs(
                 self.output_prefix,
-                self.template_sinogram,
+                self.template_sinogram_path,
                 self.source,
                 self.scoring_routine,
             )
         return self._outputs
 
     # Scattwin-specific output methods (existing)
-    def get_total_output(self, window: int = 1) -> AcquisitionData:
-        """Get total output for specified window (scattwin only)."""
+    def get_total_output(
+        self, window: int = 1
+    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+        """Get total output for specified window (scattwin only).
+
+        Returns:
+            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+        """
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError(
                 "get_total_output() is only available for scattwin routine"
@@ -573,8 +620,14 @@ class SimindSimulator:
             raise OutputError(f"Total output for window {window} not found")
         return outputs[key]
 
-    def get_scatter_output(self, window: int = 1) -> AcquisitionData:
-        """Get scatter output for specified window (scattwin only)."""
+    def get_scatter_output(
+        self, window: int = 1
+    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+        """Get scatter output for specified window (scattwin only).
+
+        Returns:
+            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+        """
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError(
                 "get_scatter_output() is only available for scattwin routine"
@@ -586,8 +639,14 @@ class SimindSimulator:
             raise OutputError(f"Scatter output for window {window} not found")
         return outputs[key]
 
-    def get_primary_output(self, window: int = 1) -> AcquisitionData:
-        """Get primary output for specified window (scattwin only)."""
+    def get_primary_output(
+        self, window: int = 1
+    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+        """Get primary output for specified window (scattwin only).
+
+        Returns:
+            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+        """
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError(
                 "get_primary_output() is only available for scattwin routine"
@@ -613,8 +672,12 @@ class SimindSimulator:
     # Penetrate-specific output methods (new)
     def get_penetrate_output(
         self, component: Union[PenetrateOutputType, str]
-    ) -> AcquisitionData:
-        """Get penetrate output for specified component."""
+    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+        """Get penetrate output for specified component.
+
+        Returns:
+            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+        """
         if self.scoring_routine != ScoringRoutine.PENETRATE:
             raise OutputError(
                 "get_penetrate_output() is only available for penetrate routine"

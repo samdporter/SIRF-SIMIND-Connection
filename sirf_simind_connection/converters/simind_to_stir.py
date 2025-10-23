@@ -15,6 +15,19 @@ except ImportError:
     AcquisitionData = type(None)
     SIRF_AVAILABLE = False
 
+# Import backend factory and interfaces for type hints
+try:
+    from sirf_simind_connection.backends import (
+        AcquisitionDataInterface,
+        create_acquisition_data,
+    )
+
+    BACKEND_AVAILABLE = True
+except ImportError:
+    BACKEND_AVAILABLE = False
+    create_acquisition_data = None
+    AcquisitionDataInterface = type(None)
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -349,8 +362,12 @@ class SimindToStirConverter:
         output_filename: Optional[str] = None,
         data_file: Optional[str] = None,
         return_object: bool = False,
-    ) -> Optional[AcquisitionData]:
-        """Convert a SIMIND header file to STIR format."""
+    ) -> Optional[Union[AcquisitionData, AcquisitionDataInterface]]:
+        """Convert a SIMIND header file to STIR format.
+
+        Returns:
+            Backend-agnostic acquisition data if return_object=True, None otherwise
+        """
 
         if not input_filename.endswith(".h00"):
             raise ValueError("Input file must have .h00 extension")
@@ -394,7 +411,11 @@ class SimindToStirConverter:
                 self.logger.info(f"Used data file override: {data_file}")
 
             if return_object:
-                return AcquisitionData(output_filename)
+                if BACKEND_AVAILABLE:
+                    # Return wrapped backend-agnostic object
+                    return create_acquisition_data(output_filename)
+                else:
+                    return AcquisitionData(output_filename)
 
         except Exception as e:
             self.logger.error(f"Failed to convert {input_filename}: {e}")
@@ -454,8 +475,11 @@ class SimindToStirConverter:
                     with open(component_hs, "w") as f:
                         f.write(modified_content)
 
-                    # Create AcquisitionData object
-                    acquisition_data = AcquisitionData(str(component_hs))
+                    # Create AcquisitionData object (backend-agnostic)
+                    if BACKEND_AVAILABLE:
+                        acquisition_data = create_acquisition_data(str(component_hs))
+                    else:
+                        acquisition_data = AcquisitionData(str(component_hs))
 
                     # Generate component name
                     component_name = self._get_penetrate_output_name(i)
@@ -660,7 +684,12 @@ class SimindToStirConverter:
             os.replace(temp_filename, filename)
             self.logger.info(f"Parameter {parameter} set to {value}")
 
-            return AcquisitionData(filename) if return_object else None
+            if return_object:
+                if BACKEND_AVAILABLE:
+                    return create_acquisition_data(filename)
+                else:
+                    return AcquisitionData(filename)
+            return None
 
         except Exception as e:
             # Clean up temp file if it exists
@@ -713,7 +742,12 @@ class SimindToStirConverter:
                 f"Parameter {parameter} added with value {value} at line {line_number}"
             )
 
-            return AcquisitionData(filename) if return_object else None
+            if return_object:
+                if BACKEND_AVAILABLE:
+                    return create_acquisition_data(filename)
+                else:
+                    return AcquisitionData(filename)
+            return None
 
         except Exception as e:
             # Clean up temp file if it exists

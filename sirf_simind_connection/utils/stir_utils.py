@@ -25,6 +25,15 @@ except ImportError:
     ImageData = type(None)
     SIRF_AVAILABLE = False
 
+# Import backend factory for creating acquisition data objects
+try:
+    from sirf_simind_connection.backends import create_acquisition_data
+
+    BACKEND_AVAILABLE = True
+except ImportError:
+    BACKEND_AVAILABLE = False
+    create_acquisition_data = None
+
 
 def parse_sinogram(template_sinogram):
     template_sinogram.write("tmp.hs")
@@ -133,7 +142,11 @@ def get_sirf_sinogram_from_simind(
         script = os.path.join(script_path, "convertSIMINDToSTIR_noncirc.sh")
     subprocess.run(["sh", os.path.join(script_path, script), simind_header_filepath])
 
-    return AcquisitionData(simind_header_filepath[:-4] + ".hs")
+    if BACKEND_AVAILABLE:
+        # Return wrapped backend-agnostic object
+        return create_acquisition_data(simind_header_filepath[:-4] + ".hs")
+    else:
+        return AcquisitionData(simind_header_filepath[:-4] + ".hs")
 
 
 def convert_value(val: str):
@@ -203,57 +216,32 @@ def harmonize_stir_attributes(attributes: dict) -> dict:
     return harmonized_attributes
 
 
-def extract_attributes_from_stir(sinogram) -> dict:
+def extract_attributes_from_stir(header_filepath: str) -> dict:
     """
-    Extract attributes from STIR sinogram.
+    Extract attributes from STIR header file.
 
-    For AcquisitionData objects, writes to a temporary header file first to
-    preserve all metadata (especially orbit/radii data for non-circular orbits),
-    then reads from the header file.
+    This function is backend-agnostic and only works with header files (.hs),
+    not with acquisition data objects. If you have an acquisition data object,
+    write it to a file first using .write() method.
 
     Args:
-        sinogram: Either a file path (str) or AcquisitionData object
+        header_filepath: Path to STIR header file (.hs)
 
     Returns:
         dict: Extracted attributes including orbit and radii data
+
+    Raises:
+        ValueError: If input is not a string filepath
+        FileNotFoundError: If header file doesn't exist
     """
-    import logging
-    import os
-    import tempfile
+    if not isinstance(header_filepath, str):
+        raise ValueError(
+            f"extract_attributes_from_stir() only accepts string filepaths. "
+            f"Got {type(header_filepath)}. If you have an acquisition object, "
+            f"write it to a file first using .write() method."
+        )
 
-    logger = logging.getLogger(__name__)
-
-    if isinstance(sinogram, str):
-        return extract_attributes_from_stir_headerfile(sinogram)
-    elif isinstance(sinogram, AcquisitionData):
-        # Write to temporary header file to preserve all metadata
-        # AcquisitionData.get_info() doesn't include orbit/radii information
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".hs", delete=False
-        ) as temp_file:
-            temp_path = temp_file.name
-
-        try:
-            # Write AcquisitionData to header file
-            sinogram.write(temp_path)
-            logger.debug(
-                f"Wrote temporary header file {temp_path} to extract orbit data"
-            )
-
-            # Read attributes from header file (includes orbit/radii)
-            attributes = extract_attributes_from_stir_headerfile(temp_path)
-
-            return attributes
-        finally:
-            # Clean up temporary file and associated binary file
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            # Also remove .s file if it exists
-            binary_path = temp_path.replace(".hs", ".s")
-            if os.path.exists(binary_path):
-                os.remove(binary_path)
-
-    raise ValueError("Input must be a file path or AcquisitionData object.")
+    return extract_attributes_from_stir_headerfile(header_filepath)
 
 
 def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
@@ -929,7 +917,11 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
 
     print("Acquisition Data written to: " + header_path)
 
-    template_acqdata = AcquisitionData(header_path)
+    if BACKEND_AVAILABLE:
+        # Return wrapped backend-agnostic object
+        template_acqdata = create_acquisition_data(header_path)
+    else:
+        template_acqdata = AcquisitionData(header_path)
     os.remove(header_path)
     os.remove(raw_file_path)
 

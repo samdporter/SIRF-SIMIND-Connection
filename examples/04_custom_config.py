@@ -6,9 +6,11 @@ This example shows how to create and modify SIMIND configurations,
 including exporting to YAML for easy editing and version control.
 """
 
+import argparse
 from pathlib import Path
 
 from sirf_simind_connection import SimulationConfig, configs
+from sirf_simind_connection.backends import get_backend, set_backend
 
 
 TEMPLATE_PATH = configs.get("input.smc")  # Path to a template configuration file
@@ -200,4 +202,25 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Create and manage custom SIMIND configurations",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--backend",
+        type=str,
+        choices=["sirf", "stir"],
+        help="Force a specific backend (sirf or stir). If not specified, auto-detection is used.",
+    )
+    args = parser.parse_args()
+
+    # Set backend if specified
+    if args.backend:
+        set_backend(args.backend)
+
+    # Print which backend is being used
+    print(f"\n{'=' * 60}")
+    print(f"Using backend: {get_backend().upper()}")
+    print(f"{'=' * 60}\n")
+
     main()

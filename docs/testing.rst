@@ -73,49 +73,38 @@ You can also use the dedicated CI pytest configuration:
 Test Categories
 ---------------
 
-CI-Friendly Tests (27+ tests)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CI-Friendly Test Suites
+~~~~~~~~~~~~~~~~~~~~~~~
 
-These tests run in GitHub Actions without external dependencies:
+The default CI job runs the tests that avoid heavyweight dependencies. These focus on:
 
-1. **Schneider Density Conversion** (21 tests)
-   
-   * ``tests/test_schneider_density.py``
-   * Tests HU-to-density conversion with JSON lookup tables
-   * No SIRF/SIMIND dependencies
+* **Conversion maths** – ``tests/test_schneider_density.py`` exercises the HU-to-density pipelines.
+* **Configuration & builders** – ``tests/test_simulation_config.py`` and ``tests/test_acquisition_builder_unit.py`` validate YAML/SMC handling plus Interfile header generation without a SIRF runtime.
+* **Utility helpers** – ``tests/test_components.py``, ``tests/test_utils.py``, and ``tests/test_utils_small.py`` cover enums, file parsing, and temporary-directory/energy-window helpers.
+* **Backend guards** – ``tests/test_backends.py`` ensures the dynamic backend selection code behaves without importing SIRF.
 
-2. **Configuration Management** (6 tests)
-   
-   * ``tests/test_simulation_config.py``
-   * Tests YAML/SMC file parsing and parameter management
-   * Pure Python functionality
+SIRF-Dependent Suites
+~~~~~~~~~~~~~~~~~~~~~
 
-3. **Core Components** (5 tests)
-   
-   * Tests data classes and enums (EnergyWindow, RotationParameters, etc.)
-   * No external dependencies
+Tests that construct real SIRF/STIR objects carry the ``requires_sirf`` marker and are skipped in CI. These include:
 
-4. **Utilities** (1 test)
-   
-   * ``tests/test_utils.py::test_parse_interfile``
-   * File parsing without SIRF dependencies
+* ``tests/test_simind_simulator.py`` and ``tests/test_simind_projector.py`` for the legacy projector/simulator path.
+* ``tests/test_arithmetic_operations.py`` for wrapped acquisition arithmetic.
+* ``tests/test_coordinator.py`` for the SIMIND coordinator.
+* SIRF-backed helpers in ``tests/test_utils.py`` and ``tests/test_components.py``.
 
-SIRF-Dependent Tests (13 tests)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CIL and Hybrid Dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-These tests require SIRF installation and are skipped in CI:
+Two suites rely on additional packages:
 
-* **Simulator Tests** - ``tests/test_simind_simulator.py``
-* **Projector Tests** - ``tests/test_simind_projector.py``
-* **STIR Utilities** - Most tests in ``tests/test_utils.py``
-* **Image Processing** - Tests that create phantoms and process SIRF objects
+* ``tests/test_cil_partitioner.py`` (``requires_sirf`` + ``requires_cil``) exercises the CIL partitioner adapter.
+* ``tests/test_step_size_rules.py`` (``requires_cil``) checks Armijo step-size helpers with lightweight stand-ins.
 
-Integration Tests (1 test)
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Integration Test
+~~~~~~~~~~~~~~~~
 
-* **Full Workflow Test** - ``tests/test_integration.py``
-* Requires both SIRF and SIMIND
-* Marked with multiple markers: ``integration``, ``requires_sirf``, ``requires_simind``
+``tests/test_integration.py`` orchestrates a full example run and needs both SIMIND and SIRF. It is marked with ``integration``, ``requires_simind``, and ``requires_sirf``.
 
 Configuration Files
 -------------------
