@@ -3,6 +3,7 @@ Grab-bag of general utilities shared across modules.
 They are re-exported here for a single, easy import path.
 """
 
+import contextlib
 import importlib
 
 
@@ -42,18 +43,18 @@ def get_array(obj):
 
     # Try SIRF native methods
     if hasattr(obj, "asarray"):
-        return obj.asarray()
+        try:
+            return obj.asarray()
+        except Exception:
+            return obj.as_array()  # Fallback to as_array if asarray fails
     if hasattr(obj, "as_array"):
         return obj.as_array()
 
     # Try STIR native conversion
-    try:
+    with contextlib.suppress(ImportError, TypeError, AttributeError):
         import stirextra
 
         return stirextra.to_numpy(obj)
-    except (ImportError, TypeError, AttributeError):
-        pass
-
     raise AttributeError(
         f"Cannot convert {type(obj)} to numpy array. "
         f"Object must have asarray(), as_array() method, or be a STIR object."
