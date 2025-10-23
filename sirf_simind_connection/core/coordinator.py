@@ -340,12 +340,6 @@ class SimindCoordinator(Coordinator):
         """
         Check if SIMIND simulation should run this subiteration.
 
-        IMPORTANT: Updates ONE iteration early (at iteration N-1 instead of N)
-        to ensure proper callback ordering:
-        1. Coordinator updates at iteration N-1 (during forward projection)
-        2. Callbacks run at iteration N-1 (update KL, trigger Armijo flag)
-        3. Armijo runs at iteration N with correct new objective
-
         Returns:
             bool: True if simulation should be triggered.
         """
@@ -360,12 +354,11 @@ class SimindCoordinator(Coordinator):
             return False
 
         # Check if enough iterations have passed since last update
-        # Update ONE iteration early to allow callbacks to prepare for next iteration
         iterations_since_update = self.algorithm.iteration - self._last_update_iteration
 
-        # Trigger at (interval - 1) so callbacks prepare for interval'th iteration
-        # Example: interval=12 → update at iter 11, callbacks run, Armijo at 12
-        if iterations_since_update < (self.correction_update_interval - 1):
+        # Trigger when we've completed the full interval
+        # Example: interval=3, last_update=-1 → update at iter 2 (2 - (-1) = 3)
+        if iterations_since_update < self.correction_update_interval:
             return False
 
         # If total_iterations is set, check if we're too close to the end
@@ -748,12 +741,6 @@ class StirPsfCoordinator(Coordinator):
         """
         Check if PSF correction should run this subiteration.
 
-        IMPORTANT: Updates ONE iteration early (at iteration N-1 instead of N)
-        to ensure proper callback ordering:
-        1. Coordinator updates at iteration N-1 (during forward projection)
-        2. Callbacks run at iteration N-1 (update KL, trigger Armijo flag)
-        3. Armijo runs at iteration N with correct new objective
-
         Returns:
             bool: True if correction should be computed.
         """
@@ -765,12 +752,11 @@ class StirPsfCoordinator(Coordinator):
             return False
 
         # Check if enough iterations have passed since last update
-        # Update ONE iteration early to allow callbacks to prepare for next iteration
         iterations_since_update = self.algorithm.iteration - self._last_update_iteration
 
-        # Trigger at (interval - 1) so callbacks prepare for interval'th iteration
-        # Example: interval=12 → update at iter 11, callbacks run, Armijo at 12
-        if iterations_since_update < (self.correction_update_interval - 1):
+        # Trigger when we've completed the full interval
+        # Example: interval=3, last_update=-1 → update at iter 2 (2 - (-1) = 3)
+        if iterations_since_update < self.correction_update_interval:
             return False
 
         # If total_iterations is set, check if we're too close to the end

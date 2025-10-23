@@ -8,7 +8,13 @@ import importlib
 
 # Lazy imports to avoid SIRF dependencies in CI
 def __getattr__(name):
-    if name in ("io_utils", "simind_utils", "stir_utils"):
+    if name in (
+        "io_utils",
+        "simind_utils",
+        "stir_utils",
+        "step_size_rules",
+        "cil_partitioner",
+    ):
         return importlib.import_module(f".{name}", __name__)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
@@ -25,4 +31,11 @@ def get_array(obj):
     )
 
 
-__all__ = ["get_array", "io_utils", "simind_utils", "stir_utils"]
+__all__ = [
+    "get_array",
+    "io_utils",
+    "simind_utils",
+    "stir_utils",
+    "step_size_rules",
+    "cil_partitioner",
+]
