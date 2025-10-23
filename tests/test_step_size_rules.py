@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from project_psf.step_size_rules import (
+from sirf_simind_connection.utils.step_size_rules import (
     ArmijoAfterCorrectionStepSize,
     SaveStepSizeHistoryCallback,
 )
