@@ -70,24 +70,23 @@ class StirImageData(ImageDataInterface):
 
     def fill(self, data: Union[np.ndarray, float]) -> None:
         """Fill with data."""
-        if isinstance(data, (int, float)):
+        if isinstance(data, (int, float)) or not isinstance(data, np.ndarray):
             self._obj.fill(float(data))
-        elif isinstance(data, np.ndarray):
-            self._obj.fill(data.flat)
         else:
-            self._obj.fill(float(data))
+            self._obj.fill(data.flat)
 
     def clone(self) -> "StirImageData":
         """Clone the image."""
         # STIR doesn't have a direct clone method
         # We need to create a new object and copy data
-        cloned = stir.FloatVoxelsOnCartesianGrid(self._obj)
+        cloned = self._obj.get_empty_copy()
+        cloned.fill(self.as_array().flat)
         return StirImageData(cloned)
 
     def get_uniform_copy(self, value: float) -> "StirImageData":
         """Create uniform copy."""
         cloned = self.clone()
-        cloned._obj.fill(float(value))
+        cloned._obj.fill(value)
         return cloned
 
     def dimensions(self) -> Tuple[int, int, int]:
@@ -111,6 +110,10 @@ class StirImageData(ImageDataInterface):
     def sum(self) -> float:
         """Sum all values."""
         return float(self._obj.sum())
+
+    def max(self) -> float:
+        """Return the maximum voxel value."""
+        return float(np.max(self.as_array()))
 
     def maximum(self, value: float) -> None:
         """Apply element-wise maximum.
@@ -264,7 +267,7 @@ class StirAcquisitionData(AcquisitionDataInterface):
     def get_uniform_copy(self, value: float) -> "StirAcquisitionData":
         """Create uniform copy."""
         cloned = self.clone()
-        cloned._obj.fill(float(value))
+        cloned._obj.fill(value)
         return cloned
 
     def dimensions(self) -> Tuple:
@@ -281,26 +284,16 @@ class StirAcquisitionData(AcquisitionDataInterface):
         """Sum all values."""
         return float(self._obj.sum())
 
+    def max(self) -> float:
+        """Return the maximum bin value."""
+        return float(np.max(self.as_array()))
+
     def get_info(self) -> str:
         """Get metadata info."""
         # STIR doesn't have a direct get_info() string method
         # Construct info from proj_data_info
         info = self._obj.get_proj_data_info()
         return str(info)
-
-    def create_uniform_image(self, value: float = 0.0) -> StirImageData:
-        """Create compatible uniform image."""
-        # Get projection data info to create compatible image
-        proj_info = self._obj.get_proj_data_info()
-        exam_info = self._obj.get_exam_info()
-
-        # Create image with appropriate zoom/size
-        # This requires knowledge of scanner geometry
-        # For now, raise NotImplementedError
-        raise NotImplementedError(
-            "Creating images from STIR ProjData requires scanner geometry info. "
-            "Use STIR's native image creation methods or templates."
-        )
 
     @property
     def native_object(self):

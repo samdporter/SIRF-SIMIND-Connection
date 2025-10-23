@@ -7,9 +7,10 @@
 import os
 import re
 import subprocess
-import warnings
 
 import numpy as np
+
+from sirf_simind_connection.backends import create_image_data
 
 from . import get_array
 
@@ -56,11 +57,9 @@ def parse_interfile(filename):
     values = {}
     with open(filename, "r") as file:
         for line in file:
-            # Use regex to find lines with ':='
-            match = re.search(r"([^;].*?)\s*:=\s*(.*)", line)
-            if match:
-                key = match.group(1).strip()
-                value = match.group(2).strip()
+            if match := re.search(r"([^;].*?)\s*:=\s*(.*)", line):
+                key = match[1].strip()
+                value = match[2].strip()
                 values[key] = value
     return values
 
@@ -86,13 +85,13 @@ def get_sirf_attenuation_from_simind(
         data_type = np.uint16
 
     # remove suffix from filename if present
-    if attn_filename[-3:] == "ict" or attn_filename[-3:] == "hct":
+    if attn_filename[-3:] in ["ict", "hct"]:
         attn_filename = attn_filename[:-4]
 
-    attn = np.fromfile(attn_filename + ".ict", dtype=data_type)
+    attn = np.fromfile(f"{attn_filename}.ict", dtype=data_type)
     image = ImageData()
 
-    header_dict = parse_interfile(attn_filename + ".hct")
+    header_dict = parse_interfile(f"{attn_filename}.hct")
     dim = [int(header_dict["!matrix size [%d]" % i]) for i in range(1, 4)][::-1]
 
     vsize = [
@@ -144,9 +143,9 @@ def get_sirf_sinogram_from_simind(
 
     if BACKEND_AVAILABLE:
         # Return wrapped backend-agnostic object
-        return create_acquisition_data(simind_header_filepath[:-4] + ".hs")
+        return create_acquisition_data(f"{simind_header_filepath[:-4]}.hs")
     else:
-        return AcquisitionData(simind_header_filepath[:-4] + ".hs")
+        return AcquisitionData(f"{simind_header_filepath[:-4]}.hs")
 
 
 def convert_value(val: str):
@@ -242,373 +241,6 @@ def extract_attributes_from_stir(header_filepath: str) -> dict:
         )
 
     return extract_attributes_from_stir_headerfile(header_filepath)
-
-
-def extract_attributes_from_stir_sinogram(sinogram: "AcquisitionData") -> dict:
-    """
-    Parse a STIR sinogram info string (from sinogram.get_info()) and extract attributes.
-
-    DEPRECATED: This function is now obsolete. Use extract_attributes_from_stir() instead,
-    which writes the AcquisitionData to a temporary header file to preserve all metadata
-    (including orbit/radii data for non-circular orbits).
-
-    Note: This function does NOT extract orbit or radii information, as these are not
-    included in the output of AcquisitionData.get_info().
-
-    Note that this probably isn't exhaustive but does work for PET and SPECT sinograms.
-
-    Parameters
-    ----------
-    sinogram : AcquisitionData
-        Object providing the get_info() method.
-
-    Returns
-    -------
-    dict
-        Dictionary of extracted attributes.
-    """
-    attributes = {}
-    info_str = sinogram.get_info()
-    lines = info_str.splitlines()
-
-    # Define generic patterns: each tuple is (regex, converter, attribute key)
-    patterns = [
-        (
-            re.compile(r"^Modality:\s*(\S+)", re.IGNORECASE),
-            lambda m: m.group(1).strip(),
-            "modality",
-        ),
-        (
-            re.compile(r"^Calibration Factor:\s*([-+]?[0-9]*\.?[0-9]+)", re.IGNORECASE),
-            lambda m: float(m.group(1)),
-            "calibration_factor",
-        ),
-        (
-            re.compile(r"^Radionuclide:\s*(.+)", re.IGNORECASE),
-            lambda m: m.group(1).strip(),
-            "radionuclide",
-        ),
-        (
-            re.compile(r"^Energy\s+([-+]?[0-9]*\.?[0-9]+)", re.IGNORECASE),
-            lambda m: float(m.group(1)),
-            "energy",
-        ),
-        (
-            re.compile(r"^Half-life:\s*([-+]?[0-9]*\.?[0-9]+)", re.IGNORECASE),
-            lambda m: float(m.group(1)),
-            "half_life",
-        ),
-        (
-            re.compile(r"^Branching ratio:\s*([-+]?[0-9]*\.?[0-9]+)", re.IGNORECASE),
-            lambda m: float(m.group(1)),
-            "branching_ratio",
-        ),
-        (
-            re.compile(r"^Patient position:\s*(.+)", re.IGNORECASE),
-            lambda m: m.group(1).strip(),
-            "patient_position",
-        ),
-        (
-            re.compile(r"^Scan start time:\s*([-+]?[0-9]*\.?[0-9]+)", re.IGNORECASE),
-            lambda m: float(m.group(1)),
-            "scan_start_time",
-        ),
-        (
-            re.compile(r"number of energy windows\s*[:=]+\s*(\d+)", re.IGNORECASE),
-            lambda m: int(m.group(1)),
-            "number_of_energy_windows",
-        ),
-        (
-            re.compile(
-                r"energy window lower level\[\d+\]\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "energy_window_lower",
-        ),
-        (
-            re.compile(
-                r"energy window upper level\[\d+\]\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "energy_window_upper",
-        ),
-        # Scanner parameters:
-        (
-            re.compile(r"Scanner type\s*[:=]+\s*(\S+)", re.IGNORECASE),
-            lambda m: m.group(1).strip(),
-            "scanner_type",
-        ),
-        (
-            re.compile(r"Number of rings\s*[:=]+\s*(\d+)", re.IGNORECASE),
-            lambda m: int(m.group(1)),
-            "number_of_rings",
-        ),
-        (
-            re.compile(
-                r"Number of detectors per ring\s*[:=]+\s*([-]?\d+)", re.IGNORECASE
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_detectors_per_ring",
-        ),
-        (
-            re.compile(
-                r"Inner ring diameter\s*\(cm\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "inner_ring_diameter",
-        ),
-        (
-            re.compile(
-                r"Average depth of interaction\s*\(cm\)\s*[:=]+\s*"
-                r"([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "average_depth_of_interaction",
-        ),
-        (
-            re.compile(
-                r"Distance between rings\s*\(cm\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "distance_between_rings",
-        ),
-        (
-            re.compile(
-                r"Default bin size\s*\(cm\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "default_bin_size",
-        ),
-        (
-            re.compile(
-                r"View offset\s*\(degrees\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "view_offset",
-        ),
-        (
-            re.compile(
-                r"Maximum number of non-arc-corrected bins\s*[:=]+\s*(\d+)",
-                re.IGNORECASE,
-            ),
-            lambda m: int(m.group(1)),
-            "max_non_arc_corrected_bins",
-        ),
-        (
-            re.compile(
-                r"Default number of arc-corrected bins\s*[:=]+\s*(\d+)", re.IGNORECASE
-            ),
-            lambda m: int(m.group(1)),
-            "default_arc_corrected_bins",
-        ),
-        (
-            re.compile(
-                r"Number of blocks per bucket in transaxial direction\s*[:=]+\s*"
-                r"([-]?\d+)",
-                re.IGNORECASE,
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_blocks_per_bucket_transaxial",
-        ),
-        (
-            re.compile(
-                r"Number of blocks per bucket in axial direction\s*[:=]+\s*([-]?\d+)",
-                re.IGNORECASE,
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_blocks_per_bucket_axial",
-        ),
-        (
-            re.compile(
-                r"Number of crystals per block in axial direction\s*[:=]+\s*([-]?\d+)",
-                re.IGNORECASE,
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_crystals_per_block_axial",
-        ),
-        (
-            re.compile(
-                r"Number of crystals per block in transaxial direction\s*[:=]+\s*"
-                r"([-]?\d+)",
-                re.IGNORECASE,
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_crystals_per_block_transaxial",
-        ),
-        (
-            re.compile(r"Number of detector layers\s*[:=]+\s*(\d+)", re.IGNORECASE),
-            lambda m: int(m.group(1)),
-            "number_of_detector_layers",
-        ),
-        (
-            re.compile(
-                r"Number of crystals per singles unit in axial direction\s*[:=]+\s*"
-                r"([-]?\d+)",
-                re.IGNORECASE,
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_crystals_per_singles_unit_axial",
-        ),
-        (
-            re.compile(
-                r"Number of crystals per singles unit in transaxial "
-                r"direction\s*[:=]+\s*"
-                r"([-]?\d+)",
-                re.IGNORECASE,
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_crystals_per_singles_unit_transaxial",
-        ),
-        (
-            re.compile(r"Scanner geometry\s*\(.+?\)\s*[:=]+\s*(\S+)", re.IGNORECASE),
-            lambda m: m.group(1).strip(),
-            "scanner_geometry",
-        ),
-        # Other parameters:
-        (
-            re.compile(
-                r"start vertical bed position\s*\(mm\)\s*[:=]+\s*"
-                r"([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "start_vertical_bed_position",
-        ),
-        (
-            re.compile(
-                r"start horizontal bed position\s*\(mm\)\s*[:=]+\s*"
-                r"([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "start_horizontal_bed_position",
-        ),
-        (
-            re.compile(
-                r"TOF mashing factor in data\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "tof_mashing_factor",
-        ),
-        (
-            re.compile(
-                r"Number of TOF positions in data\s*[:=]+\s*(\d+)", re.IGNORECASE
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_tof_positions",
-        ),
-        (
-            re.compile(r"Number of Views:\s*(\d+)", re.IGNORECASE),
-            lambda m: int(m.group(1)),
-            "number_of_views",
-        ),
-        (
-            re.compile(
-                r"Number of axial positions per seg:\s*\{?\s*(\d+)\s*\}?", re.IGNORECASE
-            ),
-            lambda m: int(m.group(1)),
-            "number_of_axial_positions_per_seg",
-        ),
-        (
-            re.compile(r"Number of tangential positions:\s*(\d+)", re.IGNORECASE),
-            lambda m: int(m.group(1)),
-            "number_of_tangential_positions",
-        ),
-        (
-            re.compile(
-                r"Azimuthal angle increment\s*\(deg\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "azimuthal_angle_increment",
-        ),
-        (
-            re.compile(
-                r"Azimuthal angle extent\s*\(deg\)\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)",
-                re.IGNORECASE,
-            ),
-            lambda m: float(m.group(1)),
-            "azimuthal_angle_extent",
-        ),
-        (
-            re.compile(
-                r"tangential sampling\s*[:=]+\s*([-+]?[0-9]*\.?[0-9]+)", re.IGNORECASE
-            ),
-            lambda m: float(m.group(1)),
-            "tangential_sampling",
-        ),
-    ]
-
-    # Special handling for "ring differences per segment:" which appears on one
-    # line, followed by a tuple in the next.
-    ring_diff_pattern = re.compile(r"\(\s*([-+]?\d+)\s*,\s*([-+]?\d+)\s*\)")
-
-    skip_next = False  # flag to skip a line already processed (for ring differences)
-    for i, line in enumerate(lines):
-        if skip_next:
-            skip_next = False
-            continue
-        line = line.strip()
-        if not line:
-            continue
-
-        # Skip block header lines
-        if (
-            line.startswith("Radionuclide Parameters:")
-            or line.startswith("Scanner parameters:=")
-            or line.startswith("End scanner parameters:=")
-            or line.startswith("ProjDataInfoCylindricalArcCorr")
-        ):
-            continue
-
-        # Handle "ring differences per segment:" (the value is on the next
-        # non-empty line)
-        if line.lower().startswith("ring differences per segment"):
-            j = i + 1
-            while j < len(lines) and not lines[j].strip():
-                j += 1
-            if j < len(lines):
-                m = ring_diff_pattern.search(lines[j])
-                if m:
-                    attributes["ring_differences_per_segment"] = (
-                        int(m.group(1)),
-                        int(m.group(2)),
-                    )
-                skip_next = True
-            continue
-
-        # Try generic patterns.
-        for pattern, converter, key in patterns:
-            m = pattern.search(line)
-            if m:
-                try:
-                    attributes[key] = converter(m)
-                except Exception as e:
-                    warnings.warn(
-                        f"Error converting key '{key}' from '{m.group(0)}': {e}"
-                    )
-                break
-
-    # Mapping differences
-    attributes["number_of_projections"] = attributes.get("number_of_views")
-    attributes["height_to_detector_surface"] = (
-        attributes.get("inner_ring_diameter", 0) / 2 * 10
-    )
-    attributes["extent_of_rotation"] = attributes.get("azimuthal_angle_extent")
-    attributes["start_angle"] = attributes.get("view_offset")
-    attributes["direction_of_rotation"] = (
-        "CCW" if attributes.get("azimuthal_angle_increment", 1) > 0 else "CW"
-    )
-
-    return harmonize_stir_attributes(attributes)
 
 
 def extract_attributes_from_stir_headerfile(filename: str) -> dict:
@@ -724,30 +356,26 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
 
     with open(filename, "r") as file:
         for line in file:
-            # Process matrix sizes: "!matrix size [axis] := <int>"
-            ms_match = re.search(
+            if ms_match := re.search(
                 r"!matrix size\s*\[(.+?)\]\s*:=\s*(\d+)", line, re.IGNORECASE
-            )
-            if ms_match:
-                axis = ms_match.group(1).strip()
-                attributes["matrix_sizes"][axis] = int(ms_match.group(2))
+            ):
+                axis = ms_match[1].strip()
+                attributes["matrix_sizes"][axis] = int(ms_match[2])
                 continue
 
-            # Process scaling factors: "!scaling factor (mm/pixel) [axis] := <float>"
-            sf_match = re.search(
+            if sf_match := re.search(
                 r"!scaling factor\s*\(mm/pixel\)\s*\[(.+?)\]\s*:=\s*(.+)",
                 line,
                 re.IGNORECASE,
-            )
-            if sf_match:
-                axis = sf_match.group(1).strip()
-                attributes["scaling_factors"][axis] = float(sf_match.group(2).strip())
+            ):
+                axis = sf_match[1].strip()
+                attributes["scaling_factors"][axis] = float(sf_match[2].strip())
                 continue
 
             # Process orbit/radius information.
             if re.search(r"(radius|radii)\s*:=\s*(.+)", line, re.IGNORECASE):
                 r_match = re.search(r"(radius|radii)\s*:=\s*(.+)", line, re.IGNORECASE)
-                tmp = r_match.group(2).strip()
+                tmp = r_match[2].strip()
                 if tmp.startswith("{") and tmp.endswith("}") or "," in tmp:
                     # Remove braces and split by comma.
                     tmp = tmp.strip("{}")
@@ -767,23 +395,20 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
                     attributes["height_to_detector_surface"] = float(tmp)
                 continue
 
-            # Process generic orbit specification if not already set.
-            orbit_match = re.search(r"orbit\s*:=\s*(.+)", line, re.IGNORECASE)
-            if orbit_match:
-                attributes["orbit"] = orbit_match.group(1).strip()
+            if orbit_match := re.search(r"orbit\s*:=\s*(.+)", line, re.IGNORECASE):
+                attributes["orbit"] = orbit_match[1].strip()
                 continue
 
             # Try generic patterns.
             for pattern, converter, attr_key in patterns:
-                m = pattern.search(line)
-                if m:
+                if m := pattern.search(line):
                     attributes[attr_key] = converter(m)
                     break
 
     return harmonize_stir_attributes(attributes)
 
 
-def create_stir_image(matrix_dim: list, voxel_size: list):
+def create_stir_image(matrix_dim: list, voxel_size: list, backend="STIR"):
     """
     Creates a uniform (zeros) STIR ImageData object given specified parameters.
 
@@ -831,9 +456,9 @@ def create_stir_image(matrix_dim: list, voxel_size: list):
     line = 0
     header_path = os.path.join("temp.hv")
     with open(header_path, "w") as f:
-        for k in header.keys():
+        for k in header:
             if k.islower() or line == 0:
-                tempStr = str(k) + " := " + str(header[str(k)]) + "\n"
+                tempStr = f"{str(k)} := {str(header[str(k)])}" + "\n"
                 line += 1
             else:
                 tempStr = "\n" + str(k) + " := " + str(header[str(k)]) + "\n"
@@ -845,9 +470,9 @@ def create_stir_image(matrix_dim: list, voxel_size: list):
     raw_file_path = os.path.join("temp.v")
     img.tofile(raw_file_path)
 
-    print("Image written to: " + header_path)
+    print(f"Image written to: {header_path}")
 
-    template_image = ImageData(header_path)
+    template_image = create_image_data(header_path)
     os.remove(header_path)
     os.remove(raw_file_path)
 
@@ -906,8 +531,8 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
 
     header_path = os.path.join("temp.hs")
     with open(header_path, "w") as f:
-        for k in header.keys():
-            tempStr = str(k) + " := " + str(header[str(k)]) + "\n"
+        for k in header:
+            tempStr = f"{str(k)} := {str(header[str(k)])}" + "\n"
             f.write(tempStr)
 
     f.close()
@@ -915,7 +540,7 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
     raw_file_path = os.path.join("temp.s")
     acq.tofile(raw_file_path)
 
-    print("Acquisition Data written to: " + header_path)
+    print(f"Acquisition Data written to: {header_path}")
 
     if BACKEND_AVAILABLE:
         # Return wrapped backend-agnostic object

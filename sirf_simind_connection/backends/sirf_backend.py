@@ -86,6 +86,12 @@ class SirfImageData(ImageDataInterface):
         """Sum all values."""
         return float(self._obj.sum())
 
+    def max(self) -> float:
+        """Return the maximum voxel value."""
+        if hasattr(self._obj, "max"):
+            return float(self._obj.max())
+        return float(np.max(self.as_array()))
+
     def maximum(self, value: float) -> None:
         """Apply element-wise maximum."""
         self._obj.maximum(value)
@@ -212,6 +218,12 @@ class SirfAcquisitionData(AcquisitionDataInterface):
     def sum(self) -> float:
         """Sum all values."""
         return float(self._obj.sum())
+
+    def max(self) -> float:
+        """Return the maximum bin value."""
+        if hasattr(self._obj, "max"):
+            return float(self._obj.max())
+        return float(np.max(self.as_array()))
 
     def get_info(self) -> str:
         """Get metadata info."""

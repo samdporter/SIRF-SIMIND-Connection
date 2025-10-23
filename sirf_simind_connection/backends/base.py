@@ -103,6 +103,15 @@ class ImageDataInterface(ABC):
         pass
 
     @abstractmethod
+    def max(self) -> float:
+        """Return the maximum voxel value.
+
+        Returns:
+            float: Maximum voxel value
+        """
+        pass
+
+    @abstractmethod
     def maximum(self, value: float) -> None:
         """Apply element-wise maximum (clipping).
 
@@ -265,23 +274,20 @@ class AcquisitionDataInterface(ABC):
         pass
 
     @abstractmethod
+    def max(self) -> float:
+        """Return the maximum bin value.
+
+        Returns:
+            float: Maximum bin value
+        """
+        pass
+
+    @abstractmethod
     def get_info(self) -> str:
         """Get metadata information.
 
         Returns:
             str: Metadata string
-        """
-        pass
-
-    @abstractmethod
-    def create_uniform_image(self, value: float = 0.0) -> ImageDataInterface:
-        """Create compatible uniform image.
-
-        Args:
-            value: Initial value
-
-        Returns:
-            ImageDataInterface: Compatible image object
         """
         pass
 

@@ -10,28 +10,22 @@ from typing import Dict, List, Optional, Union
 import yaml
 
 
-# Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData, ImageData
-
-    SIRF_AVAILABLE = True
-except ImportError:
-    AcquisitionData = type(None)
-    ImageData = type(None)
-    SIRF_AVAILABLE = False
-
 # Import backend factory and interfaces for type hints
 try:
     from sirf_simind_connection.backends import (
         AcquisitionDataInterface,
+        ImageDataInterface,
         create_acquisition_data,
+        create_image_data,
     )
 
     BACKEND_AVAILABLE = True
 except ImportError:
     BACKEND_AVAILABLE = False
     create_acquisition_data = None
+    create_image_data = None
     AcquisitionDataInterface = type(None)
+    ImageDataInterface = type(None)
 
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
@@ -121,18 +115,19 @@ class SimindSimulator:
         self._configure_scoring_routine()
 
         # Simulation state
-        self.source: Optional[ImageData] = None
-        self.mu_map: Optional[ImageData] = None
+        self.source: Optional[ImageDataInterface] = None
+        self.mu_map: Optional[ImageDataInterface] = None
         # Template sinogram: store both filepath (backend-agnostic) and wrapped object
-        self.template_sinogram: Optional[AcquisitionData] = None
+        self.template_sinogram: Optional[AcquisitionDataInterface] = None
         self.template_sinogram_path: Optional[str] = None
+        self.attributes: Dict = {}
         self.energy_windows: List[EnergyWindow] = []
         self.rotation_params: Optional[RotationParameters] = None
         self.non_circular_orbit = False
         self.orbit_radii: List[float] = []
 
         # Results
-        self._outputs: Optional[Dict[str, AcquisitionData]] = None
+        self._outputs: Optional[Dict[str, AcquisitionDataInterface]] = None
 
         self.logger.info(
             f"Simulator initialized with {self.scoring_routine.name} scoring routine"
@@ -230,14 +225,19 @@ class SimindSimulator:
     # INPUT CONFIGURATION METHODS (UNCHANGED)
     # =============================================================================
 
-    def set_source(self, source: Union[str, ImageData]) -> None:
+    def set_source(self, source: Union[str, ImageDataInterface]) -> None:
         """Set the source image."""
-        if isinstance(source, str):
-            self.source = ImageData(source)
-        elif isinstance(source, ImageData):
-            self.source = source
-        else:
-            raise TypeError("source must be a string path or ImageData object")
+        if not BACKEND_AVAILABLE or create_image_data is None:
+            raise ImportError(
+                "SIRF/STIR backend wrappers are not available to load image data"
+            )
+
+        try:
+            self.source = create_image_data(source)
+        except Exception as exc:
+            raise TypeError(
+                "source must be a string path or backend-compatible image object"
+            ) from exc
 
         # Validate and configure geometry
         ImageValidator.validate_square_pixels(self.source)
@@ -248,14 +248,19 @@ class SimindSimulator:
             f"Source configured: {geometry.dim_x}×{geometry.dim_y}×{geometry.dim_z}"
         )
 
-    def set_mu_map(self, mu_map: Union[str, ImageData]) -> None:
+    def set_mu_map(self, mu_map: Union[str, ImageDataInterface]) -> None:
         """Set the attenuation map."""
-        if isinstance(mu_map, str):
-            self.mu_map = ImageData(mu_map)
-        elif isinstance(mu_map, ImageData):
-            self.mu_map = mu_map
-        else:
-            raise TypeError("mu_map must be a string path or ImageData object")
+        if not BACKEND_AVAILABLE or create_image_data is None:
+            raise ImportError(
+                "SIRF/STIR backend wrappers are not available to load attenuation data"
+            )
+
+        try:
+            self.mu_map = create_image_data(mu_map)
+        except Exception as exc:
+            raise TypeError(
+                "mu_map must be a string path or backend-compatible image object"
+            ) from exc
 
         # Validate and configure geometry
         ImageValidator.validate_square_pixels(self.mu_map)
@@ -321,26 +326,29 @@ class SimindSimulator:
         )
 
     def set_template_sinogram(
-        self, template_sinogram: Union[str, AcquisitionData, AcquisitionDataInterface]
+        self, template_sinogram: Union[str, AcquisitionDataInterface]
     ) -> None:
         """Set template sinogram and extract acquisition parameters.
 
         Args:
-            template_sinogram: Either a filepath to .hs header, AcquisitionData object,
-                or AcquisitionDataInterface wrapper
+            template_sinogram: Filepath to .hs header, backend interface, or native
+                acquisition object compatible with the wrapper factory.
         """
         import tempfile
+
+        if not BACKEND_AVAILABLE or create_acquisition_data is None:
+            raise ImportError(
+                "SIRF/STIR backend wrappers are not available to load acquisition data"
+            )
 
         if isinstance(template_sinogram, str):
             # Store filepath directly (backend-agnostic)
             self.template_sinogram_path = template_sinogram
             # Load wrapped object
-            if BACKEND_AVAILABLE:
-                self.template_sinogram = create_acquisition_data(template_sinogram)
-            else:
-                self.template_sinogram = AcquisitionData(template_sinogram)
+            self.template_sinogram = create_acquisition_data(template_sinogram)
+        else:
+            wrapped = create_acquisition_data(template_sinogram)
 
-        elif isinstance(template_sinogram, AcquisitionData):
             # Object provided - write to temp file to get filepath
             temp_file = tempfile.NamedTemporaryFile(
                 mode="w", suffix=".hs", delete=False, dir=str(self.output_dir)
@@ -349,42 +357,41 @@ class SimindSimulator:
             temp_file.close()
 
             # Write object to file
-            template_sinogram.write(temp_path)
+            wrapped.write(temp_path)
             self.template_sinogram_path = temp_path
 
             # Clone the object
-            self.template_sinogram = template_sinogram.clone()
-        else:
-            raise TypeError(
-                "template_sinogram must be a string path or AcquisitionData object"
-            )
+            self.template_sinogram = wrapped.clone()
 
         # Extract parameters from template using filepath (backend-agnostic!)
-        attributes = extract_attributes_from_stir(self.template_sinogram_path)
+        self.attributes = extract_attributes_from_stir(self.template_sinogram_path)
 
         # Set up rotation parameters
         direction = (
             RotationDirection.CCW
-            if attributes["direction_of_rotation"].lower() == "ccw"
+            if self.attributes["direction_of_rotation"].lower() == "ccw"
             else RotationDirection.CW
         )
         self.rotation_params = RotationParameters(
             direction=direction,
-            rotation_angle=attributes["extent_of_rotation"],
-            start_angle=attributes["start_angle"],
-            num_projections=attributes["number_of_projections"],
+            rotation_angle=self.attributes["extent_of_rotation"],
+            start_angle=self.attributes["start_angle"],
+            num_projections=self.attributes["number_of_projections"],
         )
 
         # Configure acquisition
-        detector_distance = attributes["height_to_detector_surface"]
+        detector_distance = self.attributes["height_to_detector_surface"]
         self.acquisition_manager.configure_rotation(
             self.rotation_params, detector_distance
         )
 
         # Handle non-circular orbits
-        if attributes.get("orbit") == "non-circular" and "radii" in attributes:
+        if (
+            self.attributes.get("orbit") == "non-circular"
+            and "radii" in self.attributes
+        ):
             self.non_circular_orbit = True
-            self.orbit_radii = attributes["radii"]
+            self.orbit_radii = self.attributes["radii"]
             self.logger.info("Non-circular orbit detected")
 
         self.logger.info("Template sinogram configured")
@@ -533,13 +540,15 @@ class SimindSimulator:
         self.config.set_data_file(6, source_file)  # source file
         self.config.set_data_file(5, attenuation_file)  # attenuation file
 
-        # Add PX runtime switch with source voxel size
+        # Add PX runtime switch - required for voxelised phantoms
         if self.source:
             voxel_size = self.source.voxel_sizes()[-1]
             self.runtime_switches.set_switch(
                 "PX", voxel_size / SIMIND_VOXEL_UNIT_CONVERSION
             )
             self.logger.info(f"Set PX runtime switch to {voxel_size} cm")
+        else:
+            raise ValidationError("Source image must be set to determine voxel size")
 
         # Save configuration as .smc file for SIMIND execution
         output_path = self.output_dir / self.output_prefix
@@ -589,7 +598,7 @@ class SimindSimulator:
     # OUTPUT METHODS (UNCHANGED)
     # =============================================================================
 
-    def get_outputs(self) -> Dict[str, AcquisitionData]:
+    def get_outputs(self) -> Dict[str, AcquisitionDataInterface]:
         """Get all simulation outputs."""
         if self._outputs is None:
             self._outputs = self.output_processor.process_outputs(
@@ -601,9 +610,7 @@ class SimindSimulator:
         return self._outputs
 
     # Scattwin-specific output methods (existing)
-    def get_total_output(
-        self, window: int = 1
-    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+    def get_total_output(self, window: int = 1) -> AcquisitionDataInterface:
         """Get total output for specified window (scattwin only).
 
         Returns:
@@ -620,9 +627,7 @@ class SimindSimulator:
             raise OutputError(f"Total output for window {window} not found")
         return outputs[key]
 
-    def get_scatter_output(
-        self, window: int = 1
-    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+    def get_scatter_output(self, window: int = 1) -> AcquisitionDataInterface:
         """Get scatter output for specified window (scattwin only).
 
         Returns:
@@ -639,9 +644,7 @@ class SimindSimulator:
             raise OutputError(f"Scatter output for window {window} not found")
         return outputs[key]
 
-    def get_primary_output(
-        self, window: int = 1
-    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+    def get_primary_output(self, window: int = 1) -> AcquisitionDataInterface:
         """Get primary output for specified window (scattwin only).
 
         Returns:
@@ -658,7 +661,7 @@ class SimindSimulator:
             raise OutputError(f"Primary output for window {window} not found")
         return outputs[key]
 
-    def get_air_output(self, window: int = 1) -> AcquisitionData:
+    def get_air_output(self, window: int = 1) -> AcquisitionDataInterface:
         """Get air output for specified window (scattwin only)."""
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError("get_air_output() is only available for scattwin routine")
@@ -672,7 +675,7 @@ class SimindSimulator:
     # Penetrate-specific output methods (new)
     def get_penetrate_output(
         self, component: Union[PenetrateOutputType, str]
-    ) -> Union[AcquisitionData, AcquisitionDataInterface]:
+    ) -> AcquisitionDataInterface:
         """Get penetrate output for specified component.
 
         Returns:
@@ -699,13 +702,13 @@ class SimindSimulator:
 
         return outputs[component_name]
 
-    def get_all_interactions(self) -> AcquisitionData:
+    def get_all_interactions(self) -> AcquisitionDataInterface:
         """Get all interactions output (penetrate routine)."""
         return self.get_penetrate_output(PenetrateOutputType.ALL_INTERACTIONS)
 
     def get_geometrically_collimated_primary(
         self, with_backscatter: bool = False
-    ) -> AcquisitionData:
+    ) -> AcquisitionDataInterface:
         """Get geometrically collimated primary photons."""
         component = (
             PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK
@@ -716,7 +719,7 @@ class SimindSimulator:
 
     def get_septal_penetration(
         self, primary: bool = True, with_backscatter: bool = False
-    ) -> AcquisitionData:
+    ) -> AcquisitionDataInterface:
         """Get septal penetration component."""
         if primary:
             component = (
@@ -734,7 +737,7 @@ class SimindSimulator:
 
     def get_collimator_scatter(
         self, primary: bool = True, with_backscatter: bool = False
-    ) -> AcquisitionData:
+    ) -> AcquisitionDataInterface:
         """Get collimator scatter component."""
         if primary:
             component = (
@@ -768,9 +771,9 @@ class SimindSimulator:
 def create_simulator_from_template(
     config_source: Union[str, SimulationConfig],
     output_dir: str,
-    template_sinogram: Union[str, AcquisitionData],
-    source: Union[str, ImageData],
-    mu_map: Union[str, ImageData],
+    template_sinogram: Union[str, AcquisitionDataInterface],
+    source: Union[str, ImageDataInterface],
+    mu_map: Union[str, ImageDataInterface],
     scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
     energy_windows: Optional[Dict] = None,
     **kwargs,
@@ -800,9 +803,9 @@ def create_simulator_from_template(
 def create_penetrate_simulator(
     config_source: Union[str, SimulationConfig],
     output_dir: str,
-    template_sinogram: Union[str, AcquisitionData],
-    source: Union[str, ImageData],
-    mu_map: Union[str, ImageData],
+    template_sinogram: Union[str, AcquisitionDataInterface],
+    source: Union[str, ImageDataInterface],
+    mu_map: Union[str, ImageDataInterface],
     **kwargs,
 ) -> SimindSimulator:
     """Factory function to create a simulator specifically for penetrate routine."""
@@ -821,9 +824,9 @@ def create_penetrate_simulator(
 def create_scattwin_simulator(
     config_source: Union[str, SimulationConfig],
     output_dir: str,
-    template_sinogram: Union[str, AcquisitionData],
-    source: Union[str, ImageData],
-    mu_map: Union[str, ImageData],
+    template_sinogram: Union[str, AcquisitionDataInterface],
+    source: Union[str, ImageDataInterface],
+    mu_map: Union[str, ImageDataInterface],
     energy_windows: Dict,
     **kwargs,
 ) -> SimindSimulator:

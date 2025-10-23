@@ -690,15 +690,20 @@ class OutputProcessor:
                 key = self._extract_output_key(hs_file.name)
                 if BACKEND_AVAILABLE:
                     # Return wrapped backend-agnostic object
+                    logging.info(f"Loading {hs_file} using backend factory")
                     output[key] = create_acquisition_data(str(hs_file))
                 else:
+                    logging.info(f"Loading {hs_file} using SIRF")
                     output[key] = AcquisitionData(str(hs_file))
             except Exception as e:
                 self.logger.error(f"Failed to load {hs_file}: {e}")
                 continue
 
         if not output:
-            raise OutputError("No valid scattwin output files could be loaded")
+            raise OutputError(
+                f"No valid scattwin output files found with prefix {output_prefix} "
+                f"found in {self.output_dir}"
+            )
 
         self.logger.info(f"Loaded {len(output)} scattwin output files")
         return output

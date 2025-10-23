@@ -18,12 +18,27 @@ Usage:
 """
 
 import logging
-from typing import Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from .base import AcquisitionDataInterface, ImageDataInterface
 
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    try:
+        from sirf.STIR import AcquisitionData, ImageData
+    except ImportError:  # pragma: no cover - for type checkers without SIRF
+        AcquisitionData = Any  # type: ignore[assignment]
+        ImageData = Any  # type: ignore[assignment]
+    try:
+        import stir
+
+        ProjData = stir.ProjData  # type: ignore[attr-defined]
+        FloatVoxelsOnCartesianGrid = stir.FloatVoxelsOnCartesianGrid  # type: ignore[attr-defined]
+    except ImportError:  # pragma: no cover - for type checkers without STIR
+        ProjData = Any  # type: ignore[assignment]
+        FloatVoxelsOnCartesianGrid = Any  # type: ignore[assignment]
 
 # Global backend state
 _backend: Optional[str] = None
@@ -293,9 +308,7 @@ def unwrap(obj: Union[ImageDataInterface, AcquisitionDataInterface]):
     Returns:
         The underlying SIRF or STIR object
     """
-    if hasattr(obj, "native_object"):
-        return obj.native_object
-    return obj
+    return obj.native_object if hasattr(obj, "native_object") else obj
 
 
 __all__ = [
