@@ -1,3 +1,14 @@
+"""
+Tests for CoordinatedProjector (legacy SimindProjector).
+
+NOTE: These tests cover the legacy single-projector interface.
+For new code, prefer using:
+- SimindCoordinator + CoordinatedSubsetProjector (for CIL subset algorithms)
+- StirPsfCoordinator + CoordinatedSubsetProjector (for STIR PSF corrections)
+
+See test_coordinator.py and project examples for new architecture usage.
+"""
+
 import tempfile
 
 import pytest

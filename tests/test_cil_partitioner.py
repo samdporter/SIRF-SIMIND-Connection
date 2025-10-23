@@ -20,6 +20,7 @@ from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.configs import get
 from sirf_simind_connection.core.components import ScoringRoutine
 from sirf_simind_connection.core.coordinator import SimindCoordinator
+from sirf_simind_connection.utils import get_array
 from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,
@@ -176,14 +177,21 @@ class TestPartitionDataWithoutCoordinator:
         """Test that correct number of objectives are created."""
         num_subsets = 6
 
-        objectives, projectors, indices, kl_funcs = partition_data_with_cil_objectives(
+        (
+            objectives,
+            projectors,
+            indices,
+            kl_funcs,
+            subset_smax,
+            eta_min,
+        ) = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
             num_subsets=num_subsets,
             initial_image=basic_phantom,
             create_acq_model=create_acq_model_factory(),
-            simind_coordinator=None,  # No coordinator
+            coordinator=None,  # No coordinator
             mode="staggered",
         )
 
@@ -191,24 +199,35 @@ class TestPartitionDataWithoutCoordinator:
         assert len(projectors) == num_subsets
         assert len(indices) == num_subsets
         assert len(kl_funcs) == num_subsets
+        assert len(subset_smax) == num_subsets
+        assert len(eta_min) == num_subsets
 
     def test_partition_creates_kl_objectives(
         self, measured_data, additive_data, multiplicative_factors, basic_phantom
     ):
         """Test that KL objectives are created."""
-        objectives, _, _, _ = partition_data_with_cil_objectives(
+        (
+            objectives,
+            _,
+            _,
+            _,
+            subset_smax,
+            eta_min,
+        ) = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
             num_subsets=6,
             initial_image=basic_phantom,
             create_acq_model=create_acq_model_factory(),
-            simind_coordinator=None,
+            coordinator=None,
         )
 
         # Each objective should be an OperatorCompositionFunction
         for obj in objectives:
             assert isinstance(obj, OperatorCompositionFunction)
+        assert all(isinstance(val, float) for val in subset_smax)
+        assert all(isinstance(val, float) for val in eta_min)
 
     def test_partition_subset_indices_staggered(
         self, measured_data, additive_data, multiplicative_factors, basic_phantom
@@ -216,7 +235,7 @@ class TestPartitionDataWithoutCoordinator:
         """Test staggered subset index generation."""
         num_subsets = 6
 
-        _, _, indices, _ = partition_data_with_cil_objectives(
+        _, _, indices, _, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
@@ -243,7 +262,7 @@ class TestPartitionDataWithoutCoordinator:
         """Test sequential subset index generation."""
         num_subsets = 6
 
-        _, _, indices, _ = partition_data_with_cil_objectives(
+        _, _, indices, _, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
@@ -262,7 +281,7 @@ class TestPartitionDataWithoutCoordinator:
         self, measured_data, additive_data, multiplicative_factors, basic_phantom
     ):
         """Test partitioning with num_subsets=1."""
-        objectives, projectors, indices, _ = partition_data_with_cil_objectives(
+        objectives, projectors, indices, _, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
@@ -331,14 +350,14 @@ class TestPartitionDataWithCoordinator:
         """Test that SimindSubsetProjector instances are created."""
         from sirf_simind_connection.core.projector import SimindSubsetProjector
 
-        objectives, projectors, indices, _ = partition_data_with_cil_objectives(
+        objectives, projectors, indices, _, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
             num_subsets=6,
             initial_image=basic_phantom,
             create_acq_model=create_acq_model_factory(),
-            simind_coordinator=coordinator,
+            coordinator=coordinator,
         )
 
         # Projectors should be SimindSubsetProjector instances
@@ -356,14 +375,14 @@ class TestPartitionDataWithCoordinator:
         coordinator,
     ):
         """Test that subset indices are passed to SimindSubsetProjector."""
-        _, projectors, indices, _ = partition_data_with_cil_objectives(
+        _, projectors, indices, _, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
             num_subsets=6,
             initial_image=basic_phantom,
             create_acq_model=create_acq_model_factory(),
-            simind_coordinator=coordinator,
+            coordinator=coordinator,
         )
 
         # Each projector should have correct subset indices
@@ -378,7 +397,7 @@ class TestKLDataFunctions:
         self, measured_data, additive_data, multiplicative_factors, basic_phantom
     ):
         """Test that KL data functions are returned."""
-        _, _, _, kl_funcs = partition_data_with_cil_objectives(
+        _, _, _, kl_funcs, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
@@ -389,15 +408,15 @@ class TestKLDataFunctions:
 
         assert len(kl_funcs) == 6
 
-        # Each should be a KullbackLeibler function
+        # Each should be a standard CIL KullbackLeibler function
         for kl_func in kl_funcs:
             assert isinstance(kl_func, KullbackLeibler)
 
-    def test_kl_eta_includes_additive(
+    def test_kl_additive_and_residual_initialisation(
         self, measured_data, additive_data, multiplicative_factors, basic_phantom
     ):
-        """Test that eta parameter includes additive term."""
-        _, _, _, kl_funcs = partition_data_with_cil_objectives(
+        """Test that additive and residual components are initialised correctly."""
+        _, _, _, kl_funcs, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
@@ -406,12 +425,29 @@ class TestKLDataFunctions:
             create_acq_model=create_acq_model_factory(),
         )
 
-        # Each KL function should have eta set
+        # Each KL function should have eta set to the additive term (floored)
         for kl_func in kl_funcs:
-            eta = kl_func.eta
+            eta = getattr(kl_func, "eta", None)
             assert eta is not None
-            # eta should be approximately additive_data (plus epsilon)
-            # Can't easily check exact values without accessing internal state
+            eta_min = float(get_array(eta).min())
+            assert eta_min >= 0.0
+
+    def test_zero_counts_are_floored(
+        self, additive_data, multiplicative_factors, basic_phantom
+    ):
+        """Ensure zero-count measurements are accepted via count flooring."""
+        zero_data = additive_data.get_uniform_copy(0.0)
+
+        _, _, _, kl_funcs, _, _ = partition_data_with_cil_objectives(
+            acquisition_data=zero_data,
+            additive_data=additive_data,
+            multiplicative_factors=multiplicative_factors,
+            num_subsets=3,
+            initial_image=basic_phantom,
+            create_acq_model=create_acq_model_factory(),
+        )
+
+        assert len(kl_funcs) == 3
 
 
 class TestEdgeCases:
@@ -447,7 +483,7 @@ class TestEdgeCases:
                         num_subsets=6,
                         initial_image=basic_phantom,
                         create_acq_model=create_acq_model_factory(),
-                        simind_coordinator=coordinator,
+                        coordinator=coordinator,
                     )
             except (ValueError, AttributeError, TypeError):
                 # Coordinator creation itself caught the error - good!
@@ -459,7 +495,7 @@ class TestEdgeCases:
         """Test with zero additive term."""
         zero_additive = measured_data.get_uniform_copy(0.0)
 
-        objectives, _, _, _ = partition_data_with_cil_objectives(
+        objectives, _, _, _, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=zero_additive,
             multiplicative_factors=multiplicative_factors,
@@ -494,7 +530,7 @@ class TestSVRGObjectiveCreation:
             pytest.skip("SVRG or RDP not available")
 
         # Create objectives
-        objectives, _, _, kl_funcs = partition_data_with_cil_objectives(
+        objectives, _, _, kl_funcs, _, _ = partition_data_with_cil_objectives(
             acquisition_data=measured_data,
             additive_data=additive_data,
             multiplicative_factors=multiplicative_factors,
