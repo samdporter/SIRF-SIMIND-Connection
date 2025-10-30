@@ -461,6 +461,7 @@ class SimindSimulator:
         """
         self.runtime_switches.set_switch(switch, value)
 
+        # TODO: improve handling of regularly used switches
         # Sync collimator to .smc file text_variables
         if switch == "CC":
             self.config.text_variables[1] = str(value)

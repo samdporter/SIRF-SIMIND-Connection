@@ -147,11 +147,29 @@ def test_factory_functions():
     from sirf_simind_connection.backends import (
         create_acquisition_data,
         create_image_data,
+        load_acquisition_data,
+        load_image_data,
     )
 
     # Just test that functions are importable
     assert callable(create_image_data)
     assert callable(create_acquisition_data)
+    assert callable(load_image_data)
+    assert callable(load_acquisition_data)
+
+
+def test_load_functions_invalid_backend():
+    """Ensure load helpers validate backend argument."""
+    from sirf_simind_connection.backends import (
+        load_acquisition_data,
+        load_image_data,
+    )
+
+    with pytest.raises(ValueError, match="Invalid backend"):
+        load_image_data("phantom.hv", backend="invalid")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="Invalid backend"):
+        load_acquisition_data("scan.hs", backend="invalid")  # type: ignore[arg-type]
 
 
 def test_unwrap_function():

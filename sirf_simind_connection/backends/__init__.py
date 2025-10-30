@@ -281,6 +281,64 @@ def create_acquisition_data(
             )
 
 
+def load_image_data(
+    filepath: str, backend: Optional[Literal["sirf", "stir"]] = None
+) -> ImageDataInterface:
+    """Load image data from file for the requested backend.
+
+    Args:
+        filepath: Path to the image header file to load.
+        backend: Optional backend override. If omitted, use auto-detected backend.
+
+    Returns:
+        ImageDataInterface: Wrapped backend-specific image object.
+
+    Raises:
+        ValueError: If backend is explicitly provided but invalid.
+    """
+    backend_to_use = backend or get_backend()
+
+    if backend_to_use == "sirf":
+        from .sirf_backend import SirfImageData
+
+        return SirfImageData.read_from_file(filepath)
+    if backend_to_use == "stir":
+        from .stir_backend import StirImageData
+
+        return StirImageData.read_from_file(filepath)
+
+    raise ValueError("Invalid backend. Expected 'sirf' or 'stir'.")
+
+
+def load_acquisition_data(
+    filepath: str, backend: Optional[Literal["sirf", "stir"]] = None
+) -> AcquisitionDataInterface:
+    """Load acquisition data from file for the requested backend.
+
+    Args:
+        filepath: Path to the acquisition header file to load.
+        backend: Optional backend override. If omitted, use auto-detected backend.
+
+    Returns:
+        AcquisitionDataInterface: Wrapped backend-specific acquisition object.
+
+    Raises:
+        ValueError: If backend is explicitly provided but invalid.
+    """
+    backend_to_use = backend or get_backend()
+
+    if backend_to_use == "sirf":
+        from .sirf_backend import SirfAcquisitionData
+
+        return SirfAcquisitionData.read_from_file(filepath)
+    if backend_to_use == "stir":
+        from .stir_backend import StirAcquisitionData
+
+        return StirAcquisitionData.read_from_file(filepath)
+
+    raise ValueError("Invalid backend. Expected 'sirf' or 'stir'.")
+
+
 def is_sirf_backend() -> bool:
     """Check if SIRF backend is active.
 
@@ -319,6 +377,8 @@ __all__ = [
     "reset_backend",
     "create_image_data",
     "create_acquisition_data",
+    "load_image_data",
+    "load_acquisition_data",
     "is_sirf_backend",
     "is_stir_backend",
     "unwrap",
