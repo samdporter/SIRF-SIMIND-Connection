@@ -308,7 +308,9 @@ def unwrap(obj: Union[ImageDataInterface, AcquisitionDataInterface]):
     Returns:
         The underlying SIRF or STIR object
     """
-    return obj.native_object if hasattr(obj, "native_object") else obj
+    if hasattr(obj, "native_object"):
+        return obj.native_object
+    return obj
 
 
 __all__ = [

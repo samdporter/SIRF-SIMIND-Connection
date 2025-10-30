@@ -196,7 +196,7 @@ class SimulationConfig:
         self.data_files = {}
         self.comment = None
 
-        print(str(filepath))
+        print(filepath)
 
         # Detect file type and load accordingly
         if str(filepath).endswith(".yaml") or str(filepath).endswith(".yml"):
@@ -564,8 +564,6 @@ class SimulationConfig:
         # Update text variables
         if "text_variables" in yaml_dict:
             self.text_variables = yaml_dict["text_variables"]
-
-        print(f"Configuration imported from {f}")
 
     def validate_parameters(self):
         """

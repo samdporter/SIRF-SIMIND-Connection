@@ -13,8 +13,6 @@ def __getattr__(name):
         "io_utils",
         "simind_utils",
         "stir_utils",
-        "step_size_rules",
-        "cil_partitioner",
     ):
         return importlib.import_module(f".{name}", __name__)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
