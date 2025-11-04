@@ -38,14 +38,20 @@ except ImportError:
     ImageData = type(None)
     SIRF_AVAILABLE = False
 
-# Import backend factory for creating acquisition data objects
+# Import backend interfaces and factories
 try:
-    from sirf_simind_connection.backends import create_acquisition_data
+    from sirf_simind_connection.backends import (
+        AcquisitionDataInterface,
+        ImageDataInterface,
+        create_acquisition_data,
+    )
 
     BACKEND_AVAILABLE = True
 except ImportError:
     BACKEND_AVAILABLE = False
     create_acquisition_data = None
+    ImageDataInterface = type(None)  # type: ignore
+    AcquisitionDataInterface = type(None)  # type: ignore
 
 
 # =============================================================================
@@ -65,9 +71,23 @@ class ImageGeometry:
     voxel_z: float  # mm
 
     @classmethod
-    def from_image(cls, image: ImageData) -> "ImageGeometry":
-        if not SIRF_AVAILABLE:
-            raise ImportError("SIRF is required for ImageGeometry.from_image()")
+    def from_image(cls, image) -> "ImageGeometry":
+        """Extract geometry from a backend-agnostic image object.
+
+        Args:
+            image: Image object with dimensions() and voxel_sizes() methods
+                   (supports both SIRF and STIR backends)
+
+        Returns:
+            ImageGeometry: Extracted geometry information
+        """
+        # Use duck typing - works with both SIRF and STIR backend wrappers
+        if not (hasattr(image, 'dimensions') and hasattr(image, 'voxel_sizes')):
+            raise TypeError(
+                f"Image object must have dimensions() and voxel_sizes() methods. "
+                f"Got {type(image)}"
+            )
+
         dims = image.dimensions()
         voxels = image.voxel_sizes()
         return cls(
@@ -149,8 +169,13 @@ class ImageValidator:
     """Validates image inputs for SIMIND simulation."""
 
     @staticmethod
-    def validate_compatibility(image1: ImageData, image2: ImageData) -> None:
-        """Check that two images have compatible geometry."""
+    def validate_compatibility(image1, image2) -> None:
+        """Check that two images have compatible geometry.
+
+        Args:
+            image1: First image object (backend-agnostic)
+            image2: Second image object (backend-agnostic)
+        """
         geom1 = ImageGeometry.from_image(image1)
         geom2 = ImageGeometry.from_image(image2)
 
@@ -169,8 +194,12 @@ class ImageValidator:
             raise ValidationError("Images must have same dimensions")
 
     @staticmethod
-    def validate_square_pixels(image: ImageData) -> None:
-        """Check that image has square pixels."""
+    def validate_square_pixels(image) -> None:
+        """Check that image has square pixels.
+
+        Args:
+            image: Image object (backend-agnostic)
+        """
         geom = ImageGeometry.from_image(image)
         geom.validate_square_pixels()
 
@@ -273,8 +302,16 @@ class DataFileManager:
         self.logger = logging.getLogger(__name__)
         self.temp_files: List[Path] = []
 
-    def prepare_source_file(self, source: ImageData, output_prefix: str) -> str:
-        """Prepare source data file for SIMIND."""
+    def prepare_source_file(self, source, output_prefix: str) -> str:
+        """Prepare source data file for SIMIND.
+
+        Args:
+            source: Source image object (backend-agnostic)
+            output_prefix: Prefix for output filename
+
+        Returns:
+            str: Output file prefix with suffix
+        """
         source_arr = get_array(source)
 
         # Normalize to uint16 range
@@ -293,13 +330,24 @@ class DataFileManager:
 
     def prepare_attenuation_file(
         self,
-        mu_map: ImageData,
+        mu_map,
         output_prefix: str,
         use_attenuation: bool,
         photon_energy: float,
         input_dir: Path,
     ) -> str:
-        """Prepare attenuation data file for SIMIND."""
+        """Prepare attenuation data file for SIMIND.
+
+        Args:
+            mu_map: Attenuation map image object (backend-agnostic)
+            output_prefix: Prefix for output filename
+            use_attenuation: Whether to use attenuation correction
+            photon_energy: Photon energy in keV
+            input_dir: Directory for input files
+
+        Returns:
+            str: Output file prefix with suffix
+        """
         if use_attenuation:
             from sirf_simind_connection.converters.attenuation import (
                 attenuation_to_density,
@@ -487,20 +535,20 @@ class OutputProcessor:
         self,
         output_prefix: str,
         template_sinogram_path: Optional[str] = None,
-        source: Optional[ImageData] = None,
+        source=None,
         scoring_routine: ScoringRoutine = ScoringRoutine.SCATTWIN,
-    ) -> Dict[str, AcquisitionData]:
+    ) -> Dict:
         """
         Process outputs based on the scoring routine used.
 
         Args:
             output_prefix: Prefix used for output files
             template_sinogram_path: Path to template sinogram header file (.hs)
-            source: Source image for geometry reference
+            source: Source image for geometry reference (backend-agnostic)
             scoring_routine: Scoring routine that was used
 
         Returns:
-            Dictionary of output name -> AcquisitionData
+            Dictionary of output name -> AcquisitionDataInterface
         """
 
         if scoring_routine == ScoringRoutine.SCATTWIN:
@@ -520,9 +568,18 @@ class OutputProcessor:
         self,
         output_prefix: str,
         template_sinogram_path: Optional[str],
-        source: Optional[ImageData],
-    ) -> Dict[str, AcquisitionData]:
-        """Process scattwin routine outputs (existing functionality)."""
+        source,
+    ) -> Dict:
+        """Process scattwin routine outputs (existing functionality).
+
+        Args:
+            output_prefix: Prefix used for output files
+            template_sinogram_path: Path to template sinogram header file
+            source: Source image object (backend-agnostic)
+
+        Returns:
+            Dictionary of output name -> AcquisitionDataInterface
+        """
 
         h00_files = self._find_scattwin_output_files(output_prefix)
 
@@ -568,9 +625,15 @@ class OutputProcessor:
         self,
         h00_file: Path,
         template_sinogram_path: Optional[str],
-        source: Optional[ImageData],
+        source,
     ) -> None:
-        """Process a single scattwin output file with corrections."""
+        """Process a single scattwin output file with corrections.
+
+        Args:
+            h00_file: Path to SIMIND output file
+            template_sinogram_path: Path to template sinogram header
+            source: Source image object (backend-agnostic)
+        """
         try:
             # Apply template-based corrections
             if template_sinogram_path:
@@ -655,8 +718,13 @@ class OutputProcessor:
                 f"Failed to apply template corrections to {h00_file}: {e}"
             )
 
-    def _validate_scaling_factors(self, h00_file: Path, source: ImageData) -> None:
-        """Validate and fix scaling factors against source image."""
+    def _validate_scaling_factors(self, h00_file: Path, source) -> None:
+        """Validate and fix scaling factors against source image.
+
+        Args:
+            h00_file: Path to SIMIND output file
+            source: Source image object (backend-agnostic)
+        """
         try:
             # Get voxel size from source image (in mm)
             voxel_size = source.voxel_sizes()[2]  # Get voxel size in z-direction
@@ -679,8 +747,15 @@ class OutputProcessor:
 
     def _load_converted_scattwin_files(
         self, output_prefix: str
-    ) -> Dict[str, AcquisitionData]:
-        """Load all converted scattwin .hs files."""
+    ) -> Dict:
+        """Load all converted scattwin .hs files.
+
+        Args:
+            output_prefix: Prefix used for output files
+
+        Returns:
+            Dictionary of output name -> AcquisitionDataInterface
+        """
         output = {}
         hs_files = list(self.output_dir.glob(f"*{output_prefix}*.hs"))
 
