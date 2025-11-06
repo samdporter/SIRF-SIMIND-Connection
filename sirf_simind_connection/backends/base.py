@@ -291,6 +291,15 @@ class AcquisitionDataInterface(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_energy_window_bounds(self) -> Tuple[float, float]:
+        """Get the energy window bounds for the acquisition.
+
+        Returns:
+            Tuple[float, float]: (lower_threshold, upper_threshold) in keV
+        """
+        pass
+
     @property
     @abstractmethod
     def native_object(self):

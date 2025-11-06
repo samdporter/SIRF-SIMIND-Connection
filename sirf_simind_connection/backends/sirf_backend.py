@@ -229,6 +229,20 @@ class SirfAcquisitionData(AcquisitionDataInterface):
         """Get metadata info."""
         return self._obj.get_info()
 
+    def get_energy_window_bounds(self) -> Tuple[float, float]:
+        """Get the energy window bounds for the acquisition.
+
+        Returns:
+            Tuple[float, float]: (lower_threshold, upper_threshold) in keV
+
+        Raises:
+            NotImplementedError: SIRF backend does not currently support accessing energy window bounds
+        """
+        raise NotImplementedError(
+            "SIRF backend does not currently support accessing energy window bounds. "
+            "Use STIR backend for this functionality."
+        )
+
     def create_uniform_image(self, value: float = 0.0) -> SirfImageData:
         """Create compatible uniform image."""
         img = self._obj.create_uniform_image(value)
