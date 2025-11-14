@@ -195,16 +195,24 @@ class GeometryManager:
         self.config = config_writer
         self.logger = logging.getLogger(__name__)
 
-    def configure_source_geometry(self, geometry: ImageGeometry) -> None:
-        """Configure source image geometry parameters."""
-        # Convert to SIMIND units (cm)
+    @staticmethod
+    def _geometry_scalars(
+        geometry: ImageGeometry,
+    ) -> tuple[float, float, float, float, float]:
         vox_xy_cm = geometry.voxel_x / SIMIND_VOXEL_UNIT_CONVERSION
         vox_z_cm = geometry.voxel_z / SIMIND_VOXEL_UNIT_CONVERSION
+        half_z = geometry.dim_z * vox_z_cm / 2
+        half_x = geometry.dim_x * vox_xy_cm / 2
+        half_y = geometry.dim_y * vox_xy_cm / 2
+        return vox_xy_cm, vox_z_cm, half_z, half_x, half_y
 
-        # Set geometric parameters
-        self.config.set_value(2, vox_z_cm * geometry.dim_z / 2)
-        self.config.set_value(3, vox_xy_cm * geometry.dim_x / 2)
-        self.config.set_value(4, vox_xy_cm * geometry.dim_y / 2)
+    def configure_source_geometry(self, geometry: ImageGeometry) -> None:
+        """Configure source image geometry parameters."""
+        vox_xy_cm, _, half_z, half_x, half_y = self._geometry_scalars(geometry)
+
+        self.config.set_value(2, half_z)
+        self.config.set_value(3, half_x)
+        self.config.set_value(4, half_y)
         self.config.set_value(28, vox_xy_cm)
         self.config.set_value(76, geometry.dim_x)
         self.config.set_value(77, geometry.dim_y)
@@ -215,12 +223,11 @@ class GeometryManager:
 
     def configure_attenuation_geometry(self, geometry: ImageGeometry) -> None:
         """Configure attenuation map geometry parameters."""
-        vox_xy_cm = geometry.voxel_x / SIMIND_VOXEL_UNIT_CONVERSION
-        vox_z_cm = geometry.voxel_z / SIMIND_VOXEL_UNIT_CONVERSION
+        vox_xy_cm, vox_z_cm, half_z, half_x, half_y = self._geometry_scalars(geometry)
 
-        self.config.set_value(5, vox_z_cm * geometry.dim_z / 2)
-        self.config.set_value(6, vox_xy_cm * geometry.dim_x / 2)
-        self.config.set_value(7, vox_xy_cm * geometry.dim_y / 2)
+        self.config.set_value(5, half_z)
+        self.config.set_value(6, half_x)
+        self.config.set_value(7, half_y)
         self.config.set_value(31, vox_xy_cm)
         self.config.set_value(33, 1)
         self.config.set_value(34, geometry.dim_z)

@@ -200,25 +200,34 @@ class TestSimindToStirConverter:
         converter = SimindToStirConverter(config)
         assert converter.config.radius_scale_factor == 1.0
 
-    def test_modify_header_for_binary_uses_enum_metadata(self):
+    def test_penetrate_headers_apply_enum_metadata(self, tmp_path):
         """Ensure penetrate metadata from enum is propagated to headers."""
         converter = SimindToStirConverter()
-        template = "\n".join(
-            [
-                "!name of data file := output.a00",
-                "patient name := phantom",
-                "!study ID := study123",
-                "data description := placeholder",
-                "other := keep",
-            ]
+        h00_file = tmp_path / "output.h00"
+        h00_file.write_text(
+            "\n".join(
+                [
+                    "!name of data file := output.a00",
+                    "patient name := phantom",
+                    "!study ID := study123",
+                    "data description := placeholder",
+                    "!END OF INTERFILE :=",
+                ]
+            )
         )
         component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
-        modified = converter._modify_header_for_binary(
-            template, "output.b12", component
+        binary_file = tmp_path / f"output.b{component.value:02d}"
+        binary_file.write_bytes(b"\x00\x00\x00\x00")
+
+        outputs = converter.create_penetrate_headers_from_template(
+            str(h00_file), "output", str(tmp_path)
         )
-        assert "patient name := coll_scatter_primary_back_output.b12" in modified
-        assert component.description in modified
-        assert converter.config.angle_offset == 180.0
+        header_path = tmp_path / f"output_component_{component.value:02d}.hs"
+        header_text = header_path.read_text()
+
+        assert component.slug in outputs
+        assert f"patient name := {component.slug}_{binary_file.name}" in header_text
+        assert component.description in header_text
 
     def test_convert_line(self):
         """Test single line conversion."""

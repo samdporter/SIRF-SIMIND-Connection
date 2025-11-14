@@ -12,10 +12,11 @@ import tempfile
 
 import numpy as np
 
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+
 from . import get_array
 from .import_helpers import get_sirf_types
 from .interfile_parser import parse_interfile_header, parse_interfile_line
-from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
 # Conditional import for SIRF to avoid CI dependencies
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
@@ -358,62 +359,26 @@ def create_stir_image(matrix_dim: list, voxel_size: list, backend="STIR"):
     Returns [ImageData]: The ImageData object.
 
     """
-    img = np.zeros(matrix_dim, dtype=np.float32)
+    try:
+        from sirf_simind_connection.builders import STIRSPECTImageDataBuilder
+    except ImportError as exc:
+        raise ImportError(
+            "STIRSPECTImageDataBuilder requires SIRF/STIR to be installed"
+        ) from exc
 
-    header = {}
-    header["!INTERFILE"] = ""
-    header["!imaging modality"] = "nucmed"
-    header["!version of keys"] = "STIR4.0"
-
-    header["!GENERAL DATA"] = ""
-    header["!name of data file"] = "temp.v"
-
-    header["!GENERAL IMAGE DATA"] = ""
-    header["!type of data"] = "Tomographic"
-    header["imagedata byte order"] = "LITTLEENDIAN"
-
-    header["!SPECT STUDY (general)"] = ""
-    header["!process status"] = "reconstructed"
-    header["!number format"] = "float"
-    header["!number of bytes per pixel"] = "4"
-    header["number of dimensions"] = str(np.size(img.shape))
-    header["matrix axis label [1]"] = "x"
-    header["matrix axis label [2]"] = "y"
-    header["matrix axis label [3]"] = "z"
-    header["!matrix size [1]"] = str(matrix_dim[2])
-    header["!matrix size [2]"] = str(matrix_dim[1])
-    header["!matrix size [3]"] = str(matrix_dim[0])
-    header["scaling factor (mm/pixel) [1]"] = str(voxel_size[2])
-    header["scaling factor (mm/pixel) [2]"] = str(voxel_size[1])
-    header["scaling factor (mm/pixel) [3]"] = str(voxel_size[0])
-    header["number of time frames"] = "1"
-
-    header["!END OF INTERFILE"] = ""
-
-    line = 0
-    header_path = os.path.join("temp.hv")
-    with open(header_path, "w") as f:
-        for k in header:
-            if k.islower() or line == 0:
-                tempStr = f"{str(k)} := {str(header[str(k)])}" + "\n"
-                line += 1
-            else:
-                tempStr = "\n" + str(k) + " := " + str(header[str(k)]) + "\n"
-            f.write(tempStr)
-            # print(k, ":=", header[str(k)])
-
-    f.close()
-
-    raw_file_path = os.path.join("temp.v")
-    img.tofile(raw_file_path)
-
-    print(f"Image written to: {header_path}")
-
-    template_image = create_image_data(header_path)
-    os.remove(header_path)
-    os.remove(raw_file_path)
-
-    return template_image
+    builder = STIRSPECTImageDataBuilder()
+    builder.update_header(
+        {
+            "!matrix size [1]": str(matrix_dim[2]),
+            "!matrix size [2]": str(matrix_dim[1]),
+            "!matrix size [3]": str(matrix_dim[0]),
+            "scaling factor (mm/pixel) [1]": str(voxel_size[2]),
+            "scaling factor (mm/pixel) [2]": str(voxel_size[1]),
+            "scaling factor (mm/pixel) [3]": str(voxel_size[0]),
+        }
+    )
+    builder.set_pixel_array(np.zeros(matrix_dim, dtype=np.float32))
+    return builder.build()
 
 
 def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: list):
@@ -430,64 +395,27 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
     Returns [AcquisiitonData]: The AcquisitionData object.
 
     """
-    acq = np.zeros(
+    try:
+        from sirf_simind_connection.builders import STIRSPECTAcquisitionDataBuilder
+    except ImportError as exc:
+        raise ImportError(
+            "STIRSPECTAcquisitionDataBuilder requires SIRF/STIR to be installed"
+        ) from exc
+
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.update_header(
+        {
+            "!matrix size [1]": str(proj_matrix[0]),
+            "!matrix size [2]": str(proj_matrix[1]),
+            "!number of projections": str(num_projections),
+            "scaling factor (mm/pixel) [1]": str(pixel_size[0]),
+            "scaling factor (mm/pixel) [2]": str(pixel_size[1]),
+        }
+    )
+    builder.pixel_array = np.zeros(
         (1, proj_matrix[0], num_projections, proj_matrix[1]), dtype=np.float32
     )
-
-    header = {}
-    header["!INTERFILE"] = ""
-    header["!imaging modality"] = "NM"
-    header["name of data file"] = "temp.s"
-    header["!version of keys"] = "3.3"
-
-    header["!GENERAL DATA"] = ""
-
-    header["!GENERAL IMAGE DATA"] = ""
-    header["!type of data"] = "Tomographic"
-    header["imagedata byte order"] = "LITTLEENDIAN"
-
-    header["!SPECT STUDY (General)"] = ""
-    header["!number format"] = "float"
-    header["!number of bytes per pixel"] = "4"
-    header["!number of projections"] = str(num_projections)
-    header["!extent of rotation"] = "360"
-    header["process status"] = "acquired"
-
-    header["!SPECT STUDY (acquired data)"] = ""
-    header["!direction of rotation"] = "CW"
-    header["start angle"] = "180"
-    header["orbit"] = "Circular"
-    header["Radius"] = "200"
-
-    header["!matrix size [1]"] = str(proj_matrix[0])
-    header["scaling factor (mm/pixel) [1]"] = str(pixel_size[0])
-    header["!matrix size [2]"] = str(proj_matrix[1])
-    header["scaling factor (mm/pixel) [2]"] = str(pixel_size[1])
-
-    header["!END OF INTERFILE"] = ""
-
-    header_path = os.path.join("temp.hs")
-    with open(header_path, "w") as f:
-        for k in header:
-            tempStr = f"{str(k)} := {str(header[str(k)])}" + "\n"
-            f.write(tempStr)
-
-    f.close()
-
-    raw_file_path = os.path.join("temp.s")
-    acq.tofile(raw_file_path)
-
-    print(f"Acquisition Data written to: {header_path}")
-
-    if BACKEND_AVAILABLE:
-        # Return wrapped backend-agnostic object
-        template_acqdata = create_acquisition_data(header_path)
-    else:
-        template_acqdata = AcquisitionData(header_path)
-    os.remove(header_path)
-    os.remove(raw_file_path)
-
-    return template_acqdata
+    return builder.build()
 
 
 def create_simple_phantom():

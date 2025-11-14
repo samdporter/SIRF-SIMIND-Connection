@@ -519,9 +519,6 @@ class SimindSimulator:
 
         # Configure energy windows only for scattwin
         if self.scoring_routine == ScoringRoutine.SCATTWIN:
-            if not self.energy_windows:
-                raise ValidationError("Energy windows must be set for scattwin routine")
-
             self.acquisition_manager.configure_energy_windows(
                 self.energy_windows, str(self.output_dir / self.output_prefix)
             )
