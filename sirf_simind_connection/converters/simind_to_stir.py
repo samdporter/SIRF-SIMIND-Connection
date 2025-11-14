@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from sirf_simind_connection.core.types import PenetrateOutputType
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
 
@@ -427,17 +428,19 @@ class SimindToStirConverter:
             template_content = f.read()
 
         # Look for .bXX files and create headers for each
-        for i in range(1, 20):  # b01 to b19
-            binary_file = output_dir / f"{output_prefix}.b{i:02d}"
+        for component in PenetrateOutputType:
+            binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
 
             if binary_file.exists():
                 try:
                     # Create .hs file for this component
-                    component_hs = output_dir / f"{output_prefix}_component_{i:02d}.hs"
+                    component_hs = output_dir / (
+                        f"{output_prefix}_component_{component.value:02d}.hs"
+                    )
 
                     # Modify template content for this specific binary file
                     modified_content = self._modify_header_for_binary(
-                        template_content, binary_file.name, i
+                        template_content, binary_file.name, component
                     )
 
                     # Write the modified header
@@ -451,11 +454,10 @@ class SimindToStirConverter:
                         acquisition_data = AcquisitionData(str(component_hs))
 
                     # Generate component name
-                    component_name = self._get_penetrate_output_name(i)
-                    outputs[component_name] = acquisition_data
+                    outputs[component.slug] = acquisition_data
 
                     self.logger.info(
-                        f"Created STIR header for {component_name}: {component_hs.name}"
+                        f"Created STIR header for {component.slug}: {component_hs.name}"
                     )
 
                 except Exception as e:
@@ -470,7 +472,10 @@ class SimindToStirConverter:
         return outputs
 
     def _modify_header_for_binary(
-        self, template_content: str, binary_filename: str, component_number: int
+        self,
+        template_content: str,
+        binary_filename: str,
+        component: PenetrateOutputType,
     ) -> str:
         """
         Modify template header content to point to specific binary file.
@@ -478,7 +483,7 @@ class SimindToStirConverter:
         Args:
             template_content: Original header content from template
             binary_filename: Name of the .bXX binary file
-            component_number: Component number (1-19)
+            component: PenetrateOutputType entry describing the component
 
         Returns:
             Modified header content
@@ -493,9 +498,8 @@ class SimindToStirConverter:
 
             # Update patient name to include component info
             elif line.startswith("patient name"):
-                component_name = self._get_penetrate_output_name(component_number)
                 modified_lines.append(
-                    f"patient name := {component_name}_{binary_filename}"
+                    f"patient name := {component.slug}_{binary_filename}"
                 )
 
             # Update study ID
@@ -505,69 +509,13 @@ class SimindToStirConverter:
 
             # Update data description to include component info
             elif line.startswith("data description"):
-                component_desc = self._get_penetrate_component_description(
-                    component_number
-                )
-                modified_lines.append(f"data description := {component_desc}")
+                modified_lines.append(f"data description := {component.description}")
 
             else:
                 modified_lines.append(line)
 
         return "\n".join(modified_lines)
 
-    def _get_penetrate_output_name(self, component_number: int) -> str:
-        """Get descriptive name for penetrate output component."""
-        name_mapping = {
-            1: "all_interactions",
-            2: "geom_coll_primary",
-            3: "septal_pen_primary",
-            4: "coll_scatter_primary",
-            5: "coll_xray_primary",
-            6: "geom_coll_scattered",
-            7: "septal_pen_scattered",
-            8: "coll_scatter_scattered",
-            9: "coll_xray_scattered",
-            10: "geom_coll_primary_back",
-            11: "septal_pen_primary_back",
-            12: "coll_scatter_primary_back",
-            13: "coll_xray_primary_back",
-            14: "geom_coll_scattered_back",
-            15: "septal_pen_scattered_back",
-            16: "coll_scatter_scattered_back",
-            17: "coll_xray_scattered_back",
-            18: "unscattered_unattenuated",
-            19: "unscattered_unattenuated_geom_coll",
-        }
-        return name_mapping.get(component_number, f"component_{component_number:02d}")
-
-    def _get_penetrate_component_description(self, component_number: int) -> str:
-        """Get detailed description for penetrate output component."""
-        descriptions = {
-            1: "All type of interactions",
-            2: "Geometrically collimated primary attenuated photons",
-            3: "Septal penetration from primary attenuated photons",
-            4: "Collimator scatter from primary attenuated photons",
-            5: "X-rays from collimator (primary attenuated photons)",
-            6: "Geometrically collimated scattered photons",
-            7: "Septal penetration from scattered photons",
-            8: "Collimator scatter from scattered photons",
-            9: "X-rays from collimator (scattered photons)",
-            10: (
-                "Geometrically collimated primary attenuated photons (with backscatter)"
-            ),
-            11: "Septal penetration from primary attenuated photons (with backscatter)",
-            12: "Collimator scatter from primary attenuated photons (with backscatter)",
-            13: "X-rays from collimator, primary attenuated photons (with backscatter)",
-            14: "Geometrically collimated scattered photons (with backscatter)",
-            15: "Septal penetration from scattered photons (with backscatter)",
-            16: "Collimator scatter from scattered photons (with backscatter)",
-            17: "X-rays from collimator, scattered photons (with backscatter)",
-            18: "Photons without scattering and attenuation in phantom",
-            19: "Photons without scattering/attenuation, geometrically collimated",
-        }
-        return descriptions.get(
-            component_number, f"Penetrate component {component_number}"
-        )
 
     def find_penetrate_h00_file(
         self, output_prefix: str, output_dir: str
@@ -631,11 +579,9 @@ class SimindToStirConverter:
             self.logger.error("File must have .hs or .h00 extension")
             return None
 
-        temp_filename = filename + ".tmp"
-
+        parameter_found = False
         try:
-            with open(filename, "r") as f_in, open(temp_filename, "w") as f_out:
-                parameter_found = False
+            with self._safe_file_operation(filename, filename) as (f_in, f_out):
                 for line in f_in:
                     key, current_value = parse_interfile_line(line)
                     if key == parameter:
@@ -644,13 +590,9 @@ class SimindToStirConverter:
                     else:
                         f_out.write(line)
 
-                if not parameter_found:
-                    self.logger.warning(
-                        f"Parameter '{parameter}' not found in {filename}"
-                    )
+            if not parameter_found:
+                self.logger.warning(f"Parameter '{parameter}' not found in {filename}")
 
-            # Replace original file
-            os.replace(temp_filename, filename)
             self.logger.info(f"Parameter {parameter} set to {value}")
 
             if return_object:
@@ -661,9 +603,6 @@ class SimindToStirConverter:
             return None
 
         except Exception as e:
-            # Clean up temp file if it exists
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
             self.logger.error(f"Error editing parameter in {filename}: {e}")
             raise
 
@@ -688,14 +627,11 @@ class SimindToStirConverter:
             )
             return self.edit_parameter(filename, parameter, value, return_object)
 
-        temp_filename = filename + ".tmp"
         parameter_line = f"{parameter} := {value}\n"
 
         try:
-            with open(filename, "r") as f_in:
+            with self._safe_file_operation(filename, filename) as (f_in, f_out):
                 lines = f_in.readlines()
-
-            with open(temp_filename, "w") as f_out:
                 for i, line in enumerate(lines):
                     if i == line_number:
                         f_out.write(parameter_line)
@@ -705,8 +641,6 @@ class SimindToStirConverter:
                 if len(lines) <= line_number:
                     f_out.write(parameter_line)
 
-            # Replace original file
-            os.replace(temp_filename, filename)
             self.logger.info(
                 f"Parameter {parameter} added with value {value} at line {line_number}"
             )
@@ -719,9 +653,6 @@ class SimindToStirConverter:
             return None
 
         except Exception as e:
-            # Clean up temp file if it exists
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
             self.logger.error(f"Error adding parameter to {filename}: {e}")
             raise
 

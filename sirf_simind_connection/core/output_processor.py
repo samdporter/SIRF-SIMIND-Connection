@@ -320,108 +320,11 @@ class OutputProcessor:
             return f"{scatter_type}_{window}"
         return filename
 
-    def _get_penetrate_output_name(self, component: PenetrateOutputType) -> str:
-        """Get descriptive name for penetrate output component."""
-        name_mapping = {
-            PenetrateOutputType.ALL_INTERACTIONS: "all_interactions",
-            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT: "geom_coll_primary",
-            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT: "septal_pen_primary",
-            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT: "coll_scatter_primary",
-            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT: "coll_xray_primary",
-            PenetrateOutputType.GEOM_COLL_SCATTERED: "geom_coll_scattered",
-            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED: "septal_pen_scattered",
-            PenetrateOutputType.COLL_SCATTER_SCATTERED: "coll_scatter_scattered",
-            PenetrateOutputType.COLL_XRAY_SCATTERED: "coll_xray_scattered",
-            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK: "geom_coll_primary_back",
-            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT_BACK: (
-                "septal_pen_primary_back"
-            ),
-            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK: (
-                "coll_scatter_primary_back"
-            ),
-            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT_BACK: "coll_xray_primary_back",
-            PenetrateOutputType.GEOM_COLL_SCATTERED_BACK: "geom_coll_scattered_back",
-            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED_BACK: (
-                "septal_pen_scattered_back"
-            ),
-            PenetrateOutputType.COLL_SCATTER_SCATTERED_BACK: (
-                "coll_scatter_scattered_back"
-            ),
-            PenetrateOutputType.COLL_XRAY_SCATTERED_BACK: "coll_xray_scattered_back",
-            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED: (
-                "unscattered_unattenuated"
-            ),
-            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL: (
-                "unscattered_unattenuated_geom_coll"
-            ),
-        }
-        return name_mapping.get(component, f"component_{component.value}")
-
     def get_penetrate_component_description(
         self, component: PenetrateOutputType
     ) -> str:
         """Get detailed description for penetrate output component."""
-        descriptions = {
-            PenetrateOutputType.ALL_INTERACTIONS: "All type of interactions",
-            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT: (
-                "Geometrically collimated primary attenuated photons from phantom"
-            ),
-            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT: (
-                "Septal penetration from primary attenuated photons from phantom"
-            ),
-            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT: (
-                "Collimator scatter from primary attenuated photons from phantom"
-            ),
-            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT: (
-                "X-rays from collimator from primary attenuated photons from phantom"
-            ),
-            PenetrateOutputType.GEOM_COLL_SCATTERED: (
-                "Geometrically collimated from scattered photons from phantom"
-            ),
-            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED: (
-                "Septal penetration from scattered photons from phantom"
-            ),
-            PenetrateOutputType.COLL_SCATTER_SCATTERED: (
-                "Collimator scatter from scattered photons from phantom"
-            ),
-            PenetrateOutputType.COLL_XRAY_SCATTERED: (
-                "X-rays from collimator from scattered photons from phantom"
-            ),
-            PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK: (
-                "Geometrically collimated primary attenuated photons (with backscatter)"
-            ),
-            PenetrateOutputType.SEPTAL_PENETRATION_PRIMARY_ATT_BACK: (
-                "Septal penetration from primary attenuated photons (with backscatter)"
-            ),
-            PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK: (
-                "Collimator scatter from primary attenuated photons (with backscatter)"
-            ),
-            PenetrateOutputType.COLL_XRAY_PRIMARY_ATT_BACK: (
-                "X-rays from collimator from primary attenuated photons "
-                "(with backscatter)"
-            ),
-            PenetrateOutputType.GEOM_COLL_SCATTERED_BACK: (
-                "Geometrically collimated scattered photons (with backscatter)"
-            ),
-            PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED_BACK: (
-                "Septal penetration from scattered photons (with backscatter)"
-            ),
-            PenetrateOutputType.COLL_SCATTER_SCATTERED_BACK: (
-                "Collimator scatter from scattered photons (with backscatter)"
-            ),
-            PenetrateOutputType.COLL_XRAY_SCATTERED_BACK: (
-                "X-rays from collimator from scattered photons (with backscatter)"
-            ),
-            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED: (
-                "Photons without scattering and attenuation in phantom"
-            ),
-            PenetrateOutputType.ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL: (
-                "Photons without scattering and attenuation, geometrically collimated"
-            ),
-        }
-        return descriptions.get(
-            component, f"Component {component.value} - see SIMIND manual for details"
-        )
+        return component.description
 
     def list_expected_files(
         self, output_prefix: str, scoring_routine: ScoringRoutine

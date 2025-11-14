@@ -63,27 +63,110 @@ class ScoringRoutine(Enum):
 class PenetrateOutputType(Enum):
     """Enum for different penetrate routine output components."""
 
-    # Without backscatter (*.b10-*.b17)
-    ALL_INTERACTIONS = 1  # *.b01
-    GEOM_COLL_PRIMARY_ATT = 2  # *.b02
-    SEPTAL_PENETRATION_PRIMARY_ATT = 3  # *.b03
-    COLL_SCATTER_PRIMARY_ATT = 4  # *.b04
-    COLL_XRAY_PRIMARY_ATT = 5  # *.b05
-    GEOM_COLL_SCATTERED = 6  # *.b06
-    SEPTAL_PENETRATION_SCATTERED = 7  # *.b07
-    COLL_SCATTER_SCATTERED = 8  # *.b08
-    COLL_XRAY_SCATTERED = 9  # *.b09
+    def __new__(cls, value: int, slug: str, description: str):
+        obj = object.__new__(cls)
+        obj._value_ = value
+        obj.slug = slug
+        obj.description = description
+        return obj
+
+    # Without backscatter (*.b01-*.b09)
+    ALL_INTERACTIONS = (
+        1,
+        "all_interactions",
+        "All type of interactions",
+    )
+    GEOM_COLL_PRIMARY_ATT = (
+        2,
+        "geom_coll_primary",
+        "Geometrically collimated primary attenuated photons",
+    )
+    SEPTAL_PENETRATION_PRIMARY_ATT = (
+        3,
+        "septal_pen_primary",
+        "Septal penetration from primary attenuated photons",
+    )
+    COLL_SCATTER_PRIMARY_ATT = (
+        4,
+        "coll_scatter_primary",
+        "Collimator scatter from primary attenuated photons",
+    )
+    COLL_XRAY_PRIMARY_ATT = (
+        5,
+        "coll_xray_primary",
+        "X-rays from collimator (primary attenuated photons)",
+    )
+    GEOM_COLL_SCATTERED = (
+        6,
+        "geom_coll_scattered",
+        "Geometrically collimated scattered photons",
+    )
+    SEPTAL_PENETRATION_SCATTERED = (
+        7,
+        "septal_pen_scattered",
+        "Septal penetration from scattered photons",
+    )
+    COLL_SCATTER_SCATTERED = (
+        8,
+        "coll_scatter_scattered",
+        "Collimator scatter from scattered photons",
+    )
+    COLL_XRAY_SCATTERED = (
+        9,
+        "coll_xray_scattered",
+        "X-rays from collimator (scattered photons)",
+    )
     # With backscatter (*.b10-*.b17)
-    GEOM_COLL_PRIMARY_ATT_BACK = 10  # *.b10
-    SEPTAL_PENETRATION_PRIMARY_ATT_BACK = 11  # *.b11
-    COLL_SCATTER_PRIMARY_ATT_BACK = 12  # *.b12
-    COLL_XRAY_PRIMARY_ATT_BACK = 13  # *.b13
-    GEOM_COLL_SCATTERED_BACK = 14  # *.b14
-    SEPTAL_PENETRATION_SCATTERED_BACK = 15  # *.b15
-    COLL_SCATTER_SCATTERED_BACK = 16  # *.b16
-    COLL_XRAY_SCATTERED_BACK = 17  # *.b17
-    ALL_UNSCATTERED_UNATTENUATED = 18  # *.b18
-    ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL = 19  # *.b19
+    GEOM_COLL_PRIMARY_ATT_BACK = (
+        10,
+        "geom_coll_primary_back",
+        "Geometrically collimated primary attenuated photons (with backscatter)",
+    )
+    SEPTAL_PENETRATION_PRIMARY_ATT_BACK = (
+        11,
+        "septal_pen_primary_back",
+        "Septal penetration from primary attenuated photons (with backscatter)",
+    )
+    COLL_SCATTER_PRIMARY_ATT_BACK = (
+        12,
+        "coll_scatter_primary_back",
+        "Collimator scatter from primary attenuated photons (with backscatter)",
+    )
+    COLL_XRAY_PRIMARY_ATT_BACK = (
+        13,
+        "coll_xray_primary_back",
+        "X-rays from collimator, primary attenuated photons (with backscatter)",
+    )
+    GEOM_COLL_SCATTERED_BACK = (
+        14,
+        "geom_coll_scattered_back",
+        "Geometrically collimated scattered photons (with backscatter)",
+    )
+    SEPTAL_PENETRATION_SCATTERED_BACK = (
+        15,
+        "septal_pen_scattered_back",
+        "Septal penetration from scattered photons (with backscatter)",
+    )
+    COLL_SCATTER_SCATTERED_BACK = (
+        16,
+        "coll_scatter_scattered_back",
+        "Collimator scatter from scattered photons (with backscatter)",
+    )
+    COLL_XRAY_SCATTERED_BACK = (
+        17,
+        "coll_xray_scattered_back",
+        "X-rays from collimator, scattered photons (with backscatter)",
+    )
+    ALL_UNSCATTERED_UNATTENUATED = (
+        18,
+        "unscattered_unattenuated",
+        "Photons without scattering and attenuation in phantom",
+    )
+    ALL_UNSCATTERED_UNATTENUATED_GEOM_COLL = (
+        19,
+        "unscattered_unattenuated_geom_coll",
+        "Photons without scattering/attenuation, geometrically collimated",
+    )
 
 
 # =============================================================================

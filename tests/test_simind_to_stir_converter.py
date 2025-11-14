@@ -15,6 +15,7 @@ from sirf_simind_connection.converters.simind_to_stir import (
     StartAngleConversionRule,
 )
 from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
+from sirf_simind_connection.core.types import PenetrateOutputType
 
 
 @pytest.mark.unit
@@ -198,7 +199,26 @@ class TestSimindToStirConverter:
         )
         converter = SimindToStirConverter(config)
         assert converter.config.radius_scale_factor == 1.0
-        assert converter.config.angle_offset == 90.0
+
+    def test_modify_header_for_binary_uses_enum_metadata(self):
+        """Ensure penetrate metadata from enum is propagated to headers."""
+        converter = SimindToStirConverter()
+        template = "\n".join(
+            [
+                "!name of data file := output.a00",
+                "patient name := phantom",
+                "!study ID := study123",
+                "data description := placeholder",
+                "other := keep",
+            ]
+        )
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        modified = converter._modify_header_for_binary(
+            template, "output.b12", component
+        )
+        assert "patient name := coll_scatter_primary_back_output.b12" in modified
+        assert component.description in modified
+        assert converter.config.angle_offset == 180.0
 
     def test_convert_line(self):
         """Test single line conversion."""

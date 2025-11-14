@@ -741,10 +741,9 @@ class SimindSimulator:
 
         outputs = self.get_outputs(native=native, preferred_backend=preferred_backend)
 
-        if isinstance(component, PenetrateOutputType):
-            component_name = self.output_processor._get_penetrate_output_name(component)
-        else:
-            component_name = component
+        component_name = component.slug if isinstance(
+            component, PenetrateOutputType
+        ) else component
 
         if component_name not in outputs:
             available = list(outputs.keys())

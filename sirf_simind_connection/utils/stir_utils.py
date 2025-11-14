@@ -4,15 +4,17 @@
 
 ### Author: Sam Porter, Efstathios Varzakis
 
+import contextlib
 import os
 import re
 import subprocess
+import tempfile
 
 import numpy as np
 
 from . import get_array
 from .import_helpers import get_sirf_types
-from .interfile_parser import parse_interfile_header
+from .interfile_parser import parse_interfile_header, parse_interfile_line
 from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
 # Conditional import for SIRF to avoid CI dependencies
@@ -23,16 +25,48 @@ create_acquisition_data = BACKENDS.factories.create_acquisition_data
 create_image_data = BACKENDS.factories.create_image_data
 
 
-def parse_sinogram(template_sinogram):
-    """Parse sinogram metadata by writing to temp file.
-
-    Note: This creates a temporary file. Consider using get_info() method
-    on acquisition data objects for in-memory parsing.
-    """
-    template_sinogram.write("tmp.hs")
-    values = parse_interfile_header("tmp.hs")
-    os.remove("tmp.hs")
+def _parse_interfile_text(text: str):
+    """Parse interfile-formatted text and return a dictionary."""
+    values = {}
+    for line in text.splitlines():
+        key, value = parse_interfile_line(line)
+        if key is not None:
+            values[key] = value
     return values
+
+
+def parse_sinogram(template_sinogram):
+    """Parse sinogram metadata without colliding temp files.
+
+    Accepts either a path to an interfile header or an acquisition object that
+    exposes ``get_info`` or ``write``. The parser reuses the shared
+    ``parse_interfile_header`` helper for consistent behaviour.
+    """
+    if isinstance(template_sinogram, (str, os.PathLike)):
+        return parse_interfile_header(str(template_sinogram))
+
+    if hasattr(template_sinogram, "get_info") and callable(
+        template_sinogram.get_info  # type: ignore[attr-defined]
+    ):
+        return _parse_interfile_text(template_sinogram.get_info())  # type: ignore[attr-defined]
+
+    if hasattr(template_sinogram, "filename"):
+        return parse_interfile_header(template_sinogram.filename)
+
+    if hasattr(template_sinogram, "write") and callable(template_sinogram.write):
+        with tempfile.NamedTemporaryFile(suffix=".hs", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            template_sinogram.write(tmp_path)
+            return parse_interfile_header(tmp_path)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(tmp_path)
+
+    raise TypeError(
+        "template_sinogram must be a path or acquisition object with "
+        "get_info()/write() methods"
+    )
 
 
 def parse_interfile(filename):

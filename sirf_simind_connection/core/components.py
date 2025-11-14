@@ -13,7 +13,6 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from sirf_simind_connection.utils import get_array
-from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
 # Import types that don't depend on SIRF
 from .types import (
@@ -33,13 +32,6 @@ from .types import (
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
-
-# Unpack interfaces needed by components
-create_acquisition_data = BACKENDS.factories.create_acquisition_data
-ensure_acquisition_interface = BACKENDS.wrappers.ensure_acquisition_interface
-ImageDataInterface = BACKENDS.types.ImageDataInterface
-AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
-
 
 # =============================================================================
 # DATA CLASSES
