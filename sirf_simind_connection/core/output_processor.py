@@ -14,22 +14,15 @@ from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-# Import backend interfaces and factories
-try:
-    from sirf_simind_connection.backends import (
-        AcquisitionDataInterface,
-        create_acquisition_data,
-    )
-    from sirf_simind_connection.utils.sirf_stir_utils import (
-        ensure_acquisition_interface,
-    )
+# Import backend interfaces and factories using centralized access
+from sirf_simind_connection.utils.backend_access import get_backend_interfaces
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    create_acquisition_data = None
-    ensure_acquisition_interface = None
-    AcquisitionDataInterface = type(None)  # type: ignore
+BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+
+# Unpack interfaces needed by output processor
+create_acquisition_data = _backends['factories']['create_acquisition_data']
+ensure_acquisition_interface = _backends['wrappers']['ensure_acquisition_interface']
+AcquisitionDataInterface = _backends['types']['AcquisitionDataInterface']
 
 # Import types
 from .types import OutputError, PenetrateOutputType, ScoringRoutine

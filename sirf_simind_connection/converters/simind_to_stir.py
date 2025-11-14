@@ -11,18 +11,14 @@ from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
 # Conditional import for SIRF to avoid CI dependencies
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-# Import backend factory and interfaces for type hints
-try:
-    from sirf_simind_connection.backends import (
-        AcquisitionDataInterface,
-        create_acquisition_data,
-    )
+# Import backend factory and interfaces using centralized access
+from sirf_simind_connection.utils.backend_access import get_backend_interfaces
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    create_acquisition_data = None
-    AcquisitionDataInterface = type(None)
+BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+
+# Unpack interfaces needed by converter
+create_acquisition_data = _backends['factories']['create_acquisition_data']
+AcquisitionDataInterface = _backends['types']['AcquisitionDataInterface']
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

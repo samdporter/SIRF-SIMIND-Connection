@@ -135,9 +135,60 @@ def to_native_acquisition(
     return native
 
 
+def register_and_enforce_backend(
+    detected_backend: Optional[str],
+    current_backend: Optional[str]
+) -> Optional[str]:
+    """Register and enforce backend consistency across simulator inputs.
+
+    This helper manages backend hints and ensures that all inputs to the
+    simulator use the same backend (either SIRF or STIR). Once a backend
+    is detected from the first input, subsequent inputs must match.
+
+    Args:
+        detected_backend: Backend detected from current input ('sirf', 'stir', or None)
+        current_backend: Currently registered backend preference (or None)
+
+    Returns:
+        Updated backend preference (either current_backend or detected_backend)
+
+    Raises:
+        ValueError: If detected_backend conflicts with current_backend
+
+    Example:
+        >>> backend = None
+        >>> backend = register_and_enforce_backend('sirf', backend)  # Returns 'sirf'
+        >>> backend = register_and_enforce_backend('sirf', backend)  # OK, matches
+        >>> backend = register_and_enforce_backend('stir', backend)  # Raises ValueError
+    """
+    if detected_backend:
+        detected_backend = detected_backend.lower()
+
+        # Validate backend name
+        if detected_backend not in ('sirf', 'stir'):
+            raise ValueError(f"Backend must be 'sirf' or 'stir', got {detected_backend!r}")
+
+        # Check for conflicts
+        if current_backend and current_backend != detected_backend:
+            raise ValueError(
+                f"Backend mismatch: simulator already configured for "
+                f"{current_backend.upper()} backend but received "
+                f"{detected_backend.upper()} data."
+            )
+
+        # Register the backend globally
+        current_backend = detected_backend
+        current = get_backend()
+        if current != detected_backend:
+            set_backend(detected_backend)
+
+    return current_backend
+
+
 __all__ = [
     "ensure_image_interface",
     "ensure_acquisition_interface",
     "to_native_image",
     "to_native_acquisition",
+    "register_and_enforce_backend",
 ]

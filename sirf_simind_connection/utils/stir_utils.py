@@ -10,8 +10,6 @@ import subprocess
 
 import numpy as np
 
-from sirf_simind_connection.backends import create_image_data
-
 from . import get_array
 from .import_helpers import get_sirf_types
 from .interfile_parser import parse_interfile_header
@@ -19,14 +17,14 @@ from .interfile_parser import parse_interfile_header
 # Conditional import for SIRF to avoid CI dependencies
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-# Import backend factory for creating acquisition data objects
-try:
-    from sirf_simind_connection.backends import create_acquisition_data
+# Import backend factories using centralized access
+from sirf_simind_connection.utils.backend_access import get_backend_interfaces
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    create_acquisition_data = None
+BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+
+# Unpack interfaces needed by stir_utils
+create_acquisition_data = _backends['factories']['create_acquisition_data']
+create_image_data = _backends['factories']['create_image_data']
 
 
 def parse_sinogram(template_sinogram):

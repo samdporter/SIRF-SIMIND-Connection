@@ -10,36 +10,23 @@ from typing import Any, Dict, List, Optional, Union
 import yaml
 
 
-# Import backend factory and interfaces for type hints
-try:
-    from sirf_simind_connection.backends import (
-        AcquisitionDataInterface,
-        ImageDataInterface,
-        detect_acquisition_backend,
-        detect_backend_from_interface,
-        detect_image_backend,
-        get_backend,
-        set_backend,
-    )
-    from sirf_simind_connection.utils.sirf_stir_utils import (
-        ensure_acquisition_interface,
-        ensure_image_interface,
-        to_native_acquisition,
-    )
+# Import backend factory and interfaces using centralized access
+from sirf_simind_connection.utils.backend_access import get_backend_interfaces
+from sirf_simind_connection.utils.sirf_stir_utils import register_and_enforce_backend
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    ensure_acquisition_interface = None
-    ensure_image_interface = None
-    to_native_acquisition = None
-    detect_image_backend = None
-    detect_acquisition_backend = None
-    detect_backend_from_interface = None
-    get_backend = None
-    set_backend = None
-    AcquisitionDataInterface = type(None)
-    ImageDataInterface = type(None)
+BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+
+# Unpack interfaces needed by simulator
+ensure_acquisition_interface = _backends['wrappers']['ensure_acquisition_interface']
+ensure_image_interface = _backends['wrappers']['ensure_image_interface']
+to_native_acquisition = _backends['wrappers']['to_native_acquisition']
+detect_image_backend = _backends['detection']['detect_image_backend']
+detect_acquisition_backend = _backends['detection']['detect_acquisition_backend']
+detect_backend_from_interface = _backends['detection']['detect_backend_from_interface']
+get_backend = _backends['detection']['get_backend']
+set_backend = _backends['detection']['set_backend']
+AcquisitionDataInterface = _backends['types']['AcquisitionDataInterface']
+ImageDataInterface = _backends['types']['ImageDataInterface']
 
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
@@ -163,21 +150,15 @@ class SimindSimulator:
             self.logger.info("Configured for scattwin scoring routine")
 
     def _register_backend_hint(self, backend: Optional[str]) -> None:
-        """Record backend preference, ensuring we don't mix SIRF and STIR."""
-        if backend is None:
-            return
+        """Record backend preference, ensuring we don't mix SIRF and STIR.
 
-        if self._preferred_backend and self._preferred_backend != backend:
-            raise ValueError(
-                "Simulator already configured for "
-                f"{self._preferred_backend.upper()} backend but received "
-                f"{backend.upper()} data."
+        This method now delegates to the centralized register_and_enforce_backend
+        helper from sirf_stir_utils, eliminating duplicate backend enforcement logic.
+        """
+        if BACKEND_AVAILABLE and register_and_enforce_backend is not None:
+            self._preferred_backend = register_and_enforce_backend(
+                backend, self._preferred_backend
             )
-
-        self._preferred_backend = backend
-        # Ensure the global backend matches our preference
-        if BACKEND_AVAILABLE and set_backend is not None:
-            set_backend(backend)
 
     def _initialize_config(
         self, config_source: Union[str, SimulationConfig]

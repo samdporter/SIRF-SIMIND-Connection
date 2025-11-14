@@ -5,23 +5,18 @@ import numpy as np
 import pydicom
 
 
-# Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData
+# Conditional import for SIRF types
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
-    SIRF_AVAILABLE = True
-except ImportError:
-    AcquisitionData = type(None)
-    SIRF_AVAILABLE = False
+_, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-# Import backend factory for creating acquisition data objects
-try:
-    from sirf_simind_connection.backends import create_acquisition_data
+# Import backend factory using centralized access
+from sirf_simind_connection.utils.backend_access import get_backend_interfaces
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    create_acquisition_data = None
+BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+
+# Unpack interfaces needed by builder
+create_acquisition_data = _backends['factories']['create_acquisition_data']
 
 
 class STIRSPECTAcquisitionDataBuilder:
