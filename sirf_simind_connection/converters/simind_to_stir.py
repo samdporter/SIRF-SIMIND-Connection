@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
+from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
 
 # Conditional import for SIRF to avoid CI dependencies
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
@@ -330,27 +331,6 @@ class SimindToStirConverter:
                 os.remove(temp_file)
             raise
 
-    @staticmethod
-    def _parse_interfile_line(line: str) -> Tuple[Optional[str], Optional[str]]:
-        """Parse an interfile line and return parameter and value."""
-        line = line.strip()
-
-        # Skip comments, empty lines, and section headers
-        if (
-            not line
-            or line.startswith(";")
-            or line.startswith("#")
-            or line.endswith(":=")
-        ):
-            return None, None
-
-        # Handle := separator (preferred)
-        if ":=" in line:
-            key, _, value = line.partition(":=")
-            return key.strip(), value.strip()
-
-        return None, None
-
     def convert_file(
         self,
         input_filename: str,
@@ -635,7 +615,7 @@ class SimindToStirConverter:
         try:
             with open(filename, "r") as f:
                 for line in f:
-                    key, value = self._parse_interfile_line(line)
+                    key, value = parse_interfile_line(line)
                     if key == parameter:
                         return value
         except FileNotFoundError:
@@ -663,7 +643,7 @@ class SimindToStirConverter:
             with open(filename, "r") as f_in, open(temp_filename, "w") as f_out:
                 parameter_found = False
                 for line in f_in:
-                    key, current_value = self._parse_interfile_line(line)
+                    key, current_value = parse_interfile_line(line)
                     if key == parameter:
                         f_out.write(f"{parameter} := {value}\n")
                         parameter_found = True

@@ -14,6 +14,7 @@ from sirf_simind_connection.backends import create_image_data
 
 from . import get_array
 from .import_helpers import get_sirf_types
+from .interfile_parser import parse_interfile_header
 
 # Conditional import for SIRF to avoid CI dependencies
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
@@ -29,31 +30,30 @@ except ImportError:
 
 
 def parse_sinogram(template_sinogram):
+    """Parse sinogram metadata by writing to temp file.
+
+    Note: This creates a temporary file. Consider using get_info() method
+    on acquisition data objects for in-memory parsing.
+    """
     template_sinogram.write("tmp.hs")
-    values = parse_interfile("tmp.hs")
+    values = parse_interfile_header("tmp.hs")
     os.remove("tmp.hs")
     return values
 
 
 def parse_interfile(filename):
-    """
-    Parses STIR interfile file and returns dictionary of key value pairs
+    """Parse STIR interfile and return dictionary of key-value pairs.
+
+    This function is kept for backward compatibility.
+    New code should use parse_interfile_header() from interfile_parser module.
 
     Args:
-        filename (string): file name of interfile file
+        filename: Path to interfile file
 
     Returns:
-        dict: dictionary of key value pairs
+        Dictionary of key-value pairs
     """
-
-    values = {}
-    with open(filename, "r") as file:
-        for line in file:
-            if match := re.search(r"([^;].*?)\s*:=\s*(.*)", line):
-                key = match[1].strip()
-                value = match[2].strip()
-                values[key] = value
-    return values
+    return parse_interfile_header(filename)
 
 
 def get_sirf_attenuation_from_simind(

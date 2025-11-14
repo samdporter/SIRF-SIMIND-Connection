@@ -14,6 +14,7 @@ from sirf_simind_connection.converters.simind_to_stir import (
     SimindToStirConverter,
     StartAngleConversionRule,
 )
+from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
 
 
 @pytest.mark.unit
@@ -212,26 +213,24 @@ class TestSimindToStirConverter:
         assert "180" in line
 
     def test_parse_interfile_line(self):
-        """Test interfile line parsing."""
-        parse = SimindToStirConverter._parse_interfile_line
-
+        """Test interfile line parsing using shared parser."""
         # Test valid parameter line
-        key, value = parse("!matrix size [1] := 128")
+        key, value = parse_interfile_line("!matrix size [1] := 128")
         assert key == "!matrix size [1]"
         assert value == "128"
 
         # Test with spaces
-        key, value = parse("scaling factor (mm/pixel) [1] := 4.419600")
+        key, value = parse_interfile_line("scaling factor (mm/pixel) [1] := 4.419600")
         assert key == "scaling factor (mm/pixel) [1]"
         assert value == "4.419600"
 
         # Test comment line
-        key, value = parse(";# This is a comment")
+        key, value = parse_interfile_line(";# This is a comment")
         assert key is None
         assert value is None
 
         # Test section header
-        key, value = parse("!GENERAL DATA :=")
+        key, value = parse_interfile_line("!GENERAL DATA :=")
         assert key is None
         assert value is None
 
