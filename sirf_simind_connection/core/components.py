@@ -45,11 +45,15 @@ try:
         ImageDataInterface,
         create_acquisition_data,
     )
+    from sirf_simind_connection.utils.sirf_stir_utils import (
+        ensure_acquisition_interface,
+    )
 
     BACKEND_AVAILABLE = True
 except ImportError:
     BACKEND_AVAILABLE = False
     create_acquisition_data = None
+    ensure_acquisition_interface = None
     ImageDataInterface = type(None)  # type: ignore
     AcquisitionDataInterface = type(None)  # type: ignore
 
@@ -537,6 +541,7 @@ class OutputProcessor:
         template_sinogram_path: Optional[str] = None,
         source=None,
         scoring_routine: ScoringRoutine = ScoringRoutine.SCATTWIN,
+        preferred_backend: Optional[str] = None,
     ) -> Dict:
         """
         Process outputs based on the scoring routine used.
@@ -546,6 +551,7 @@ class OutputProcessor:
             template_sinogram_path: Path to template sinogram header file (.hs)
             source: Source image for geometry reference (backend-agnostic)
             scoring_routine: Scoring routine that was used
+            preferred_backend: Backend hint when wrapping acquired data
 
         Returns:
             Dictionary of output name -> AcquisitionDataInterface
@@ -553,11 +559,11 @@ class OutputProcessor:
 
         if scoring_routine == ScoringRoutine.SCATTWIN:
             return self._process_scattwin_outputs(
-                output_prefix, template_sinogram_path, source
+                output_prefix, template_sinogram_path, source, preferred_backend
             )
         elif scoring_routine == ScoringRoutine.PENETRATE:
             return self._process_penetrate_outputs(
-                output_prefix, template_sinogram_path, source
+                output_prefix, template_sinogram_path, source, preferred_backend
             )
         else:
             raise ValueError(
@@ -569,6 +575,7 @@ class OutputProcessor:
         output_prefix: str,
         template_sinogram_path: Optional[str],
         source,
+        preferred_backend: Optional[str],
     ) -> Dict:
         """Process scattwin routine outputs (existing functionality).
 
@@ -591,9 +598,15 @@ class OutputProcessor:
             self._process_single_scattwin_file(h00_file, template_sinogram_path, source)
 
         # Load and organize converted files
-        return self._load_converted_scattwin_files(output_prefix)
+        return self._load_converted_scattwin_files(output_prefix, preferred_backend)
 
-    def _process_penetrate_outputs(self, output_prefix, template_sinogram, source):
+    def _process_penetrate_outputs(
+        self,
+        output_prefix,
+        template_sinogram,
+        source,
+        preferred_backend: Optional[str],
+    ):
         # Find the single .h00 file from penetrate routine
         h00_file = self.converter.find_penetrate_h00_file(
             output_prefix, str(self.output_dir)
@@ -610,6 +623,13 @@ class OutputProcessor:
         if not outputs:
             raise OutputError("No penetrate output files found")
 
+        if preferred_backend and ensure_acquisition_interface is not None:
+            return {
+                name: ensure_acquisition_interface(
+                    data, preferred_backend=preferred_backend
+                )
+                for name, data in outputs.items()
+            }
         return outputs
 
     def _find_scattwin_output_files(self, output_prefix: str) -> List[Path]:
@@ -746,7 +766,7 @@ class OutputProcessor:
             )
 
     def _load_converted_scattwin_files(
-        self, output_prefix: str
+        self, output_prefix: str, preferred_backend: Optional[str]
     ) -> Dict:
         """Load all converted scattwin .hs files.
 
@@ -764,9 +784,13 @@ class OutputProcessor:
                 # Extract scatter type and window from filename
                 key = self._extract_output_key(hs_file.name)
                 if BACKEND_AVAILABLE:
-                    # Return wrapped backend-agnostic object
                     logging.info(f"Loading {hs_file} using backend factory")
-                    output[key] = create_acquisition_data(str(hs_file))
+                    if ensure_acquisition_interface is not None:
+                        output[key] = ensure_acquisition_interface(
+                            str(hs_file), preferred_backend=preferred_backend
+                        )
+                    else:
+                        output[key] = create_acquisition_data(str(hs_file))
                 else:
                     logging.info(f"Loading {hs_file} using SIRF")
                     output[key] = AcquisitionData(str(hs_file))

@@ -5,7 +5,7 @@ Simind Simulator Class.
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
@@ -15,15 +15,29 @@ try:
     from sirf_simind_connection.backends import (
         AcquisitionDataInterface,
         ImageDataInterface,
-        create_acquisition_data,
-        create_image_data,
+        detect_acquisition_backend,
+        detect_backend_from_interface,
+        detect_image_backend,
+        get_backend,
+        set_backend,
+    )
+    from sirf_simind_connection.utils.sirf_stir_utils import (
+        ensure_acquisition_interface,
+        ensure_image_interface,
+        to_native_acquisition,
     )
 
     BACKEND_AVAILABLE = True
 except ImportError:
     BACKEND_AVAILABLE = False
-    create_acquisition_data = None
-    create_image_data = None
+    ensure_acquisition_interface = None
+    ensure_image_interface = None
+    to_native_acquisition = None
+    detect_image_backend = None
+    detect_acquisition_backend = None
+    detect_backend_from_interface = None
+    get_backend = None
+    set_backend = None
     AcquisitionDataInterface = type(None)
     ImageDataInterface = type(None)
 
@@ -128,6 +142,7 @@ class SimindSimulator:
 
         # Results
         self._outputs: Optional[Dict[str, AcquisitionDataInterface]] = None
+        self._preferred_backend: Optional[str] = None
 
         self.logger.info(
             f"Simulator initialized with {self.scoring_routine.name} scoring routine"
@@ -146,6 +161,70 @@ class SimindSimulator:
         else:
             # Default scattwin configuration
             self.logger.info("Configured for scattwin scoring routine")
+
+    def _register_backend_hint(self, backend: Optional[str]) -> Optional[str]:
+        """Record backend preference, ensuring we don't mix SIRF and STIR."""
+        if backend is None:
+            return self._preferred_backend
+
+        if self._preferred_backend and self._preferred_backend != backend:
+            raise ValueError(
+                "Simulator already configured for "
+                f"{self._preferred_backend.upper()} backend but received "
+                f"{backend.upper()} data."
+            )
+
+        self._preferred_backend = backend
+        return backend
+
+    def _detect_backend_from_value(self, value, data_kind: str) -> Optional[str]:
+        """Infer backend from provided value."""
+        if not BACKEND_AVAILABLE:
+            return None
+
+        detector = (
+            detect_image_backend if data_kind == "image" else detect_acquisition_backend
+        )
+        backend = None
+
+        if detector is not None and not isinstance(value, str):
+            backend = detector(value)
+
+        if backend is None and detect_backend_from_interface is not None:
+            if data_kind == "image" and isinstance(value, ImageDataInterface):
+                backend = detect_backend_from_interface(value)
+            elif data_kind == "acquisition" and isinstance(
+                value, AcquisitionDataInterface
+            ):
+                backend = detect_backend_from_interface(value)
+
+        return self._register_backend_hint(backend)
+
+    def _resolve_backend_preference(self, value, data_kind: str) -> Optional[str]:
+        """Resolve which backend should be used for the given value."""
+        hint = self._detect_backend_from_value(value, data_kind)
+        if hint is not None:
+            return hint
+        return self._preferred_backend
+
+    def _ensure_backend_active(self) -> None:
+        """Make sure the globally active backend matches our preference."""
+        if (
+            not BACKEND_AVAILABLE
+            or self._preferred_backend is None
+            or get_backend is None
+            or set_backend is None
+        ):
+            return
+
+        try:
+            active = get_backend()
+        except ImportError:
+            set_backend(self._preferred_backend)
+            return
+
+        if active != self._preferred_backend:
+            set_backend(self._preferred_backend)
 
     def _initialize_config(
         self, config_source: Union[str, SimulationConfig]
@@ -227,13 +306,17 @@ class SimindSimulator:
 
     def set_source(self, source: Union[str, ImageDataInterface]) -> None:
         """Set the source image."""
-        if not BACKEND_AVAILABLE or create_image_data is None:
+        if not BACKEND_AVAILABLE or ensure_image_interface is None:
             raise ImportError(
                 "SIRF/STIR backend wrappers are not available to load image data"
             )
 
         try:
-            self.source = create_image_data(source)
+            backend_pref = self._resolve_backend_preference(source, "image")
+            self.source = ensure_image_interface(
+                source, preferred_backend=backend_pref
+            )
+            self._detect_backend_from_value(self.source, "image")
         except Exception as exc:
             raise TypeError(
                 "source must be a string path or backend-compatible image object"
@@ -250,13 +333,15 @@ class SimindSimulator:
 
     def set_mu_map(self, mu_map: Union[str, ImageDataInterface]) -> None:
         """Set the attenuation map."""
-        if not BACKEND_AVAILABLE or create_image_data is None:
+        if not BACKEND_AVAILABLE or ensure_image_interface is None:
             raise ImportError(
                 "SIRF/STIR backend wrappers are not available to load attenuation data"
             )
 
         try:
-            self.mu_map = create_image_data(mu_map)
+            backend_pref = self._resolve_backend_preference(mu_map, "image")
+            self.mu_map = ensure_image_interface(mu_map, preferred_backend=backend_pref)
+            self._detect_backend_from_value(self.mu_map, "image")
         except Exception as exc:
             raise TypeError(
                 "mu_map must be a string path or backend-compatible image object"
@@ -345,9 +430,19 @@ class SimindSimulator:
             # Store filepath directly (backend-agnostic)
             self.template_sinogram_path = template_sinogram
             # Load wrapped object
-            self.template_sinogram = create_acquisition_data(template_sinogram)
+            backend_pref = self._resolve_backend_preference(
+                template_sinogram, "acquisition"
+            )
+            self.template_sinogram = ensure_acquisition_interface(
+                template_sinogram, preferred_backend=backend_pref
+            )
         else:
-            wrapped = create_acquisition_data(template_sinogram)
+            backend_pref = self._resolve_backend_preference(
+                template_sinogram, "acquisition"
+            )
+            wrapped = ensure_acquisition_interface(
+                template_sinogram, preferred_backend=backend_pref
+            )
 
             # Object provided - write to temp file to get filepath
             temp_file = tempfile.NamedTemporaryFile(
@@ -362,6 +457,8 @@ class SimindSimulator:
 
             # Clone the object
             self.template_sinogram = wrapped.clone()
+
+        self._detect_backend_from_value(self.template_sinogram, "acquisition")
 
         # Extract parameters from template using filepath (backend-agnostic!)
         self.attributes = extract_attributes_from_stir(self.template_sinogram_path)
@@ -599,75 +696,131 @@ class SimindSimulator:
     # OUTPUT METHODS (UNCHANGED)
     # =============================================================================
 
-    def get_outputs(self) -> Dict[str, AcquisitionDataInterface]:
-        """Get all simulation outputs."""
+    def get_outputs(
+        self,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Dict[str, Union[AcquisitionDataInterface, Any]]:
+        """Get all simulation outputs.
+
+        Args:
+            native: When True, return native SIRF/STIR acquisition objects.
+            preferred_backend: Optional backend to enforce when returning native
+                objects. Useful when reading from file paths and you want a
+                specific toolkit representation.
+        """
+        if native:
+            if not BACKEND_AVAILABLE or to_native_acquisition is None:
+                raise ImportError(
+                    "Requesting native outputs requires SIRF/STIR backends."
+                )
+
+            if preferred_backend:
+                preferred_backend = preferred_backend.lower()
+                self._register_backend_hint(preferred_backend)
+
+        self._ensure_backend_active()
+
         if self._outputs is None:
             self._outputs = self.output_processor.process_outputs(
                 self.output_prefix,
                 self.template_sinogram_path,
                 self.source,
                 self.scoring_routine,
+                preferred_backend=self._preferred_backend,
             )
-        return self._outputs
+        if not native:
+            return self._outputs
+
+        target_backend = preferred_backend or self._preferred_backend
+
+        return {
+            key: to_native_acquisition(
+                value,
+                preferred_backend=target_backend,
+                ensure_interface=False,
+            )
+            for key, value in self._outputs.items()
+        }
 
     # Scattwin-specific output methods (existing)
-    def get_total_output(self, window: int = 1) -> AcquisitionDataInterface:
+    def get_total_output(
+        self,
+        window: int = 1,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get total output for specified window (scattwin only).
 
         Returns:
-            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+            Backend-agnostic acquisition data or native object if requested
         """
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError(
                 "get_total_output() is only available for scattwin routine"
             )
 
-        outputs = self.get_outputs()
+        outputs = self.get_outputs(native=native, preferred_backend=preferred_backend)
         key = f"tot_w{window}"
         if key not in outputs:
             raise OutputError(f"Total output for window {window} not found")
         return outputs[key]
 
-    def get_scatter_output(self, window: int = 1) -> AcquisitionDataInterface:
+    def get_scatter_output(
+        self,
+        window: int = 1,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get scatter output for specified window (scattwin only).
 
         Returns:
-            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+            Backend-agnostic acquisition data (wrapped) or native if requested
         """
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError(
                 "get_scatter_output() is only available for scattwin routine"
             )
 
-        outputs = self.get_outputs()
+        outputs = self.get_outputs(native=native, preferred_backend=preferred_backend)
         key = f"sca_w{window}"
         if key not in outputs:
             raise OutputError(f"Scatter output for window {window} not found")
         return outputs[key]
 
-    def get_primary_output(self, window: int = 1) -> AcquisitionDataInterface:
+    def get_primary_output(
+        self,
+        window: int = 1,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get primary output for specified window (scattwin only).
 
         Returns:
-            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+            Backend-agnostic acquisition data or native object if requested
         """
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError(
                 "get_primary_output() is only available for scattwin routine"
             )
 
-        outputs = self.get_outputs()
+        outputs = self.get_outputs(native=native, preferred_backend=preferred_backend)
         key = f"pri_w{window}"
         if key not in outputs:
             raise OutputError(f"Primary output for window {window} not found")
         return outputs[key]
 
-    def get_air_output(self, window: int = 1) -> AcquisitionDataInterface:
+    def get_air_output(
+        self,
+        window: int = 1,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get air output for specified window (scattwin only)."""
         if self.scoring_routine != ScoringRoutine.SCATTWIN:
             raise OutputError("get_air_output() is only available for scattwin routine")
 
-        outputs = self.get_outputs()
+        outputs = self.get_outputs(native=native, preferred_backend=preferred_backend)
         key = f"air_w{window}"
         if key not in outputs:
             raise OutputError(f"Air output for window {window} not found")
@@ -675,19 +828,22 @@ class SimindSimulator:
 
     # Penetrate-specific output methods (new)
     def get_penetrate_output(
-        self, component: Union[PenetrateOutputType, str]
-    ) -> AcquisitionDataInterface:
+        self,
+        component: Union[PenetrateOutputType, str],
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get penetrate output for specified component.
 
         Returns:
-            Backend-agnostic acquisition data (wrapped if backend available, native otherwise)
+            Backend-agnostic acquisition data (wrapped) or native if requested
         """
         if self.scoring_routine != ScoringRoutine.PENETRATE:
             raise OutputError(
                 "get_penetrate_output() is only available for penetrate routine"
             )
 
-        outputs = self.get_outputs()
+        outputs = self.get_outputs(native=native, preferred_backend=preferred_backend)
 
         if isinstance(component, PenetrateOutputType):
             component_name = self.output_processor._get_penetrate_output_name(component)
@@ -703,24 +859,39 @@ class SimindSimulator:
 
         return outputs[component_name]
 
-    def get_all_interactions(self) -> AcquisitionDataInterface:
+    def get_all_interactions(
+        self, native: bool = False, preferred_backend: Optional[str] = None
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get all interactions output (penetrate routine)."""
-        return self.get_penetrate_output(PenetrateOutputType.ALL_INTERACTIONS)
+        return self.get_penetrate_output(
+            PenetrateOutputType.ALL_INTERACTIONS,
+            native=native,
+            preferred_backend=preferred_backend,
+        )
 
     def get_geometrically_collimated_primary(
-        self, with_backscatter: bool = False
-    ) -> AcquisitionDataInterface:
+        self,
+        with_backscatter: bool = False,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get geometrically collimated primary photons."""
         component = (
             PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK
             if with_backscatter
             else PenetrateOutputType.GEOM_COLL_PRIMARY_ATT
         )
-        return self.get_penetrate_output(component)
+        return self.get_penetrate_output(
+            component, native=native, preferred_backend=preferred_backend
+        )
 
     def get_septal_penetration(
-        self, primary: bool = True, with_backscatter: bool = False
-    ) -> AcquisitionDataInterface:
+        self,
+        primary: bool = True,
+        with_backscatter: bool = False,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get septal penetration component."""
         if primary:
             component = (
@@ -734,11 +905,17 @@ class SimindSimulator:
                 if with_backscatter
                 else PenetrateOutputType.SEPTAL_PENETRATION_SCATTERED
             )
-        return self.get_penetrate_output(component)
+        return self.get_penetrate_output(
+            component, native=native, preferred_backend=preferred_backend
+        )
 
     def get_collimator_scatter(
-        self, primary: bool = True, with_backscatter: bool = False
-    ) -> AcquisitionDataInterface:
+        self,
+        primary: bool = True,
+        with_backscatter: bool = False,
+        native: bool = False,
+        preferred_backend: Optional[str] = None,
+    ) -> Union[AcquisitionDataInterface, Any]:
         """Get collimator scatter component."""
         if primary:
             component = (
@@ -752,7 +929,9 @@ class SimindSimulator:
                 if with_backscatter
                 else PenetrateOutputType.COLL_SCATTER_SCATTERED
             )
-        return self.get_penetrate_output(component)
+        return self.get_penetrate_output(
+            component, native=native, preferred_backend=preferred_backend
+        )
 
     def list_available_outputs(self) -> List[str]:
         """List all available output components for the current scoring routine."""
