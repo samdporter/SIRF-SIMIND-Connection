@@ -31,6 +31,7 @@ ImageDataInterface = _backends['types']['ImageDataInterface']
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
 
+from .backend_adapter import BackendInputAdapter
 from .components import (  # Exceptions; Data classes; Managers and processors;
     # Constants
     SIMIND_VOXEL_UNIT_CONVERSION,
@@ -98,6 +99,9 @@ class SimindSimulator:
         self.runtime_switches = RuntimeSwitches()
         self.runtime_switches.set_switch("NN", photon_multiplier)
 
+        # Initialize backend adapter for consistent input handling
+        self.backend_adapter = BackendInputAdapter()
+
         # Initialize components with enhanced output processor
         self.converter = SimindToStirConverter()
         self.geometry_manager = GeometryManager(self.config)
@@ -129,7 +133,6 @@ class SimindSimulator:
 
         # Results
         self._outputs: Optional[Dict[str, AcquisitionDataInterface]] = None
-        self._preferred_backend: Optional[str] = None
 
         self.logger.info(
             f"Simulator initialized with {self.scoring_routine.name} scoring routine"
@@ -149,16 +152,14 @@ class SimindSimulator:
             # Default scattwin configuration
             self.logger.info("Configured for scattwin scoring routine")
 
-    def _register_backend_hint(self, backend: Optional[str]) -> None:
-        """Record backend preference, ensuring we don't mix SIRF and STIR.
+    @property
+    def _preferred_backend(self) -> Optional[str]:
+        """Get the preferred backend from the adapter.
 
-        This method now delegates to the centralized register_and_enforce_backend
-        helper from sirf_stir_utils, eliminating duplicate backend enforcement logic.
+        This property maintains backward compatibility for code that accessed
+        _preferred_backend directly, while delegating to the BackendInputAdapter.
         """
-        if BACKEND_AVAILABLE and register_and_enforce_backend is not None:
-            self._preferred_backend = register_and_enforce_backend(
-                backend, self._preferred_backend
-            )
+        return self.backend_adapter.get_preferred_backend()
 
     def _initialize_config(
         self, config_source: Union[str, SimulationConfig]
@@ -239,28 +240,13 @@ class SimindSimulator:
     # =============================================================================
 
     def set_source(self, source: Union[str, ImageDataInterface]) -> None:
-        """Set the source image."""
-        if not BACKEND_AVAILABLE or ensure_image_interface is None:
-            raise ImportError(
-                "SIRF/STIR backend wrappers are not available to load image data"
-            )
+        """Set the source image.
 
+        The backend adapter handles detection, wrapping, and consistency enforcement.
+        """
         try:
-            # Detect backend from the provided value
-            if not isinstance(source, str):
-                backend = detect_image_backend(source)
-                if backend is None and isinstance(source, ImageDataInterface):
-                    backend = detect_backend_from_interface(source)
-                self._register_backend_hint(backend)
-
-            # Use preferred backend if we have one, otherwise let the backend module decide
-            self.source = ensure_image_interface(
-                source, preferred_backend=self._preferred_backend
-            )
-
-            # Register the backend from the wrapped result
-            backend = detect_backend_from_interface(self.source)
-            self._register_backend_hint(backend)
+            # Adapter handles all backend detection, wrapping, and enforcement
+            self.source = self.backend_adapter.wrap_image(source)
         except Exception as exc:
             raise TypeError(
                 "source must be a string path or backend-compatible image object"
@@ -276,26 +262,13 @@ class SimindSimulator:
         )
 
     def set_mu_map(self, mu_map: Union[str, ImageDataInterface]) -> None:
-        """Set the attenuation map."""
-        if not BACKEND_AVAILABLE or ensure_image_interface is None:
-            raise ImportError(
-                "SIRF/STIR backend wrappers are not available to load attenuation data"
-            )
+        """Set the attenuation map.
 
+        The backend adapter handles detection, wrapping, and consistency enforcement.
+        """
         try:
-            # Detect backend from the provided value
-            if not isinstance(mu_map, str):
-                backend = detect_image_backend(mu_map)
-                if backend is None and isinstance(mu_map, ImageDataInterface):
-                    backend = detect_backend_from_interface(mu_map)
-                self._register_backend_hint(backend)
-
-            # Use preferred backend if we have one
-            self.mu_map = ensure_image_interface(mu_map, preferred_backend=self._preferred_backend)
-
-            # Register the backend from the wrapped result
-            backend = detect_backend_from_interface(self.mu_map)
-            self._register_backend_hint(backend)
+            # Adapter handles all backend detection, wrapping, and enforcement
+            self.mu_map = self.backend_adapter.wrap_image(mu_map)
         except Exception as exc:
             raise TypeError(
                 "mu_map must be a string path or backend-compatible image object"
@@ -369,34 +342,24 @@ class SimindSimulator:
     ) -> None:
         """Set template sinogram and extract acquisition parameters.
 
+        The backend adapter handles detection, wrapping, and consistency enforcement.
+
         Args:
             template_sinogram: Filepath to .hs header, backend interface, or native
                 acquisition object compatible with the wrapper factory.
         """
         import tempfile
 
-        if not BACKEND_AVAILABLE or create_acquisition_data is None:
-            raise ImportError(
-                "SIRF/STIR backend wrappers are not available to load acquisition data"
-            )
-
         if isinstance(template_sinogram, str):
             # Store filepath directly (backend-agnostic)
             self.template_sinogram_path = template_sinogram
-            # Load wrapped object
-            self.template_sinogram = ensure_acquisition_interface(
-                template_sinogram, preferred_backend=self._preferred_backend
+            # Adapter handles wrapping with backend consistency
+            self.template_sinogram = self.backend_adapter.wrap_acquisition(
+                template_sinogram
             )
         else:
-            # Detect backend from the provided value
-            backend = detect_acquisition_backend(template_sinogram)
-            if backend is None and isinstance(template_sinogram, AcquisitionDataInterface):
-                backend = detect_backend_from_interface(template_sinogram)
-            self._register_backend_hint(backend)
-
-            wrapped = ensure_acquisition_interface(
-                template_sinogram, preferred_backend=self._preferred_backend
-            )
+            # Adapter handles all backend detection, wrapping, and enforcement
+            wrapped = self.backend_adapter.wrap_acquisition(template_sinogram)
 
             # Object provided - write to temp file to get filepath
             temp_file = tempfile.NamedTemporaryFile(
@@ -411,10 +374,6 @@ class SimindSimulator:
 
             # Clone the object
             self.template_sinogram = wrapped.clone()
-
-        # Register the backend from the wrapped result
-        backend = detect_backend_from_interface(self.template_sinogram)
-        self._register_backend_hint(backend)
 
         # Extract parameters from template using filepath (backend-agnostic!)
         self.attributes = extract_attributes_from_stir(self.template_sinogram_path)
