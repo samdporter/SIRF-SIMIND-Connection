@@ -9,16 +9,9 @@ from typing import Tuple, Union
 
 import numpy as np
 
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
-try:
-    from sirf.STIR import AcquisitionData, ImageData
-
-    SIRF_AVAILABLE = True
-except ImportError:
-    SIRF_AVAILABLE = False
-    # Create dummy types
-    ImageData = type(None)
-    AcquisitionData = type(None)
+ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 from .base import AcquisitionDataInterface, ImageDataInterface
 

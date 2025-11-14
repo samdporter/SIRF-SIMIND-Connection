@@ -29,14 +29,9 @@ from .types import (
 
 
 # Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData, ImageData
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
-    SIRF_AVAILABLE = True
-except ImportError:
-    AcquisitionData = type(None)
-    ImageData = type(None)
-    SIRF_AVAILABLE = False
+ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend interfaces and factories
 try:

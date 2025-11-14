@@ -13,18 +13,10 @@ import numpy as np
 from sirf_simind_connection.backends import create_image_data
 
 from . import get_array
-
+from .import_helpers import get_sirf_types
 
 # Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData, ImageData
-
-    SIRF_AVAILABLE = True
-except ImportError:
-    # Create dummy types for type hints when SIRF is not available
-    AcquisitionData = type(None)
-    ImageData = type(None)
-    SIRF_AVAILABLE = False
+ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend factory for creating acquisition data objects
 try:
@@ -112,40 +104,6 @@ def get_sirf_attenuation_from_simind(
         image.fill(attn / 1000 * photopeak_energy)
 
     return image
-
-
-def get_sirf_sinogram_from_simind(
-    simind_header_filepath, script_path=".", circular=True
-):
-    """
-
-    ** DEPRECATED METHOD - may still be useful down the line so retained for now **
-
-
-    Reads sinogram data from simind header file and returns SIRF AcquisitionData object
-    Outputs sinogram with counts/MBq/s as units
-
-    Args:
-        simind_header_filepath (string): file name of simind header file
-        script_path (string, optional): path to simind conversion scripts.
-            Defaults to ".".
-        circular (bool, optional): whether to use circular or non-circular
-            conversion script. Defaults to True.
-    Returns:
-        AcquisitionData: SIRF AcquisitionData object containing sinogram data
-    """
-
-    if circular:
-        script = os.path.join(script_path, "convertSIMINDToSTIR.sh")
-    else:
-        script = os.path.join(script_path, "convertSIMINDToSTIR_noncirc.sh")
-    subprocess.run(["sh", os.path.join(script_path, script), simind_header_filepath])
-
-    if BACKEND_AVAILABLE:
-        # Return wrapped backend-agnostic object
-        return create_acquisition_data(f"{simind_header_filepath[:-4]}.hs")
-    else:
-        return AcquisitionData(f"{simind_header_filepath[:-4]}.hs")
 
 
 def convert_value(val: str):

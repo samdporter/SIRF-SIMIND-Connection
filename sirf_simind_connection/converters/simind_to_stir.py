@@ -5,15 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
 # Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData
-
-    SIRF_AVAILABLE = True
-except ImportError:
-    AcquisitionData = type(None)
-    SIRF_AVAILABLE = False
+_, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend factory and interfaces for type hints
 try:

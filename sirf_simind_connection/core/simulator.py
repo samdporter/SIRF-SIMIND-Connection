@@ -162,10 +162,10 @@ class SimindSimulator:
             # Default scattwin configuration
             self.logger.info("Configured for scattwin scoring routine")
 
-    def _register_backend_hint(self, backend: Optional[str]) -> Optional[str]:
+    def _register_backend_hint(self, backend: Optional[str]) -> None:
         """Record backend preference, ensuring we don't mix SIRF and STIR."""
         if backend is None:
-            return self._preferred_backend
+            return
 
         if self._preferred_backend and self._preferred_backend != backend:
             raise ValueError(
@@ -175,56 +175,9 @@ class SimindSimulator:
             )
 
         self._preferred_backend = backend
-        return backend
-
-    def _detect_backend_from_value(self, value, data_kind: str) -> Optional[str]:
-        """Infer backend from provided value."""
-        if not BACKEND_AVAILABLE:
-            return None
-
-        detector = (
-            detect_image_backend if data_kind == "image" else detect_acquisition_backend
-        )
-        backend = None
-
-        if detector is not None and not isinstance(value, str):
-            backend = detector(value)
-
-        if backend is None and detect_backend_from_interface is not None:
-            if data_kind == "image" and isinstance(value, ImageDataInterface):
-                backend = detect_backend_from_interface(value)
-            elif data_kind == "acquisition" and isinstance(
-                value, AcquisitionDataInterface
-            ):
-                backend = detect_backend_from_interface(value)
-
-        return self._register_backend_hint(backend)
-
-    def _resolve_backend_preference(self, value, data_kind: str) -> Optional[str]:
-        """Resolve which backend should be used for the given value."""
-        hint = self._detect_backend_from_value(value, data_kind)
-        if hint is not None:
-            return hint
-        return self._preferred_backend
-
-    def _ensure_backend_active(self) -> None:
-        """Make sure the globally active backend matches our preference."""
-        if (
-            not BACKEND_AVAILABLE
-            or self._preferred_backend is None
-            or get_backend is None
-            or set_backend is None
-        ):
-            return
-
-        try:
-            active = get_backend()
-        except ImportError:
-            set_backend(self._preferred_backend)
-            return
-
-        if active != self._preferred_backend:
-            set_backend(self._preferred_backend)
+        # Ensure the global backend matches our preference
+        if BACKEND_AVAILABLE and set_backend is not None:
+            set_backend(backend)
 
     def _initialize_config(
         self, config_source: Union[str, SimulationConfig]
@@ -312,11 +265,21 @@ class SimindSimulator:
             )
 
         try:
-            backend_pref = self._resolve_backend_preference(source, "image")
+            # Detect backend from the provided value
+            if not isinstance(source, str):
+                backend = detect_image_backend(source)
+                if backend is None and isinstance(source, ImageDataInterface):
+                    backend = detect_backend_from_interface(source)
+                self._register_backend_hint(backend)
+
+            # Use preferred backend if we have one, otherwise let the backend module decide
             self.source = ensure_image_interface(
-                source, preferred_backend=backend_pref
+                source, preferred_backend=self._preferred_backend
             )
-            self._detect_backend_from_value(self.source, "image")
+
+            # Register the backend from the wrapped result
+            backend = detect_backend_from_interface(self.source)
+            self._register_backend_hint(backend)
         except Exception as exc:
             raise TypeError(
                 "source must be a string path or backend-compatible image object"
@@ -339,9 +302,19 @@ class SimindSimulator:
             )
 
         try:
-            backend_pref = self._resolve_backend_preference(mu_map, "image")
-            self.mu_map = ensure_image_interface(mu_map, preferred_backend=backend_pref)
-            self._detect_backend_from_value(self.mu_map, "image")
+            # Detect backend from the provided value
+            if not isinstance(mu_map, str):
+                backend = detect_image_backend(mu_map)
+                if backend is None and isinstance(mu_map, ImageDataInterface):
+                    backend = detect_backend_from_interface(mu_map)
+                self._register_backend_hint(backend)
+
+            # Use preferred backend if we have one
+            self.mu_map = ensure_image_interface(mu_map, preferred_backend=self._preferred_backend)
+
+            # Register the backend from the wrapped result
+            backend = detect_backend_from_interface(self.mu_map)
+            self._register_backend_hint(backend)
         except Exception as exc:
             raise TypeError(
                 "mu_map must be a string path or backend-compatible image object"
@@ -430,18 +403,18 @@ class SimindSimulator:
             # Store filepath directly (backend-agnostic)
             self.template_sinogram_path = template_sinogram
             # Load wrapped object
-            backend_pref = self._resolve_backend_preference(
-                template_sinogram, "acquisition"
-            )
             self.template_sinogram = ensure_acquisition_interface(
-                template_sinogram, preferred_backend=backend_pref
+                template_sinogram, preferred_backend=self._preferred_backend
             )
         else:
-            backend_pref = self._resolve_backend_preference(
-                template_sinogram, "acquisition"
-            )
+            # Detect backend from the provided value
+            backend = detect_acquisition_backend(template_sinogram)
+            if backend is None and isinstance(template_sinogram, AcquisitionDataInterface):
+                backend = detect_backend_from_interface(template_sinogram)
+            self._register_backend_hint(backend)
+
             wrapped = ensure_acquisition_interface(
-                template_sinogram, preferred_backend=backend_pref
+                template_sinogram, preferred_backend=self._preferred_backend
             )
 
             # Object provided - write to temp file to get filepath
@@ -458,7 +431,9 @@ class SimindSimulator:
             # Clone the object
             self.template_sinogram = wrapped.clone()
 
-        self._detect_backend_from_value(self.template_sinogram, "acquisition")
+        # Register the backend from the wrapped result
+        backend = detect_backend_from_interface(self.template_sinogram)
+        self._register_backend_hint(backend)
 
         # Extract parameters from template using filepath (backend-agnostic!)
         self.attributes = extract_attributes_from_stir(self.template_sinogram_path)
@@ -718,8 +693,6 @@ class SimindSimulator:
             if preferred_backend:
                 preferred_backend = preferred_backend.lower()
                 self._register_backend_hint(preferred_backend)
-
-        self._ensure_backend_active()
 
         if self._outputs is None:
             self._outputs = self.output_processor.process_outputs(
