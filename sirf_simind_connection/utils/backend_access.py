@@ -9,6 +9,7 @@ and wrappers) are centralized here, with proper fallback handling when backends
 are unavailable.
 """
 
+from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
 
@@ -101,4 +102,18 @@ def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
         }
 
 
-__all__ = ['get_backend_interfaces']
+def _to_namespace(mapping: Dict[str, Any]) -> SimpleNamespace:
+    """Convert a dictionary to a SimpleNamespace (handles None gracefully)."""
+    return SimpleNamespace(**(mapping or {}))
+
+
+BACKEND_AVAILABLE, _interfaces = get_backend_interfaces()
+BACKENDS = SimpleNamespace(
+    factories=_to_namespace(_interfaces.get('factories', {})),
+    types=_to_namespace(_interfaces.get('types', {})),
+    wrappers=_to_namespace(_interfaces.get('wrappers', {})),
+    detection=_to_namespace(_interfaces.get('detection', {})),
+)
+
+
+__all__ = ['get_backend_interfaces', 'BACKEND_AVAILABLE', 'BACKENDS']

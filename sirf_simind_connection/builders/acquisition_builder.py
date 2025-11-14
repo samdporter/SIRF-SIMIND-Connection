@@ -11,12 +11,10 @@ from sirf_simind_connection.utils.import_helpers import get_sirf_types
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend factory using centralized access
-from sirf_simind_connection.utils.backend_access import get_backend_interfaces
-
-BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
 # Unpack interfaces needed by builder
-create_acquisition_data = _backends['factories']['create_acquisition_data']
+create_acquisition_data = BACKENDS.factories.create_acquisition_data
 
 
 class STIRSPECTAcquisitionDataBuilder:

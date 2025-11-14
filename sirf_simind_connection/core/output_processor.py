@@ -15,14 +15,13 @@ from sirf_simind_connection.utils.import_helpers import get_sirf_types
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend interfaces and factories using centralized access
-from sirf_simind_connection.utils.backend_access import get_backend_interfaces
-
-BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
 
 # Unpack interfaces needed by output processor
-create_acquisition_data = _backends['factories']['create_acquisition_data']
-ensure_acquisition_interface = _backends['wrappers']['ensure_acquisition_interface']
-AcquisitionDataInterface = _backends['types']['AcquisitionDataInterface']
+create_acquisition_data = BACKENDS.factories.create_acquisition_data
+ensure_acquisition_interface = BACKENDS.wrappers.ensure_acquisition_interface
+AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
 
 # Import types
 from .types import OutputError, PenetrateOutputType, ScoringRoutine
@@ -189,10 +188,6 @@ class OutputProcessor:
         """
         try:
             # Extract attributes from template sinogram (backend-agnostic!)
-            from sirf_simind_connection.utils.stir_utils import (
-                extract_attributes_from_stir,
-            )
-
             attributes = extract_attributes_from_stir(template_sinogram_path)
 
             # Template correction 1: Set acquisition time (projections × time per

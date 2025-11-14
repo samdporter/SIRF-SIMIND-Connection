@@ -12,13 +12,11 @@ from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend factory and interfaces using centralized access
-from sirf_simind_connection.utils.backend_access import get_backend_interfaces
-
-BACKEND_AVAILABLE, _backends = get_backend_interfaces()
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
 # Unpack interfaces needed by converter
-create_acquisition_data = _backends['factories']['create_acquisition_data']
-AcquisitionDataInterface = _backends['types']['AcquisitionDataInterface']
+create_acquisition_data = BACKENDS.factories.create_acquisition_data
+AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")

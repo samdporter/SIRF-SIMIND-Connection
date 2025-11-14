@@ -13,18 +13,14 @@ import numpy as np
 from . import get_array
 from .import_helpers import get_sirf_types
 from .interfile_parser import parse_interfile_header
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
 # Conditional import for SIRF to avoid CI dependencies
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-# Import backend factories using centralized access
-from sirf_simind_connection.utils.backend_access import get_backend_interfaces
-
-BACKEND_AVAILABLE, _backends = get_backend_interfaces()
-
 # Unpack interfaces needed by stir_utils
-create_acquisition_data = _backends['factories']['create_acquisition_data']
-create_image_data = _backends['factories']['create_image_data']
+create_acquisition_data = BACKENDS.factories.create_acquisition_data
+create_image_data = BACKENDS.factories.create_image_data
 
 
 def parse_sinogram(template_sinogram):
@@ -125,15 +121,10 @@ def convert_value(val: str):
         return val
 
 
-# PLEASE NOTE that the following functions are far from perfect and things may
-# have been missed
-### The naming converntions are a bit funny so there needs to be some cleaning up
-
 STIR_ATTRIBUTE_MAPPING = {
     "number_of_views": "number_of_projections",
     "azimuthal_angle_extent": "extent_of_rotation",
     "view_offset": "start_angle",
-    "calibration_factor": "calibration_factor",
     "radionuclide": "isotope_name",
     "energy_window_lower": "energy_window_lower",
     "energy_window_upper": "energy_window_upper",
@@ -146,23 +137,13 @@ STIR_ATTRIBUTE_MAPPING = {
 
 
 def harmonize_stir_attributes(attributes: dict) -> dict:
-    """
-    Standardizes STIR attributes by renaming fields according to STIR_ATTRIBUTE_MAPPING.
-
-    Args:
-        attributes (dict): Extracted attributes from STIR header file or get_info().
-
-    Returns:
-        dict: Standardized attribute dictionary.
-    """
+    """Apply canonical naming and derived values to raw STIR attributes."""
     harmonized_attributes = {}
+
     for key, value in attributes.items():
-        standard_key = STIR_ATTRIBUTE_MAPPING.get(
-            key, key
-        )  # Rename if mapping exists, otherwise keep original
+        standard_key = STIR_ATTRIBUTE_MAPPING.get(key, key)
         harmonized_attributes[standard_key] = value
 
-    # Special derived attributes
     if "inner_ring_diameter" in harmonized_attributes:
         harmonized_attributes["height_to_detector_surface"] = (
             harmonized_attributes["inner_ring_diameter"] / 2
@@ -172,23 +153,7 @@ def harmonize_stir_attributes(attributes: dict) -> dict:
 
 
 def extract_attributes_from_stir(header_filepath: str) -> dict:
-    """
-    Extract attributes from STIR header file.
-
-    This function is backend-agnostic and only works with header files (.hs),
-    not with acquisition data objects. If you have an acquisition data object,
-    write it to a file first using .write() method.
-
-    Args:
-        header_filepath: Path to STIR header file (.hs)
-
-    Returns:
-        dict: Extracted attributes including orbit and radii data
-
-    Raises:
-        ValueError: If input is not a string filepath
-        FileNotFoundError: If header file doesn't exist
-    """
+    """Extract attributes from a STIR header file (.hs)."""
     if not isinstance(header_filepath, str):
         raise ValueError(
             f"extract_attributes_from_stir() only accepts string filepaths. "
@@ -200,26 +165,12 @@ def extract_attributes_from_stir(header_filepath: str) -> dict:
 
 
 def extract_attributes_from_stir_headerfile(filename: str) -> dict:
-    """
-    Parse a STIR header file and extract relevant attributes.
-
-    Parameters
-    ----------
-    filename : str
-        Path to the header file.
-
-    Returns
-    -------
-    dict
-        Dictionary of extracted attributes.
-    """
+    """Parse a STIR header file and extract relevant attributes."""
     attributes = {
         "matrix_sizes": {},
         "scaling_factors": {},
     }
 
-    # Define generic patterns: each tuple contains (compiled regex, converter,
-    # attribute key)
     patterns = [
         (
             re.compile(r"!imaging modality\s*:=\s*(.+)", re.IGNORECASE),
@@ -328,24 +279,21 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
                 attributes["scaling_factors"][axis] = float(sf_match[2].strip())
                 continue
 
-            # Process orbit/radius information.
             if re.search(r"(radius|radii)\s*:=\s*(.+)", line, re.IGNORECASE):
                 r_match = re.search(r"(radius|radii)\s*:=\s*(.+)", line, re.IGNORECASE)
                 tmp = r_match[2].strip()
                 if tmp.startswith("{") and tmp.endswith("}") or "," in tmp:
-                    # Remove braces and split by comma.
                     tmp = tmp.strip("{}")
                     values = [float(v.strip()) for v in tmp.split(",")]
-                    mean_value = np.mean(values)
+                    mean_value = float(np.mean(values))
                     std_of_mean_value = np.std(values) / mean_value
-                    # If the radii vary, flag non-circular orbit.
                     if std_of_mean_value > 1e-6:
                         attributes["orbit"] = "non-circular"
                         attributes["radii"] = values
                         attributes["height_to_detector_surface"] = mean_value
                     else:
                         attributes["orbit"] = "Circular"
-                    attributes["height_to_detector_surface"] = mean_value
+                        attributes["height_to_detector_surface"] = mean_value
                 else:
                     attributes["orbit"] = "Circular"
                     attributes["height_to_detector_surface"] = float(tmp)
@@ -355,10 +303,9 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
                 attributes["orbit"] = orbit_match[1].strip()
                 continue
 
-            # Try generic patterns.
             for pattern, converter, attr_key in patterns:
-                if m := pattern.search(line):
-                    attributes[attr_key] = converter(m)
+                if match := pattern.search(line):
+                    attributes[attr_key] = converter(match)
                     break
 
     return harmonize_stir_attributes(attributes)

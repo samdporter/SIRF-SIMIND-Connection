@@ -8,20 +8,17 @@ previously duplicated across set_source, set_mu_map, and set_template_sinogram.
 
 from typing import Optional, Union
 
-from sirf_simind_connection.utils.backend_access import get_backend_interfaces
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 from sirf_simind_connection.utils.sirf_stir_utils import register_and_enforce_backend
 
-# Get backend interfaces
-BACKEND_AVAILABLE, _backends = get_backend_interfaces()
-
 # Unpack needed interfaces
-ensure_image_interface = _backends['wrappers']['ensure_image_interface']
-ensure_acquisition_interface = _backends['wrappers']['ensure_acquisition_interface']
-detect_image_backend = _backends['detection']['detect_image_backend']
-detect_acquisition_backend = _backends['detection']['detect_acquisition_backend']
-detect_backend_from_interface = _backends['detection']['detect_backend_from_interface']
-ImageDataInterface = _backends['types']['ImageDataInterface']
-AcquisitionDataInterface = _backends['types']['AcquisitionDataInterface']
+ensure_image_interface = BACKENDS.wrappers.ensure_image_interface
+ensure_acquisition_interface = BACKENDS.wrappers.ensure_acquisition_interface
+detect_image_backend = BACKENDS.detection.detect_image_backend
+detect_acquisition_backend = BACKENDS.detection.detect_acquisition_backend
+detect_backend_from_interface = BACKENDS.detection.detect_backend_from_interface
+ImageDataInterface = BACKENDS.types.ImageDataInterface
+AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
 
 
 class BackendInputAdapter:
@@ -134,6 +131,17 @@ class BackendInputAdapter:
         Returns:
             Preferred backend name or None if not yet determined
         """
+        return self.preferred_backend
+
+    def enforce_backend(self, backend_hint: Optional[str]) -> Optional[str]:
+        """Force a backend preference (e.g., when callers request native outputs)."""
+        if backend_hint is None:
+            return self.preferred_backend
+
+        normalized = backend_hint.lower()
+        self.preferred_backend = register_and_enforce_backend(
+            normalized, self.preferred_backend
+        )
         return self.preferred_backend
 
 
