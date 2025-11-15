@@ -99,7 +99,7 @@ def detect_acquisition_backend(obj: Any) -> Optional[str]:
 
 
 def detect_backend_from_interface(
-    obj: Union[ImageDataInterface, AcquisitionDataInterface, Any]
+    obj: Union[ImageDataInterface, AcquisitionDataInterface, Any],
 ) -> Optional[str]:
     """Detect backend by unwrapping known interface objects."""
     native = getattr(obj, "native_object", None)

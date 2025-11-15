@@ -46,11 +46,7 @@ def test_temporary_directory_context_manager():
 @pytest.mark.unit
 def test_parse_sinogram_from_path(tmp_path):
     header = tmp_path / "template.hs"
-    header.write_text(
-        "!INTERFILE :=\n"
-        "!matrix size [1] := 64\n"
-        "start angle := 180\n"
-    )
+    header.write_text("!INTERFILE :=\n!matrix size [1] := 64\nstart angle := 180\n")
 
     values = parse_sinogram(header)
     assert values["!matrix size [1]"] == "64"

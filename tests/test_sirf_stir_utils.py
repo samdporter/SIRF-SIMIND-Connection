@@ -54,4 +54,3 @@ def test_to_native_acquisition_prefers_unwrap(monkeypatch):
     )
 
     assert result is native
-

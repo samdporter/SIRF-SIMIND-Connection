@@ -9,9 +9,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
-
 # Import backend factory and interfaces using centralized access
 from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+
 
 to_native_acquisition = BACKENDS.wrappers.to_native_acquisition
 AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
@@ -738,9 +738,9 @@ class SimindSimulator:
 
         outputs = self.get_outputs(native=native, preferred_backend=preferred_backend)
 
-        component_name = component.slug if isinstance(
-            component, PenetrateOutputType
-        ) else component
+        component_name = (
+            component.slug if isinstance(component, PenetrateOutputType) else component
+        )
 
         if component_name not in outputs:
             available = list(outputs.keys())

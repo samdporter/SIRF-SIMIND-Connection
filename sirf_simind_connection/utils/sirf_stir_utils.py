@@ -23,6 +23,7 @@ from sirf_simind_connection.backends import (
     unwrap,
 )
 
+
 image_like = Union[str, ImageDataInterface, Any]
 acquisition_like = Union[str, AcquisitionDataInterface, Any]
 
@@ -107,9 +108,7 @@ def to_native_image(
         expected = _validate_backend_name(preferred_backend)
         actual = detect_image_backend(native)
         if actual and actual != expected:
-            raise ValueError(
-                f"Image native backend is {actual}, expected {expected}"
-            )
+            raise ValueError(f"Image native backend is {actual}, expected {expected}")
     return native
 
 
@@ -136,8 +135,7 @@ def to_native_acquisition(
 
 
 def register_and_enforce_backend(
-    detected_backend: Optional[str],
-    current_backend: Optional[str]
+    detected_backend: Optional[str], current_backend: Optional[str]
 ) -> Optional[str]:
     """Register and enforce backend consistency across simulator inputs.
 
@@ -165,8 +163,10 @@ def register_and_enforce_backend(
         detected_backend = detected_backend.lower()
 
         # Validate backend name
-        if detected_backend not in ('sirf', 'stir'):
-            raise ValueError(f"Backend must be 'sirf' or 'stir', got {detected_backend!r}")
+        if detected_backend not in ("sirf", "stir"):
+            raise ValueError(
+                f"Backend must be 'sirf' or 'stir', got {detected_backend!r}"
+            )
 
         # Check for conflicts
         if current_backend and current_backend != detected_backend:

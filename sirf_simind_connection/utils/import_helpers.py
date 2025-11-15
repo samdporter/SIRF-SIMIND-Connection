@@ -18,6 +18,7 @@ def get_sirf_types() -> Tuple[Type, Type, bool]:
     """
     try:
         from sirf.STIR import AcquisitionData, ImageData
+
         return ImageData, AcquisitionData, True
     except ImportError:
         return type(None), type(None), False
@@ -32,6 +33,7 @@ def get_stir_types() -> Tuple[Type, Type, bool]:
     """
     try:
         import stir
+
         return stir.FloatVoxelsOnCartesianGrid, stir.ProjData, True
     except ImportError:
         return type(None), type(None), False

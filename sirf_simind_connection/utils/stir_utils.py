@@ -7,16 +7,16 @@
 import contextlib
 import os
 import re
-import subprocess
 import tempfile
 
 import numpy as np
 
-from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+from sirf_simind_connection.utils.backend_access import BACKENDS
 
 from . import get_array
 from .import_helpers import get_sirf_types
 from .interfile_parser import parse_interfile_header, parse_interfile_line
+
 
 # Conditional import for SIRF to avoid CI dependencies
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()

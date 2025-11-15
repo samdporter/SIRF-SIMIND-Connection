@@ -10,11 +10,13 @@ import pydicom
 # Conditional import for SIRF types
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
+
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend factory using centralized access
 from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 from sirf_simind_connection.utils.io_utils import temporary_directory
+
 
 # Unpack interfaces needed by builder
 create_acquisition_data = BACKENDS.factories.create_acquisition_data

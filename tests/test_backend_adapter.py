@@ -32,7 +32,9 @@ def _install_fake_backend(monkeypatch):
     monkeypatch.setattr(adapter_mod, "ensure_acquisition_interface", fake_ensure)
     monkeypatch.setattr(adapter_mod, "detect_image_backend", fake_detector)
     monkeypatch.setattr(adapter_mod, "detect_acquisition_backend", fake_detector)
-    monkeypatch.setattr(adapter_mod, "detect_backend_from_interface", lambda obj: obj.backend)
+    monkeypatch.setattr(
+        adapter_mod, "detect_backend_from_interface", lambda obj: obj.backend
+    )
     monkeypatch.setattr(adapter_mod, "ImageDataInterface", DummyInterface)
     monkeypatch.setattr(adapter_mod, "AcquisitionDataInterface", DummyInterface)
 

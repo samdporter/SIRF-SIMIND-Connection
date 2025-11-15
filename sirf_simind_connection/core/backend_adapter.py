@@ -11,6 +11,7 @@ from typing import Any, Callable, Optional, Type, Union
 from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 from sirf_simind_connection.utils.sirf_stir_utils import register_and_enforce_backend
 
+
 # Unpack needed interfaces
 ensure_image_interface = BACKENDS.wrappers.ensure_image_interface
 ensure_acquisition_interface = BACKENDS.wrappers.ensure_acquisition_interface
@@ -42,8 +43,7 @@ class BackendInputAdapter:
         self.preferred_backend: Optional[str] = None
 
     def wrap_image(
-        self,
-        image: Union[str, ImageDataInterface, Any]
+        self, image: Union[str, ImageDataInterface, Any]
     ) -> ImageDataInterface:
         """Detect backend, enforce consistency, and wrap image input.
 
@@ -68,8 +68,7 @@ class BackendInputAdapter:
         )
 
     def wrap_acquisition(
-        self,
-        acquisition: Union[str, AcquisitionDataInterface, Any]
+        self, acquisition: Union[str, AcquisitionDataInterface, Any]
     ) -> AcquisitionDataInterface:
         """Detect backend, enforce consistency, and wrap acquisition input.
 
@@ -136,7 +135,9 @@ class BackendInputAdapter:
         wrapped = ensure_fn(value, preferred_backend=self.preferred_backend)
 
         backend = (
-            detect_backend_from_interface(wrapped) if detect_backend_from_interface else None
+            detect_backend_from_interface(wrapped)
+            if detect_backend_from_interface
+            else None
         )
         self.preferred_backend = register_and_enforce_backend(
             backend, self.preferred_backend
@@ -144,4 +145,4 @@ class BackendInputAdapter:
         return wrapped
 
 
-__all__ = ['BackendInputAdapter']
+__all__ = ["BackendInputAdapter"]

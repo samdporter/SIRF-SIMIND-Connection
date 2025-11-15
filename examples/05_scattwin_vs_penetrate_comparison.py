@@ -139,7 +139,12 @@ def main(collimator="megp", source_type="y90_tissue"):
     axes[0, 3].axis("off")
 
     # PENETRATE plots (bottom row) - show key components
-    pen_keys = ["all_interactions", "geom_coll_primary", "geom_coll_scattered", "septal_pen_primary"]
+    pen_keys = [
+        "all_interactions",
+        "geom_coll_primary",
+        "geom_coll_scattered",
+        "septal_pen_primary",
+    ]
     for i, key in enumerate(pen_keys):
         if key in pen_outputs:
             axes[1, i].imshow(get_array(pen_outputs[key])[0, :, 32, :], cmap="plasma")
@@ -161,8 +166,21 @@ def main(collimator="megp", source_type="y90_tissue"):
     scatt_scatter_color = cm.Reds(0.6)  # Mid red
 
     # Total bar is stacked (primary + scatter)
-    ax1.bar("Total", scatt_primary_sum, color=scatt_primary_color, alpha=0.9, label="Primary")
-    ax1.bar("Total", scatt_scatter_sum, bottom=scatt_primary_sum, color=scatt_scatter_color, alpha=0.9, label="Scatter")
+    ax1.bar(
+        "Total",
+        scatt_primary_sum,
+        color=scatt_primary_color,
+        alpha=0.9,
+        label="Primary",
+    )
+    ax1.bar(
+        "Total",
+        scatt_scatter_sum,
+        bottom=scatt_primary_sum,
+        color=scatt_scatter_color,
+        alpha=0.9,
+        label="Scatter",
+    )
 
     # Individual bars for primary and scatter
     ax1.bar("Primary", scatt_primary_sum, color=scatt_primary_color, alpha=0.9)
@@ -234,12 +252,28 @@ def main(collimator="megp", source_type="y90_tissue"):
         if comp_slug in pen_outputs:
             val = pen_outputs[comp_slug].sum()
             if val > 0:
-                ax2.bar(x_pos, val, bottom=bottom, color=color, alpha=0.9, width=0.8, label=f"Primary: {label}")
+                ax2.bar(
+                    x_pos,
+                    val,
+                    bottom=bottom,
+                    color=color,
+                    alpha=0.9,
+                    width=0.8,
+                    label=f"Primary: {label}",
+                )
                 bottom += val
 
     # Add total primary backscatter layer (b10-b13) on top of primary
     if primary_backscatter_total > 0:
-        ax2.bar(x_pos, primary_backscatter_total, bottom=bottom, color=primary_backscatter_color, alpha=0.9, width=0.8, label="Primary Backscatter")
+        ax2.bar(
+            x_pos,
+            primary_backscatter_total,
+            bottom=bottom,
+            color=primary_backscatter_color,
+            alpha=0.9,
+            width=0.8,
+            label="Primary Backscatter",
+        )
         bottom += primary_backscatter_total
 
     # Now stack scatter components (b06-b09)
@@ -247,12 +281,28 @@ def main(collimator="megp", source_type="y90_tissue"):
         if comp_slug in pen_outputs:
             val = pen_outputs[comp_slug].sum()
             if val > 0:
-                ax2.bar(x_pos, val, bottom=bottom, color=color, alpha=0.9, width=0.8, label=f"Scatter: {label}")
+                ax2.bar(
+                    x_pos,
+                    val,
+                    bottom=bottom,
+                    color=color,
+                    alpha=0.9,
+                    width=0.8,
+                    label=f"Scatter: {label}",
+                )
                 bottom += val
 
     # Add total scatter backscatter layer (b14-b17) on top
     if scatter_backscatter_total > 0:
-        ax2.bar(x_pos, scatter_backscatter_total, bottom=bottom, color=scatter_backscatter_color, alpha=0.9, width=0.8, label="Scatter Backscatter")
+        ax2.bar(
+            x_pos,
+            scatter_backscatter_total,
+            bottom=bottom,
+            color=scatter_backscatter_color,
+            alpha=0.9,
+            width=0.8,
+            label="Scatter Backscatter",
+        )
         bottom += scatter_backscatter_total
 
     # Bar 1: Primary only
@@ -269,7 +319,14 @@ def main(collimator="megp", source_type="y90_tissue"):
 
     # Add total primary backscatter layer (b10-b13)
     if primary_backscatter_total > 0:
-        ax2.bar(x_pos, primary_backscatter_total, bottom=bottom, color=primary_backscatter_color, alpha=0.9, width=0.8)
+        ax2.bar(
+            x_pos,
+            primary_backscatter_total,
+            bottom=bottom,
+            color=primary_backscatter_color,
+            alpha=0.9,
+            width=0.8,
+        )
         bottom += primary_backscatter_total
 
     # Bar 2: Scatter only
@@ -286,7 +343,14 @@ def main(collimator="megp", source_type="y90_tissue"):
 
     # Add total scatter backscatter layer (b14-b17)
     if scatter_backscatter_total > 0:
-        ax2.bar(x_pos, scatter_backscatter_total, bottom=bottom, color=scatter_backscatter_color, alpha=0.9, width=0.8)
+        ax2.bar(
+            x_pos,
+            scatter_backscatter_total,
+            bottom=bottom,
+            color=scatter_backscatter_color,
+            alpha=0.9,
+            width=0.8,
+        )
         bottom += scatter_backscatter_total
 
     ax2.set_xticks(range(3))
@@ -294,7 +358,7 @@ def main(collimator="megp", source_type="y90_tissue"):
     ax2.set_title("PENETRATE Count Components (Stacked)")
     ax2.set_ylabel("Counts")
     ax2.ticklabel_format(style="scientific", axis="y", scilimits=(0, 0))
-    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=8)
 
     plt.tight_layout()
     plt.savefig(output_dir / "count_comparison.png", dpi=150, bbox_inches="tight")

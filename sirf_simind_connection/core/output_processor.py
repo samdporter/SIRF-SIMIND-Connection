@@ -12,11 +12,13 @@ from typing import Dict, List, Optional
 
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
+
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend interfaces and factories using centralized access
 from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
+
 
 # Unpack interfaces needed by output processor
 create_acquisition_data = BACKENDS.factories.create_acquisition_data

@@ -5,10 +5,10 @@ This module provides consistent parsing for STIR interfile header files,
 eliminating duplicate parsing logic across the codebase.
 """
 
+import re
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
 
-import re
 
 Number = Union[tuple, list, float, int, str]
 
@@ -33,12 +33,7 @@ def parse_interfile_line(line: str) -> Tuple[Optional[str], Optional[str]]:
     line = line.strip()
 
     # Skip comments, empty lines, and section headers
-    if (
-        not line
-        or line.startswith(";")
-        or line.startswith("#")
-        or line.endswith(":=")
-    ):
+    if not line or line.startswith(";") or line.startswith("#") or line.endswith(":="):
         return None, None
 
     # Handle := separator (preferred)

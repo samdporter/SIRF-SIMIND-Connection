@@ -10,7 +10,7 @@ are unavailable.
 """
 
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 
 def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
@@ -53,52 +53,52 @@ def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
         )
 
         return True, {
-            'factories': {
-                'create_acquisition_data': create_acquisition_data,
-                'create_image_data': create_image_data,
+            "factories": {
+                "create_acquisition_data": create_acquisition_data,
+                "create_image_data": create_image_data,
             },
-            'types': {
-                'AcquisitionDataInterface': AcquisitionDataInterface,
-                'ImageDataInterface': ImageDataInterface,
+            "types": {
+                "AcquisitionDataInterface": AcquisitionDataInterface,
+                "ImageDataInterface": ImageDataInterface,
             },
-            'wrappers': {
-                'ensure_acquisition_interface': ensure_acquisition_interface,
-                'ensure_image_interface': ensure_image_interface,
-                'to_native_acquisition': to_native_acquisition,
-                'to_native_image': to_native_image,
+            "wrappers": {
+                "ensure_acquisition_interface": ensure_acquisition_interface,
+                "ensure_image_interface": ensure_image_interface,
+                "to_native_acquisition": to_native_acquisition,
+                "to_native_image": to_native_image,
             },
-            'detection': {
-                'detect_acquisition_backend': detect_acquisition_backend,
-                'detect_image_backend': detect_image_backend,
-                'detect_backend_from_interface': detect_backend_from_interface,
-                'get_backend': get_backend,
-                'set_backend': set_backend,
-            }
+            "detection": {
+                "detect_acquisition_backend": detect_acquisition_backend,
+                "detect_image_backend": detect_image_backend,
+                "detect_backend_from_interface": detect_backend_from_interface,
+                "get_backend": get_backend,
+                "set_backend": set_backend,
+            },
         }
     except ImportError:
         # Return fallback stubs when backends are unavailable
         return False, {
-            'factories': {
-                'create_acquisition_data': None,
-                'create_image_data': None,
+            "factories": {
+                "create_acquisition_data": None,
+                "create_image_data": None,
             },
-            'types': {
-                'AcquisitionDataInterface': type(None),
-                'ImageDataInterface': type(None),
+            "types": {
+                "AcquisitionDataInterface": type(None),
+                "ImageDataInterface": type(None),
             },
-            'wrappers': {
-                'ensure_acquisition_interface': None,
-                'ensure_image_interface': None,
-                'to_native_acquisition': None,
-                'to_native_image': None,
+            "wrappers": {
+                "ensure_acquisition_interface": None,
+                "ensure_image_interface": None,
+                "to_native_acquisition": None,
+                "to_native_image": None,
             },
-            'detection': {
-                'detect_acquisition_backend': None,
-                'detect_image_backend': None,
-                'detect_backend_from_interface': None,
-                'get_backend': None,
-                'set_backend': None,
-            }
+            "detection": {
+                "detect_acquisition_backend": None,
+                "detect_image_backend": None,
+                "detect_backend_from_interface": None,
+                "get_backend": None,
+                "set_backend": None,
+            },
         }
 
 
@@ -109,11 +109,11 @@ def _to_namespace(mapping: Dict[str, Any]) -> SimpleNamespace:
 
 BACKEND_AVAILABLE, _interfaces = get_backend_interfaces()
 BACKENDS = SimpleNamespace(
-    factories=_to_namespace(_interfaces.get('factories', {})),
-    types=_to_namespace(_interfaces.get('types', {})),
-    wrappers=_to_namespace(_interfaces.get('wrappers', {})),
-    detection=_to_namespace(_interfaces.get('detection', {})),
+    factories=_to_namespace(_interfaces.get("factories", {})),
+    types=_to_namespace(_interfaces.get("types", {})),
+    wrappers=_to_namespace(_interfaces.get("wrappers", {})),
+    detection=_to_namespace(_interfaces.get("detection", {})),
 )
 
 
-__all__ = ['get_backend_interfaces', 'BACKEND_AVAILABLE', 'BACKENDS']
+__all__ = ["get_backend_interfaces", "BACKEND_AVAILABLE", "BACKENDS"]

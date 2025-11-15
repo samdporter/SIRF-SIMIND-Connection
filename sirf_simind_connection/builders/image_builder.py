@@ -9,6 +9,7 @@ from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKE
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 from sirf_simind_connection.utils.io_utils import temporary_directory
 
+
 ImageData, _, SIRF_AVAILABLE = get_sirf_types()
 
 

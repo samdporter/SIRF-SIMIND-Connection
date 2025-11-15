@@ -10,26 +10,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
-
-from sirf_simind_connection.utils import get_array
+# Conditional import for SIRF to avoid CI dependencies
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
 # Import types that don't depend on SIRF
 from .types import (
-    MAX_SOURCE,
-    ORBIT_FILE_EXTENSION,
     SIMIND_VOXEL_UNIT_CONVERSION,
-    OutputError,
-    PenetrateOutputType,
     RotationDirection,
-    ScoringRoutine,
     SimulationError,
     ValidationError,
 )
 
-
-# Conditional import for SIRF to avoid CI dependencies
-from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
@@ -61,7 +52,7 @@ class ImageGeometry:
             ImageGeometry: Extracted geometry information
         """
         # Use duck typing - works with both SIRF and STIR backend wrappers
-        if not (hasattr(image, 'dimensions') and hasattr(image, 'voxel_sizes')):
+        if not (hasattr(image, "dimensions") and hasattr(image, "voxel_sizes")):
             raise TypeError(
                 f"Image object must have dimensions() and voxel_sizes() methods. "
                 f"Got {type(image)}"
@@ -282,7 +273,6 @@ class AcquisitionManager:
 
 # File managers have been moved to file_managers.py
 # Import them here for backward compatibility
-from .file_managers import DataFileManager, OrbitFileManager
 
 
 # =============================================================================
@@ -365,4 +355,3 @@ class SimindExecutor:
 
 # OutputProcessor has been moved to output_processor.py
 # Import it here for backward compatibility
-from .output_processor import OutputProcessor

@@ -11,6 +11,7 @@ import numpy as np
 
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
+
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 from .base import AcquisitionDataInterface, ImageDataInterface

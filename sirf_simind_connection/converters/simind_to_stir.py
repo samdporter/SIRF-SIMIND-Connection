@@ -9,14 +9,15 @@ from sirf_simind_connection.core.types import PenetrateOutputType
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 from sirf_simind_connection.utils.interfile_parser import (
     InterfileHeader,
-    parse_interfile_line,
 )
+
 
 # Conditional import for SIRF to avoid CI dependencies
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
 # Import backend factory and interfaces using centralized access
 from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+
 
 # Unpack interfaces needed by converter
 create_acquisition_data = BACKENDS.factories.create_acquisition_data
