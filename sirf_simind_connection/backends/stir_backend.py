@@ -120,12 +120,20 @@ class StirImageData(ImageDataInterface):
 
         Note: STIR may not have this method directly.
         """
-        # STIR doesn't have a direct maximum method
-        # We'd need to extract array, apply max, and fill back
-        raise NotImplementedError(
-            "STIR's FloatVoxelsOnCartesianGrid doesn't support "
-            "element-wise maximum directly. Use numpy operations instead."
-        )
+        # STIR doesn't have a direct maximum method so we need to extract array
+        # and fill a clone
+        arr = self.as_array()
+        arr = np.maximum(arr, value)
+        self.fill(arr)
+
+    def minimum(self, value: float) -> None:
+        """Apply element-wise minimum.
+
+        Note: STIR may not have this method directly.
+        """
+        arr = self.as_array()
+        arr = np.minimum(arr, value)
+        self.fill(arr)
 
     @property
     def native_object(self):
@@ -287,6 +295,21 @@ class StirAcquisitionData(AcquisitionDataInterface):
     def max(self) -> float:
         """Return the maximum bin value."""
         return float(np.max(self.as_array()))
+
+    def maximum(self, value: float) -> None:
+        """Apply element-wise maximum."""
+        arr = self.as_array()
+        arr = np.maximum(arr, value)
+        self.fill(arr)
+
+    def minimum(self, value: float) -> None:
+        """Apply element-wise minimum.
+
+        Note: STIR may not have this method directly.
+        """
+        arr = self.as_array()
+        arr = np.minimum(arr, value)
+        self.fill(arr)
 
     def get_info(self) -> str:
         """Get metadata info."""

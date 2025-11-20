@@ -49,6 +49,9 @@ dev = [
     "build",
     "twine",
 ]
+examples = [
+    "matplotlib>=3.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/samdporter/SIRF-SIMIND-Connection"

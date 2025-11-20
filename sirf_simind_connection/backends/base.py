@@ -255,6 +255,15 @@ class AcquisitionDataInterface(ABC):
         """
         pass
 
+    @property
+    def shape(self) -> Tuple:
+        """Get acquisition data shape (alias for dimensions()).
+
+        Returns:
+            Tuple: Dimensions (varies by format)
+        """
+        return self.dimensions()
+
     @abstractmethod
     def as_array(self) -> np.ndarray:
         """Convert to numpy array.
