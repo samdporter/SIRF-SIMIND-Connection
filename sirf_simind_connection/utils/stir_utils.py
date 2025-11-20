@@ -4,64 +4,85 @@
 
 ### Author: Sam Porter, Efstathios Varzakis
 
+import contextlib
 import os
 import re
-import subprocess
+import tempfile
 
 import numpy as np
 
-from sirf_simind_connection.backends import create_image_data
+from sirf_simind_connection.utils.backend_access import BACKENDS
 
 from . import get_array
+from .import_helpers import get_sirf_types
+from .interfile_parser import parse_interfile_header, parse_interfile_line
 
 
 # Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData, ImageData
+ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-    SIRF_AVAILABLE = True
-except ImportError:
-    # Create dummy types for type hints when SIRF is not available
-    AcquisitionData = type(None)
-    ImageData = type(None)
-    SIRF_AVAILABLE = False
+# Unpack interfaces needed by stir_utils
+create_acquisition_data = BACKENDS.factories.create_acquisition_data
+create_image_data = BACKENDS.factories.create_image_data
 
-# Import backend factory for creating acquisition data objects
-try:
-    from sirf_simind_connection.backends import create_acquisition_data
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    create_acquisition_data = None
+def _parse_interfile_text(text: str):
+    """Parse interfile-formatted text and return a dictionary."""
+    values = {}
+    for line in text.splitlines():
+        key, value = parse_interfile_line(line)
+        if key is not None:
+            values[key] = value
+    return values
 
 
 def parse_sinogram(template_sinogram):
-    template_sinogram.write("tmp.hs")
-    values = parse_interfile("tmp.hs")
-    os.remove("tmp.hs")
-    return values
+    """Parse sinogram metadata without colliding temp files.
+
+    Accepts either a path to an interfile header or an acquisition object that
+    exposes ``get_info`` or ``write``. The parser reuses the shared
+    ``parse_interfile_header`` helper for consistent behaviour.
+    """
+    if isinstance(template_sinogram, (str, os.PathLike)):
+        return parse_interfile_header(str(template_sinogram))
+
+    if hasattr(template_sinogram, "get_info") and callable(
+        template_sinogram.get_info  # type: ignore[attr-defined]
+    ):
+        return _parse_interfile_text(template_sinogram.get_info())  # type: ignore[attr-defined]
+
+    if hasattr(template_sinogram, "filename"):
+        return parse_interfile_header(template_sinogram.filename)
+
+    if hasattr(template_sinogram, "write") and callable(template_sinogram.write):
+        with tempfile.NamedTemporaryFile(suffix=".hs", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            template_sinogram.write(tmp_path)
+            return parse_interfile_header(tmp_path)
+        finally:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(tmp_path)
+
+    raise TypeError(
+        "template_sinogram must be a path or acquisition object with "
+        "get_info()/write() methods"
+    )
 
 
 def parse_interfile(filename):
-    """
-    Parses STIR interfile file and returns dictionary of key value pairs
+    """Parse STIR interfile and return dictionary of key-value pairs.
+
+    This function is kept for backward compatibility.
+    New code should use parse_interfile_header() from interfile_parser module.
 
     Args:
-        filename (string): file name of interfile file
+        filename: Path to interfile file
 
     Returns:
-        dict: dictionary of key value pairs
+        Dictionary of key-value pairs
     """
-
-    values = {}
-    with open(filename, "r") as file:
-        for line in file:
-            if match := re.search(r"([^;].*?)\s*:=\s*(.*)", line):
-                key = match[1].strip()
-                value = match[2].strip()
-                values[key] = value
-    return values
+    return parse_interfile_header(filename)
 
 
 def get_sirf_attenuation_from_simind(
@@ -114,40 +135,6 @@ def get_sirf_attenuation_from_simind(
     return image
 
 
-def get_sirf_sinogram_from_simind(
-    simind_header_filepath, script_path=".", circular=True
-):
-    """
-
-    ** DEPRECATED METHOD - may still be useful down the line so retained for now **
-
-
-    Reads sinogram data from simind header file and returns SIRF AcquisitionData object
-    Outputs sinogram with counts/MBq/s as units
-
-    Args:
-        simind_header_filepath (string): file name of simind header file
-        script_path (string, optional): path to simind conversion scripts.
-            Defaults to ".".
-        circular (bool, optional): whether to use circular or non-circular
-            conversion script. Defaults to True.
-    Returns:
-        AcquisitionData: SIRF AcquisitionData object containing sinogram data
-    """
-
-    if circular:
-        script = os.path.join(script_path, "convertSIMINDToSTIR.sh")
-    else:
-        script = os.path.join(script_path, "convertSIMINDToSTIR_noncirc.sh")
-    subprocess.run(["sh", os.path.join(script_path, script), simind_header_filepath])
-
-    if BACKEND_AVAILABLE:
-        # Return wrapped backend-agnostic object
-        return create_acquisition_data(f"{simind_header_filepath[:-4]}.hs")
-    else:
-        return AcquisitionData(f"{simind_header_filepath[:-4]}.hs")
-
-
 def convert_value(val: str):
     """
     Attempt to convert a string to int or float.
@@ -169,15 +156,10 @@ def convert_value(val: str):
         return val
 
 
-# PLEASE NOTE that the following functions are far from perfect and things may
-# have been missed
-### The naming converntions are a bit funny so there needs to be some cleaning up
-
 STIR_ATTRIBUTE_MAPPING = {
     "number_of_views": "number_of_projections",
     "azimuthal_angle_extent": "extent_of_rotation",
     "view_offset": "start_angle",
-    "calibration_factor": "calibration_factor",
     "radionuclide": "isotope_name",
     "energy_window_lower": "energy_window_lower",
     "energy_window_upper": "energy_window_upper",
@@ -190,23 +172,13 @@ STIR_ATTRIBUTE_MAPPING = {
 
 
 def harmonize_stir_attributes(attributes: dict) -> dict:
-    """
-    Standardizes STIR attributes by renaming fields according to STIR_ATTRIBUTE_MAPPING.
-
-    Args:
-        attributes (dict): Extracted attributes from STIR header file or get_info().
-
-    Returns:
-        dict: Standardized attribute dictionary.
-    """
+    """Apply canonical naming and derived values to raw STIR attributes."""
     harmonized_attributes = {}
+
     for key, value in attributes.items():
-        standard_key = STIR_ATTRIBUTE_MAPPING.get(
-            key, key
-        )  # Rename if mapping exists, otherwise keep original
+        standard_key = STIR_ATTRIBUTE_MAPPING.get(key, key)
         harmonized_attributes[standard_key] = value
 
-    # Special derived attributes
     if "inner_ring_diameter" in harmonized_attributes:
         harmonized_attributes["height_to_detector_surface"] = (
             harmonized_attributes["inner_ring_diameter"] / 2
@@ -216,23 +188,7 @@ def harmonize_stir_attributes(attributes: dict) -> dict:
 
 
 def extract_attributes_from_stir(header_filepath: str) -> dict:
-    """
-    Extract attributes from STIR header file.
-
-    This function is backend-agnostic and only works with header files (.hs),
-    not with acquisition data objects. If you have an acquisition data object,
-    write it to a file first using .write() method.
-
-    Args:
-        header_filepath: Path to STIR header file (.hs)
-
-    Returns:
-        dict: Extracted attributes including orbit and radii data
-
-    Raises:
-        ValueError: If input is not a string filepath
-        FileNotFoundError: If header file doesn't exist
-    """
+    """Extract attributes from a STIR header file (.hs)."""
     if not isinstance(header_filepath, str):
         raise ValueError(
             f"extract_attributes_from_stir() only accepts string filepaths. "
@@ -244,26 +200,12 @@ def extract_attributes_from_stir(header_filepath: str) -> dict:
 
 
 def extract_attributes_from_stir_headerfile(filename: str) -> dict:
-    """
-    Parse a STIR header file and extract relevant attributes.
-
-    Parameters
-    ----------
-    filename : str
-        Path to the header file.
-
-    Returns
-    -------
-    dict
-        Dictionary of extracted attributes.
-    """
+    """Parse a STIR header file and extract relevant attributes."""
     attributes = {
         "matrix_sizes": {},
         "scaling_factors": {},
     }
 
-    # Define generic patterns: each tuple contains (compiled regex, converter,
-    # attribute key)
     patterns = [
         (
             re.compile(r"!imaging modality\s*:=\s*(.+)", re.IGNORECASE),
@@ -372,24 +314,21 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
                 attributes["scaling_factors"][axis] = float(sf_match[2].strip())
                 continue
 
-            # Process orbit/radius information.
             if re.search(r"(radius|radii)\s*:=\s*(.+)", line, re.IGNORECASE):
                 r_match = re.search(r"(radius|radii)\s*:=\s*(.+)", line, re.IGNORECASE)
                 tmp = r_match[2].strip()
                 if tmp.startswith("{") and tmp.endswith("}") or "," in tmp:
-                    # Remove braces and split by comma.
                     tmp = tmp.strip("{}")
                     values = [float(v.strip()) for v in tmp.split(",")]
-                    mean_value = np.mean(values)
+                    mean_value = float(np.mean(values))
                     std_of_mean_value = np.std(values) / mean_value
-                    # If the radii vary, flag non-circular orbit.
                     if std_of_mean_value > 1e-6:
                         attributes["orbit"] = "non-circular"
                         attributes["radii"] = values
                         attributes["height_to_detector_surface"] = mean_value
                     else:
                         attributes["orbit"] = "Circular"
-                    attributes["height_to_detector_surface"] = mean_value
+                        attributes["height_to_detector_surface"] = mean_value
                 else:
                     attributes["orbit"] = "Circular"
                     attributes["height_to_detector_surface"] = float(tmp)
@@ -399,10 +338,9 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
                 attributes["orbit"] = orbit_match[1].strip()
                 continue
 
-            # Try generic patterns.
             for pattern, converter, attr_key in patterns:
-                if m := pattern.search(line):
-                    attributes[attr_key] = converter(m)
+                if match := pattern.search(line):
+                    attributes[attr_key] = converter(match)
                     break
 
     return harmonize_stir_attributes(attributes)
@@ -421,62 +359,26 @@ def create_stir_image(matrix_dim: list, voxel_size: list, backend="STIR"):
     Returns [ImageData]: The ImageData object.
 
     """
-    img = np.zeros(matrix_dim, dtype=np.float32)
+    try:
+        from sirf_simind_connection.builders import STIRSPECTImageDataBuilder
+    except ImportError as exc:
+        raise ImportError(
+            "STIRSPECTImageDataBuilder requires SIRF/STIR to be installed"
+        ) from exc
 
-    header = {}
-    header["!INTERFILE"] = ""
-    header["!imaging modality"] = "nucmed"
-    header["!version of keys"] = "STIR4.0"
-
-    header["!GENERAL DATA"] = ""
-    header["!name of data file"] = "temp.v"
-
-    header["!GENERAL IMAGE DATA"] = ""
-    header["!type of data"] = "Tomographic"
-    header["imagedata byte order"] = "LITTLEENDIAN"
-
-    header["!SPECT STUDY (general)"] = ""
-    header["!process status"] = "reconstructed"
-    header["!number format"] = "float"
-    header["!number of bytes per pixel"] = "4"
-    header["number of dimensions"] = str(np.size(img.shape))
-    header["matrix axis label [1]"] = "x"
-    header["matrix axis label [2]"] = "y"
-    header["matrix axis label [3]"] = "z"
-    header["!matrix size [1]"] = str(matrix_dim[2])
-    header["!matrix size [2]"] = str(matrix_dim[1])
-    header["!matrix size [3]"] = str(matrix_dim[0])
-    header["scaling factor (mm/pixel) [1]"] = str(voxel_size[2])
-    header["scaling factor (mm/pixel) [2]"] = str(voxel_size[1])
-    header["scaling factor (mm/pixel) [3]"] = str(voxel_size[0])
-    header["number of time frames"] = "1"
-
-    header["!END OF INTERFILE"] = ""
-
-    line = 0
-    header_path = os.path.join("temp.hv")
-    with open(header_path, "w") as f:
-        for k in header:
-            if k.islower() or line == 0:
-                tempStr = f"{str(k)} := {str(header[str(k)])}" + "\n"
-                line += 1
-            else:
-                tempStr = "\n" + str(k) + " := " + str(header[str(k)]) + "\n"
-            f.write(tempStr)
-            # print(k, ":=", header[str(k)])
-
-    f.close()
-
-    raw_file_path = os.path.join("temp.v")
-    img.tofile(raw_file_path)
-
-    print(f"Image written to: {header_path}")
-
-    template_image = create_image_data(header_path)
-    os.remove(header_path)
-    os.remove(raw_file_path)
-
-    return template_image
+    builder = STIRSPECTImageDataBuilder()
+    builder.update_header(
+        {
+            "!matrix size [1]": str(matrix_dim[2]),
+            "!matrix size [2]": str(matrix_dim[1]),
+            "!matrix size [3]": str(matrix_dim[0]),
+            "scaling factor (mm/pixel) [1]": str(voxel_size[2]),
+            "scaling factor (mm/pixel) [2]": str(voxel_size[1]),
+            "scaling factor (mm/pixel) [3]": str(voxel_size[0]),
+        }
+    )
+    builder.set_pixel_array(np.zeros(matrix_dim, dtype=np.float32))
+    return builder.build()
 
 
 def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: list):
@@ -493,64 +395,27 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
     Returns [AcquisiitonData]: The AcquisitionData object.
 
     """
-    acq = np.zeros(
+    try:
+        from sirf_simind_connection.builders import STIRSPECTAcquisitionDataBuilder
+    except ImportError as exc:
+        raise ImportError(
+            "STIRSPECTAcquisitionDataBuilder requires SIRF/STIR to be installed"
+        ) from exc
+
+    builder = STIRSPECTAcquisitionDataBuilder()
+    builder.update_header(
+        {
+            "!matrix size [1]": str(proj_matrix[0]),
+            "!matrix size [2]": str(proj_matrix[1]),
+            "!number of projections": str(num_projections),
+            "scaling factor (mm/pixel) [1]": str(pixel_size[0]),
+            "scaling factor (mm/pixel) [2]": str(pixel_size[1]),
+        }
+    )
+    builder.pixel_array = np.zeros(
         (1, proj_matrix[0], num_projections, proj_matrix[1]), dtype=np.float32
     )
-
-    header = {}
-    header["!INTERFILE"] = ""
-    header["!imaging modality"] = "NM"
-    header["name of data file"] = "temp.s"
-    header["!version of keys"] = "3.3"
-
-    header["!GENERAL DATA"] = ""
-
-    header["!GENERAL IMAGE DATA"] = ""
-    header["!type of data"] = "Tomographic"
-    header["imagedata byte order"] = "LITTLEENDIAN"
-
-    header["!SPECT STUDY (General)"] = ""
-    header["!number format"] = "float"
-    header["!number of bytes per pixel"] = "4"
-    header["!number of projections"] = str(num_projections)
-    header["!extent of rotation"] = "360"
-    header["process status"] = "acquired"
-
-    header["!SPECT STUDY (acquired data)"] = ""
-    header["!direction of rotation"] = "CW"
-    header["start angle"] = "180"
-    header["orbit"] = "Circular"
-    header["Radius"] = "200"
-
-    header["!matrix size [1]"] = str(proj_matrix[0])
-    header["scaling factor (mm/pixel) [1]"] = str(pixel_size[0])
-    header["!matrix size [2]"] = str(proj_matrix[1])
-    header["scaling factor (mm/pixel) [2]"] = str(pixel_size[1])
-
-    header["!END OF INTERFILE"] = ""
-
-    header_path = os.path.join("temp.hs")
-    with open(header_path, "w") as f:
-        for k in header:
-            tempStr = f"{str(k)} := {str(header[str(k)])}" + "\n"
-            f.write(tempStr)
-
-    f.close()
-
-    raw_file_path = os.path.join("temp.s")
-    acq.tofile(raw_file_path)
-
-    print(f"Acquisition Data written to: {header_path}")
-
-    if BACKEND_AVAILABLE:
-        # Return wrapped backend-agnostic object
-        template_acqdata = create_acquisition_data(header_path)
-    else:
-        template_acqdata = AcquisitionData(header_path)
-    os.remove(header_path)
-    os.remove(raw_file_path)
-
-    return template_acqdata
+    return builder.build()
 
 
 def create_simple_phantom():

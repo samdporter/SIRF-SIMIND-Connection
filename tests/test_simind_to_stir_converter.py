@@ -14,6 +14,8 @@ from sirf_simind_connection.converters.simind_to_stir import (
     SimindToStirConverter,
     StartAngleConversionRule,
 )
+from sirf_simind_connection.core.types import PenetrateOutputType
+from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
 
 
 @pytest.mark.unit
@@ -197,7 +199,35 @@ class TestSimindToStirConverter:
         )
         converter = SimindToStirConverter(config)
         assert converter.config.radius_scale_factor == 1.0
-        assert converter.config.angle_offset == 90.0
+
+    def test_penetrate_headers_apply_enum_metadata(self, tmp_path):
+        """Ensure penetrate metadata from enum is propagated to headers."""
+        converter = SimindToStirConverter()
+        h00_file = tmp_path / "output.h00"
+        h00_file.write_text(
+            "\n".join(
+                [
+                    "!name of data file := output.a00",
+                    "patient name := phantom",
+                    "!study ID := study123",
+                    "data description := placeholder",
+                    "!END OF INTERFILE :=",
+                ]
+            )
+        )
+        component = PenetrateOutputType.COLL_SCATTER_PRIMARY_ATT_BACK
+        binary_file = tmp_path / f"output.b{component.value:02d}"
+        binary_file.write_bytes(b"\x00\x00\x00\x00")
+
+        outputs = converter.create_penetrate_headers_from_template(
+            str(h00_file), "output", str(tmp_path)
+        )
+        header_path = tmp_path / f"output_component_{component.value:02d}.hs"
+        header_text = header_path.read_text()
+
+        assert component.slug in outputs
+        assert f"patient name := {component.slug}_{binary_file.name}" in header_text
+        assert component.description in header_text
 
     def test_convert_line(self):
         """Test single line conversion."""
@@ -212,26 +242,24 @@ class TestSimindToStirConverter:
         assert "180" in line
 
     def test_parse_interfile_line(self):
-        """Test interfile line parsing."""
-        parse = SimindToStirConverter._parse_interfile_line
-
+        """Test interfile line parsing using shared parser."""
         # Test valid parameter line
-        key, value = parse("!matrix size [1] := 128")
+        key, value = parse_interfile_line("!matrix size [1] := 128")
         assert key == "!matrix size [1]"
         assert value == "128"
 
         # Test with spaces
-        key, value = parse("scaling factor (mm/pixel) [1] := 4.419600")
+        key, value = parse_interfile_line("scaling factor (mm/pixel) [1] := 4.419600")
         assert key == "scaling factor (mm/pixel) [1]"
         assert value == "4.419600"
 
         # Test comment line
-        key, value = parse(";# This is a comment")
+        key, value = parse_interfile_line(";# This is a comment")
         assert key is None
         assert value is None
 
         # Test section header
-        key, value = parse("!GENERAL DATA :=")
+        key, value = parse_interfile_line("!GENERAL DATA :=")
         assert key is None
         assert value is None
 

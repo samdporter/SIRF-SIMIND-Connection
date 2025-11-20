@@ -5,28 +5,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from sirf_simind_connection.core.types import PenetrateOutputType
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
+from sirf_simind_connection.utils.interfile_parser import (
+    InterfileHeader,
+)
+
 
 # Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData
+_, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-    SIRF_AVAILABLE = True
-except ImportError:
-    AcquisitionData = type(None)
-    SIRF_AVAILABLE = False
+# Import backend factory and interfaces using centralized access
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
-# Import backend factory and interfaces for type hints
-try:
-    from sirf_simind_connection.backends import (
-        AcquisitionDataInterface,
-        create_acquisition_data,
-    )
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    create_acquisition_data = None
-    AcquisitionDataInterface = type(None)
+# Unpack interfaces needed by converter
+create_acquisition_data = BACKENDS.factories.create_acquisition_data
+AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -335,27 +330,6 @@ class SimindToStirConverter:
                 os.remove(temp_file)
             raise
 
-    @staticmethod
-    def _parse_interfile_line(line: str) -> Tuple[Optional[str], Optional[str]]:
-        """Parse an interfile line and return parameter and value."""
-        line = line.strip()
-
-        # Skip comments, empty lines, and section headers
-        if (
-            not line
-            or line.startswith(";")
-            or line.startswith("#")
-            or line.endswith(":=")
-        ):
-            return None, None
-
-        # Handle := separator (preferred)
-        if ":=" in line:
-            key, _, value = line.partition(":=")
-            return key.strip(), value.strip()
-
-        return None, None
-
     def convert_file(
         self,
         input_filename: str,
@@ -453,40 +427,37 @@ class SimindToStirConverter:
         template_hs = h00_file.replace(".h00", "_template.hs")
         self.convert_file(h00_file, template_hs)
 
-        # Read the template header content
-        with open(template_hs, "r") as f:
-            template_content = f.read()
+        template_header = InterfileHeader.from_file(template_hs)
 
         # Look for .bXX files and create headers for each
-        for i in range(1, 20):  # b01 to b19
-            binary_file = output_dir / f"{output_prefix}.b{i:02d}"
+        for component in PenetrateOutputType:
+            binary_file = output_dir / f"{output_prefix}.b{component.value:02d}"
 
             if binary_file.exists():
                 try:
                     # Create .hs file for this component
-                    component_hs = output_dir / f"{output_prefix}_component_{i:02d}.hs"
-
-                    # Modify template content for this specific binary file
-                    modified_content = self._modify_header_for_binary(
-                        template_content, binary_file.name, i
+                    component_hs = output_dir / (
+                        f"{output_prefix}_component_{component.value:02d}.hs"
                     )
 
-                    # Write the modified header
-                    with open(component_hs, "w") as f:
-                        f.write(modified_content)
+                    component_header = template_header.copy()
+                    study_base = Path(binary_file.name).stem
+                    component_header.set("!name of data file", binary_file.name)
+                    component_header.set(
+                        "patient name", f"{component.slug}_{binary_file.name}"
+                    )
+                    component_header.set("!study ID", study_base)
+                    component_header.set("data description", component.description)
+                    component_header.write(component_hs)
 
                     # Create AcquisitionData object (backend-agnostic)
-                    if BACKEND_AVAILABLE:
-                        acquisition_data = create_acquisition_data(str(component_hs))
-                    else:
-                        acquisition_data = AcquisitionData(str(component_hs))
+                    acquisition_data = self._load_penetrate_output(component_hs)
 
                     # Generate component name
-                    component_name = self._get_penetrate_output_name(i)
-                    outputs[component_name] = acquisition_data
+                    outputs[component.slug] = acquisition_data
 
                     self.logger.info(
-                        f"Created STIR header for {component_name}: {component_hs.name}"
+                        f"Created STIR header for {component.slug}: {component_hs.name}"
                     )
 
                 except Exception as e:
@@ -500,105 +471,20 @@ class SimindToStirConverter:
 
         return outputs
 
-    def _modify_header_for_binary(
-        self, template_content: str, binary_filename: str, component_number: int
-    ) -> str:
-        """
-        Modify template header content to point to specific binary file.
-
-        Args:
-            template_content: Original header content from template
-            binary_filename: Name of the .bXX binary file
-            component_number: Component number (1-19)
-
-        Returns:
-            Modified header content
-        """
-        lines = template_content.split("\n")
-        modified_lines = []
-
-        for line in lines:
-            # Update data file reference
-            if line.startswith("!name of data file"):
-                modified_lines.append(f"!name of data file := {binary_filename}")
-
-            # Update patient name to include component info
-            elif line.startswith("patient name"):
-                component_name = self._get_penetrate_output_name(component_number)
-                modified_lines.append(
-                    f"patient name := {component_name}_{binary_filename}"
-                )
-
-            # Update study ID
-            elif line.startswith("!study ID"):
-                study_base = Path(binary_filename).stem
-                modified_lines.append(f"!study ID := {study_base}")
-
-            # Update data description to include component info
-            elif line.startswith("data description"):
-                component_desc = self._get_penetrate_component_description(
-                    component_number
-                )
-                modified_lines.append(f"data description := {component_desc}")
-
-            else:
-                modified_lines.append(line)
-
-        return "\n".join(modified_lines)
-
-    def _get_penetrate_output_name(self, component_number: int) -> str:
-        """Get descriptive name for penetrate output component."""
-        name_mapping = {
-            1: "all_interactions",
-            2: "geom_coll_primary",
-            3: "septal_pen_primary",
-            4: "coll_scatter_primary",
-            5: "coll_xray_primary",
-            6: "geom_coll_scattered",
-            7: "septal_pen_scattered",
-            8: "coll_scatter_scattered",
-            9: "coll_xray_scattered",
-            10: "geom_coll_primary_back",
-            11: "septal_pen_primary_back",
-            12: "coll_scatter_primary_back",
-            13: "coll_xray_primary_back",
-            14: "geom_coll_scattered_back",
-            15: "septal_pen_scattered_back",
-            16: "coll_scatter_scattered_back",
-            17: "coll_xray_scattered_back",
-            18: "unscattered_unattenuated",
-            19: "unscattered_unattenuated_geom_coll",
-        }
-        return name_mapping.get(component_number, f"component_{component_number:02d}")
-
-    def _get_penetrate_component_description(self, component_number: int) -> str:
-        """Get detailed description for penetrate output component."""
-        descriptions = {
-            1: "All type of interactions",
-            2: "Geometrically collimated primary attenuated photons",
-            3: "Septal penetration from primary attenuated photons",
-            4: "Collimator scatter from primary attenuated photons",
-            5: "X-rays from collimator (primary attenuated photons)",
-            6: "Geometrically collimated scattered photons",
-            7: "Septal penetration from scattered photons",
-            8: "Collimator scatter from scattered photons",
-            9: "X-rays from collimator (scattered photons)",
-            10: (
-                "Geometrically collimated primary attenuated photons (with backscatter)"
-            ),
-            11: "Septal penetration from primary attenuated photons (with backscatter)",
-            12: "Collimator scatter from primary attenuated photons (with backscatter)",
-            13: "X-rays from collimator, primary attenuated photons (with backscatter)",
-            14: "Geometrically collimated scattered photons (with backscatter)",
-            15: "Septal penetration from scattered photons (with backscatter)",
-            16: "Collimator scatter from scattered photons (with backscatter)",
-            17: "X-rays from collimator, scattered photons (with backscatter)",
-            18: "Photons without scattering and attenuation in phantom",
-            19: "Photons without scattering/attenuation, geometrically collimated",
-        }
-        return descriptions.get(
-            component_number, f"Penetrate component {component_number}"
-        )
+    def _load_penetrate_output(self, header_path: Path):
+        """Best-effort loading of penetrate output respecting missing backends."""
+        try:
+            if BACKEND_AVAILABLE and create_acquisition_data is not None:
+                return create_acquisition_data(str(header_path))
+            if SIRF_AVAILABLE and AcquisitionData is not type(None):
+                return AcquisitionData(str(header_path))
+        except Exception as exc:  # pragma: no cover - backend-specific failures
+            self.logger.warning(
+                "Falling back to file path for %s due to load error: %s",
+                header_path,
+                exc,
+            )
+        return str(header_path)
 
     def find_penetrate_h00_file(
         self, output_prefix: str, output_dir: str
@@ -638,17 +524,15 @@ class SimindToStirConverter:
             return None
 
         try:
-            with open(filename, "r") as f:
-                for line in f:
-                    key, value = self._parse_interfile_line(line)
-                    if key == parameter:
-                        return value
+            header = InterfileHeader.from_file(filename)
         except FileNotFoundError:
             self.logger.error(f"File not found: {filename}")
+            return None
         except Exception as e:
             self.logger.error(f"Error reading file {filename}: {e}")
+            return None
 
-        return None
+        return header.get(parameter)
 
     def edit_parameter(
         self,
@@ -662,26 +546,13 @@ class SimindToStirConverter:
             self.logger.error("File must have .hs or .h00 extension")
             return None
 
-        temp_filename = filename + ".tmp"
-
         try:
-            with open(filename, "r") as f_in, open(temp_filename, "w") as f_out:
-                parameter_found = False
-                for line in f_in:
-                    key, current_value = self._parse_interfile_line(line)
-                    if key == parameter:
-                        f_out.write(f"{parameter} := {value}\n")
-                        parameter_found = True
-                    else:
-                        f_out.write(line)
+            header = InterfileHeader.from_file(filename)
+            if header.get(parameter) is None:
+                self.logger.warning(f"Parameter '{parameter}' not found in {filename}")
+            header.set(parameter, value)
+            header.write(filename)
 
-                if not parameter_found:
-                    self.logger.warning(
-                        f"Parameter '{parameter}' not found in {filename}"
-                    )
-
-            # Replace original file
-            os.replace(temp_filename, filename)
             self.logger.info(f"Parameter {parameter} set to {value}")
 
             if return_object:
@@ -692,9 +563,6 @@ class SimindToStirConverter:
             return None
 
         except Exception as e:
-            # Clean up temp file if it exists
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
             self.logger.error(f"Error editing parameter in {filename}: {e}")
             raise
 
@@ -711,33 +579,16 @@ class SimindToStirConverter:
             self.logger.error("File must have .hs or .h00 extension")
             return None
 
-        # First test if parameter already exists
-        existing_value = self.read_parameter(filename, parameter)
-        if existing_value is not None:
-            self.logger.info(
-                f"Parameter {parameter} already exists, editing instead of adding"
-            )
-            return self.edit_parameter(filename, parameter, value, return_object)
-
-        temp_filename = filename + ".tmp"
-        parameter_line = f"{parameter} := {value}\n"
-
         try:
-            with open(filename, "r") as f_in:
-                lines = f_in.readlines()
+            header = InterfileHeader.from_file(filename)
+            if header.get(parameter) is not None:
+                self.logger.info(
+                    f"Parameter {parameter} already exists, editing instead of adding"
+                )
+                return self.edit_parameter(filename, parameter, value, return_object)
 
-            with open(temp_filename, "w") as f_out:
-                for i, line in enumerate(lines):
-                    if i == line_number:
-                        f_out.write(parameter_line)
-                    f_out.write(line)
-
-                # If line_number is beyond file length, append at end
-                if len(lines) <= line_number:
-                    f_out.write(parameter_line)
-
-            # Replace original file
-            os.replace(temp_filename, filename)
+            header.insert(line_number, parameter, value)
+            header.write(filename)
             self.logger.info(
                 f"Parameter {parameter} added with value {value} at line {line_number}"
             )
@@ -750,9 +601,6 @@ class SimindToStirConverter:
             return None
 
         except Exception as e:
-            # Clean up temp file if it exists
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
             self.logger.error(f"Error adding parameter to {filename}: {e}")
             raise
 

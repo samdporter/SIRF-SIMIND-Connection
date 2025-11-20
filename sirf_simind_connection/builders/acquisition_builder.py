@@ -1,27 +1,25 @@
-import os
+from __future__ import annotations
+
 import warnings
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pydicom
 
+# Conditional import for SIRF types
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
-# Conditional import for SIRF to avoid CI dependencies
-try:
-    from sirf.STIR import AcquisitionData
 
-    SIRF_AVAILABLE = True
-except ImportError:
-    AcquisitionData = type(None)
-    SIRF_AVAILABLE = False
+_, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
 
-# Import backend factory for creating acquisition data objects
-try:
-    from sirf_simind_connection.backends import create_acquisition_data
+# Import backend factory using centralized access
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+from sirf_simind_connection.utils.io_utils import temporary_directory
 
-    BACKEND_AVAILABLE = True
-except ImportError:
-    BACKEND_AVAILABLE = False
-    create_acquisition_data = None
+
+# Unpack interfaces needed by builder
+create_acquisition_data = BACKENDS.factories.create_acquisition_data
 
 
 class STIRSPECTAcquisitionDataBuilder:
@@ -76,7 +74,7 @@ class STIRSPECTAcquisitionDataBuilder:
         """
         self.header.update(updates)
 
-    def build(self, output_path=None):
+    def build(self, output_path: Optional[str | Path] = None):
         """
         Build and return the STIR AcquisitionData object.
         """
@@ -93,48 +91,39 @@ class STIRSPECTAcquisitionDataBuilder:
         else:
             self.pixel_array = np.array(self.pixel_array, dtype=np.float32)
 
-        # Write the header to a temporary file.
+        def _write(base_path: Path, cleanup: bool) -> AcquisitionData:
+            header_path = base_path.with_suffix(".hs")
+            raw_file_path = base_path.with_suffix(".s")
+
+            self.header["name of data file"] = raw_file_path.name
+            self.header["!END OF INTERFILE"] = ""
+
+            with open(header_path, "w") as f:
+                for key, value in self.header.items():
+                    f.write(f"{key} := {value}\n")
+
+            self.pixel_array.tofile(raw_file_path)
+
+            if BACKEND_AVAILABLE:
+                acqdata = create_acquisition_data(str(header_path))
+            else:
+                acqdata = AcquisitionData(str(header_path))
+
+            flipped = np.flip(self.pixel_array, axis=-1)
+            acqdata = acqdata.clone().fill(flipped)
+            acqdata.write(str(header_path))
+
+            if cleanup:
+                header_path.unlink(missing_ok=True)
+                raw_file_path.unlink(missing_ok=True)
+
+            return acqdata
+
         if output_path is None:
-            output_path = "temp"
-        header_path = output_path + ".hs"
-        raw_file_path = output_path + ".s"
+            with temporary_directory() as tmp_dir:
+                return _write(Path(tmp_dir) / "spect_acq", cleanup=False)
 
-        # Update the header with just the file name, not the full path
-        self.header["name of data file"] = os.path.basename(raw_file_path)
-
-        self.header["!END OF INTERFILE"] = ""
-
-        with open(header_path, "w") as f:
-            for key, value in self.header.items():
-                f.write(f"{key} := {value}\n")
-
-        # Write the raw data to a temporary file.
-        # This, unfortunately, is in the wrong order somehow.
-        self.pixel_array.tofile(output_path + ".s")
-
-        # Create the AcquisitionData object from the header file.
-        # We do this and fill because of the ordering described above.
-        if BACKEND_AVAILABLE:
-            # Return wrapped backend-agnostic object
-            acqdata = create_acquisition_data(header_path)
-        else:
-            acqdata = AcquisitionData(header_path)
-        # need to flip in last axis for some reason #TODO
-        self.pixel_array = np.flip(self.pixel_array, axis=-1)
-        acqdata = acqdata.clone().fill(self.pixel_array)
-        acqdata.write(header_path)
-
-        # Now we need to rewrite the header file
-        with open(header_path, "w") as f:
-            for key, value in self.header.items():
-                f.write(f"{key} := {value}\n")
-
-        # Clean up temporary files.
-        if output_path == "temp":
-            os.remove(header_path)
-            os.remove(raw_file_path)
-
-        return acqdata
+        return _write(Path(output_path), cleanup=False)
 
     def build_multi_energy(self, output_path_base="temp", multiple_data_files=True):
         """

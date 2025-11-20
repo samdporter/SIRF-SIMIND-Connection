@@ -10,6 +10,55 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+configure_simind() {
+    if command -v simind >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local candidates=(
+        "$SCRIPT_DIR/../simind"
+        "$SCRIPT_DIR/../../simind"
+        "$SCRIPT_DIR/../SIMIND"
+        "$SCRIPT_DIR/../../SIMIND"
+    )
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -x "$candidate/simind" ]]; then
+            export PATH="$candidate:$PATH"
+            if [[ -d "$candidate/smc_dir" ]]; then
+                export SMC_DIR="${candidate%/}/smc_dir/"
+            fi
+            echo "Configured SIMIND from $candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+ensure_smc_dir() {
+    local smc_path="${SMC_DIR%/}"
+    if [[ -n "${SMC_DIR:-}" && -d "$smc_path" ]]; then
+        export SMC_DIR="${smc_path}/"
+        return 0
+    fi
+
+    local simind_path
+    simind_path=$(command -v simind 2>/dev/null) || return 1
+    local simind_dir
+    simind_dir="$(dirname "$simind_path")"
+
+    if [[ -d "$simind_dir/smc_dir" ]]; then
+        export SMC_DIR="${simind_dir%/}/smc_dir/"
+        echo "Detected SMC_DIR at $SMC_DIR"
+        return 0
+    fi
+
+    return 1
+}
+
 # Parse arguments
 DICOM_FILE=""
 BACKEND=""
@@ -53,6 +102,20 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Ensure SIMIND is available before running any examples
+if ! configure_simind || ! command -v simind >/dev/null 2>&1; then
+    echo -e "${RED}Error: SIMIND executable not found. Please install SIMIND or add it to your PATH.${NC}"
+    exit 1
+fi
+
+if ! ensure_smc_dir; then
+    echo -e "${RED}Error: Unable to locate the SIMIND smc_dir directory. Set SMC_DIR or ensure simind/smc_dir exists.${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}SIMIND binary: $(command -v simind)${NC}"
+echo -e "${GREEN}SMC_DIR: ${SMC_DIR}${NC}"
 
 # Track results
 PASSED=()

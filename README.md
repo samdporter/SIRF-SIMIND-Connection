@@ -82,6 +82,10 @@ simulator.set_source(phantom)
 simulator.set_mu_map(mu_map)
 simulator.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
 simulator.run_simulation()
+
+# Access results as native SIRF/STIR objects when needed
+native_outputs = simulator.get_outputs(native=True)
+sirf_tot = simulator.get_total_output(native=True)
 ```
 
 ### Advanced Density Conversion

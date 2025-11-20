@@ -318,6 +318,17 @@ class StirAcquisitionData(AcquisitionDataInterface):
         info = self._obj.get_proj_data_info()
         return str(info)
 
+    def get_energy_window_bounds(self) -> Tuple[float, float]:
+        """Get the energy window bounds for the acquisition.
+
+        Returns:
+            Tuple[float, float]: (lower_threshold, upper_threshold) in keV
+        """
+        exam_info = self._obj.get_exam_info()
+        lower_thres = float(exam_info.get_low_energy_thres())
+        upper_thres = float(exam_info.get_high_energy_thres())
+        return (lower_thres, upper_thres)
+
     @property
     def native_object(self):
         """Get underlying STIR object."""

@@ -45,6 +45,86 @@ _backend: Optional[str] = None
 _backend_initialized = False
 
 
+def _import_sirf_types() -> tuple[Optional[type], Optional[type]]:
+    """Import SIRF image/acquisition types lazily."""
+    try:
+        from sirf.STIR import AcquisitionData as SirfAcquisitionData  # type: ignore
+        from sirf.STIR import ImageData as SirfImageData  # type: ignore
+    except ImportError:
+        return None, None
+    return SirfImageData, SirfAcquisitionData
+
+
+def _import_stir_types() -> tuple[Optional[type], Optional[type]]:
+    """Import STIR image/acquisition types lazily."""
+    try:
+        from stir import FloatVoxelsOnCartesianGrid as StirImageData  # type: ignore
+        from stir import ProjData as StirProjData  # type: ignore
+    except ImportError:
+        return None, None
+
+    return StirImageData, StirProjData
+
+
+def detect_image_backend(obj: Any) -> Optional[str]:
+    """Return 'sirf' or 'stir' if obj is a native image type."""
+    if obj is None:
+        return None
+
+    sirf_image, _ = _import_sirf_types()
+    if sirf_image is not None and isinstance(obj, sirf_image):
+        return "sirf"
+
+    stir_image, _ = _import_stir_types()
+    if stir_image is not None and isinstance(obj, stir_image):
+        return "stir"
+
+    return None
+
+
+def detect_acquisition_backend(obj: Any) -> Optional[str]:
+    """Return 'sirf' or 'stir' if obj is a native acquisition type."""
+    if obj is None:
+        return None
+
+    _, sirf_acq = _import_sirf_types()
+    if sirf_acq is not None and isinstance(obj, sirf_acq):
+        return "sirf"
+
+    _, stir_proj = _import_stir_types()
+    if stir_proj is not None and isinstance(obj, stir_proj):
+        return "stir"
+
+    return None
+
+
+def detect_backend_from_interface(
+    obj: Union[ImageDataInterface, AcquisitionDataInterface, Any],
+) -> Optional[str]:
+    """Detect backend by unwrapping known interface objects."""
+    native = getattr(obj, "native_object", None)
+    if native is None:
+        return None
+
+    backend = detect_image_backend(native)
+    if backend:
+        return backend
+
+    return detect_acquisition_backend(native)
+
+
+def _activate_backend(preferred: Optional[str]) -> Optional[str]:
+    """Force-activate a specific backend if requested."""
+    if preferred is None:
+        return None
+    if preferred not in ("sirf", "stir"):
+        raise ValueError(
+            f"Invalid backend hint: {preferred}. Expected 'sirf' or 'stir'."
+        )
+    set_backend(preferred)
+    return preferred
+
+
 def get_backend() -> str:
     """Get the current backend or auto-detect.
 
@@ -152,7 +232,11 @@ def create_image_data(
     if isinstance(filepath_or_object, ImageDataInterface):
         return filepath_or_object
 
-    backend = get_backend()
+    backend_hint = detect_image_backend(filepath_or_object)
+    if backend_hint is None:
+        backend_hint = detect_backend_from_interface(filepath_or_object)
+
+    backend = _activate_backend(backend_hint) or get_backend()
 
     if backend == "sirf":
         from .sirf_backend import SirfImageData
@@ -229,7 +313,11 @@ def create_acquisition_data(
     if isinstance(filepath_or_object, AcquisitionDataInterface):
         return filepath_or_object
 
-    backend = get_backend()
+    backend_hint = detect_acquisition_backend(filepath_or_object)
+    if backend_hint is None:
+        backend_hint = detect_backend_from_interface(filepath_or_object)
+
+    backend = _activate_backend(backend_hint) or get_backend()
 
     if backend == "sirf":
         from .sirf_backend import SirfAcquisitionData
@@ -375,6 +463,9 @@ __all__ = [
     "get_backend",
     "set_backend",
     "reset_backend",
+    "detect_image_backend",
+    "detect_acquisition_backend",
+    "detect_backend_from_interface",
     "create_image_data",
     "create_acquisition_data",
     "load_image_data",

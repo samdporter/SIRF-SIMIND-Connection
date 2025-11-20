@@ -74,6 +74,14 @@ def test_penetrate_output_type_enum():
     """Test PenetrateOutputType enum."""
     assert PenetrateOutputType.ALL_INTERACTIONS.value == 1
     assert PenetrateOutputType.GEOM_COLL_PRIMARY_ATT.value == 2
+    # Validate metadata wiring
+    slugs = {member.slug for member in PenetrateOutputType}
+    assert len(slugs) == len(PenetrateOutputType)
+    assert PenetrateOutputType.ALL_INTERACTIONS.slug == "all_interactions"
+    assert (
+        "backscatter"
+        in PenetrateOutputType.GEOM_COLL_PRIMARY_ATT_BACK.description.lower()
+    )
 
 
 @pytest.mark.requires_sirf

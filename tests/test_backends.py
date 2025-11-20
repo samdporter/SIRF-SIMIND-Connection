@@ -190,6 +190,67 @@ def test_unwrap_function():
     assert unwrap(obj) == "regular_object"
 
 
+@pytest.mark.unit
+def test_detect_image_backend_with_mock(monkeypatch):
+    """detect_image_backend should recognise mocked SIRF/STIR types."""
+    import sirf_simind_connection.backends as backends
+
+    class FakeSirfImage:
+        pass
+
+    class FakeStirImage:
+        pass
+
+    monkeypatch.setattr(backends, "_import_sirf_types", lambda: (FakeSirfImage, None))
+    monkeypatch.setattr(backends, "_import_stir_types", lambda: (FakeStirImage, None))
+
+    assert backends.detect_image_backend(FakeSirfImage()) == "sirf"
+    assert backends.detect_image_backend(FakeStirImage()) == "stir"
+    assert backends.detect_image_backend(object()) is None
+
+
+@pytest.mark.unit
+def test_detect_acquisition_backend_with_mock(monkeypatch):
+    """detect_acquisition_backend should recognise mocked native classes."""
+    import sirf_simind_connection.backends as backends
+
+    class FakeSirfAcq:
+        pass
+
+    class FakeStirProj:
+        pass
+
+    monkeypatch.setattr(backends, "_import_sirf_types", lambda: (None, FakeSirfAcq))
+    monkeypatch.setattr(backends, "_import_stir_types", lambda: (None, FakeStirProj))
+
+    assert backends.detect_acquisition_backend(FakeSirfAcq()) == "sirf"
+    assert backends.detect_acquisition_backend(FakeStirProj()) == "stir"
+    assert backends.detect_acquisition_backend(object()) is None
+
+
+@pytest.mark.unit
+def test_detect_backend_from_interface(monkeypatch):
+    """detect_backend_from_interface should unwrap and reuse detection helpers."""
+    import sirf_simind_connection.backends as backends
+
+    class FakeSirfAcq:
+        pass
+
+    class MockWrapper:
+        def __init__(self, native):
+            self._native = native
+
+        @property
+        def native_object(self):
+            return self._native
+
+    monkeypatch.setattr(backends, "_import_sirf_types", lambda: (None, FakeSirfAcq))
+    monkeypatch.setattr(backends, "_import_stir_types", lambda: (None, None))
+
+    wrapper = MockWrapper(FakeSirfAcq())
+    assert backends.detect_backend_from_interface(wrapper) == "sirf"
+
+
 def test_arithmetic_operations():
     """Test that arithmetic operations work correctly."""
 

@@ -1,6 +1,16 @@
-import os
+from __future__ import annotations
 
-from sirf.STIR import ImageData
+from pathlib import Path
+from typing import Optional
+
+import numpy as np
+
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+from sirf_simind_connection.utils.import_helpers import get_sirf_types
+from sirf_simind_connection.utils.io_utils import temporary_directory
+
+
+ImageData, _, SIRF_AVAILABLE = get_sirf_types()
 
 
 class STIRSPECTImageDataBuilder:
@@ -40,7 +50,7 @@ class STIRSPECTImageDataBuilder:
             "!END OF INTERFILE": "",
         }
 
-        self.pixel_array = None
+        self.pixel_array: Optional[np.ndarray] = None
 
         # Override defaults if header_overrides is provided.
         if header_overrides is not None:
@@ -55,39 +65,70 @@ class STIRSPECTImageDataBuilder:
         """
         self.header.update(updates)
 
-    def build(self):
+    def set_pixel_array(self, array: np.ndarray) -> None:
+        """Provide image data to be written to disk."""
+        self.pixel_array = np.asarray(array, dtype=np.float32)
+
+    def _resolve_data_array(self) -> np.ndarray:
+        if self.pixel_array is not None:
+            return np.asarray(self.pixel_array, dtype=np.float32)
+
+        dim_x = int(self.header["!matrix size [1]"])
+        dim_y = int(self.header["!matrix size [2]"])
+        dim_z = int(self.header["!matrix size [3]"])
+        return np.zeros((dim_z, dim_y, dim_x), dtype=np.float32)
+
+    def build(self, output_path: Optional[str | Path] = None):
         """
         Build and return the STIR ImageData object.
 
         Returns:
             ImageData: The constructed STIR ImageData object.
         """
-        # Write header file with specific formatting.
-        header_path = "temp.hv"
-        with open(header_path, "w") as f:
-            line = 0
-            for key in self.header.keys():
-                if key.islower() or line == 0:
-                    temp_str = f"{key} := {self.header[key]}\n"
-                    line += 1
-                else:
-                    temp_str = f"\n{key} := {self.header[key]}\n"
-                f.write(temp_str)
+        data = self._resolve_data_array()
 
-        # Write raw image data to a temporary file.
-        raw_file_path = "temp.v"
-        self.img.tofile(raw_file_path)
+        def _write(base_path: Path, cleanup: bool):
+            header_path = base_path.with_suffix(".hv")
+            raw_path = base_path.with_suffix(".v")
+            self.header["!name of data file"] = raw_path.name
 
-        print("Image written to: " + header_path)
+            with open(header_path, "w") as f:
+                line = 0
+                for key, value in self.header.items():
+                    if key.islower() or line == 0:
+                        temp_str = f"{key} := {value}\n"
+                        line += 1
+                    else:
+                        temp_str = f"\n{key} := {value}\n"
+                    f.write(temp_str)
 
-        # Create the ImageData object from the header file.
-        image_data = ImageData(header_path)
+            data.tofile(raw_path)
 
-        # Clean up temporary files.
-        os.remove(header_path)
-        os.remove(raw_file_path)
+            image_data = self._load_image(str(header_path))
 
-        return image_data
+            if cleanup:
+                header_path.unlink(missing_ok=True)
+                raw_path.unlink(missing_ok=True)
+            return image_data
+
+        if output_path is None:
+            with temporary_directory() as tmp_dir:
+                return _write(Path(tmp_dir) / "spect_image", cleanup=False)
+
+        return _write(Path(output_path), cleanup=False)
+
+    @staticmethod
+    def _load_image(header_path: str):
+        """Load an image using whichever backend is available."""
+        if BACKEND_AVAILABLE and BACKENDS.factories.create_image_data is not None:
+            return BACKENDS.factories.create_image_data(header_path)
+
+        if SIRF_AVAILABLE:
+            return ImageData(header_path)
+
+        raise ImportError(
+            "Unable to load image data: neither SIRF nor STIR Python backends are available."
+        )
 
     @staticmethod
     def create_spect_uniform_image_from_sinogram(sinogram, origin=None):
@@ -106,6 +147,11 @@ class STIRSPECTImageDataBuilder:
             ImageData: A uniform SPECT image initialized with the computed dimensions
                 and voxel sizes.
         """
+        if not SIRF_AVAILABLE:
+            raise ImportError(
+                "create_spect_uniform_image_from_sinogram requires the SIRF backend."
+            )
+
         # Create a uniform image from the sinogram and adjust z-voxel size.
         image = sinogram.create_uniform_image(1)
         voxel_size = list(image.voxel_sizes())
