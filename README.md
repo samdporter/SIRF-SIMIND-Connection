@@ -35,8 +35,10 @@ SIRF-SIMIND-Connection requires either **SIRF** or **STIR Python** as a backend.
 
 Install from conda:
 ```bash
-conda install -c conda-forge stir
+conda install -c conda-forge stir "numpy<2.0"
 ```
+
+**Important**: As of November 2025, the STIR conda package (v6.3.0) requires NumPy < 2.0 due to binary compatibility issues with NumPy 2.x. The package was compiled against NumPy 1.x and will crash with memory errors if NumPy 2.x is installed. This should be resolved in future STIR releases.
 
 Or build from source:
 ```bash
