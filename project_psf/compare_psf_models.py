@@ -2,15 +2,26 @@
 """
 Compare SPECT PSF modeling approaches using RDP-regularized SVRG reconstruction.
 
-Tests 8 reconstruction approaches:
+Tests 11 reconstruction approaches across 4 experimental categories:
+
+No residual corrections:
 1. Fast SPECT (no res model)
 2. Accurate SPECT (with res model only - no Gaussian)
 3. Accurate SPECT (with res model + image-based Gaussian)
-4. STIR PSF residual correction (no SIMIND)
-5. Fast + SIMIND Geometric residual correction
-6. Accurate + SIMIND Geometric residual correction
-7. Fast + SIMIND Full residual correction (additive + residual)
-8. Accurate + SIMIND Full residual correction
+
+STIR for residual correction:
+4. Fast baseline with STIR PSF residual
+5. PSF (no brems) with STIR PSF+brems residual
+
+SIMIND for geometric residual correction:
+6. Fast + SIMIND Geometric residual
+7. Accurate (no brems) + SIMIND Geometric residual
+8. Accurate (with brems) + SIMIND Geometric residual
+
+SIMIND for full residual correction:
+9. Fast + SIMIND Full residual
+10. Accurate (no brems) + SIMIND Full residual
+11. Accurate (with brems) + SIMIND Full residual
 
 Uses SETR's RelativeDifferencePrior with SVRG optimization.
 
@@ -34,13 +45,14 @@ import yaml
 from cil.optimisation.algorithms import ISTA
 from cil.optimisation.functions import IndicatorBox, ScaledFunction
 from cil.optimisation.utilities import Sampler
+
+# SETR imports
+from setr.cil_extensions.algorithms.algorithms import ista_update_step
 from setr.cil_extensions.callbacks import (
     PrintObjectiveCallback,
     SaveImageCallback,
     SavePreconditionerCallback,
 )
-
-# SETR imports
 from setr.cil_extensions.preconditioners import (
     BSREMPreconditioner,
     ImageFunctionPreconditioner,
@@ -75,6 +87,9 @@ from sirf_simind_connection.utils.cil_partitioner import (
     create_svrg_objective_with_rdp,
     partition_data_with_cil_objectives,
 )
+
+
+ISTA.update = ista_update_step
 
 
 def configure_logging(verbose=False):
@@ -530,29 +545,14 @@ class UpdateEtaCallback:
                             "UpdateEtaCallback requires KL functions with an 'eta' attribute"
                         )
 
-                    eta_min_val = float(get_array(eta_subset).min())
-                    eta_cap_val = eta_min_val
-                    if eta_cap_val <= 0.0:
-                        floor_val = self.eta_floor if self.eta_floor > 0.0 else 1e-12
-                        eta_cap_val = floor_val
                     logging.info(
                         "  Subset %d base additive sum: %.2e, residual sum: %.2e, "
                         "combined min: %.2e",
                         i,
                         additive_base.sum(),
                         residual_subset.sum(),
-                        eta_min_val,
+                        float(get_array(eta_subset).min()),
                     )
-
-                    algo = getattr(self.coordinator, "algorithm", None)
-                    if algo is not None and hasattr(
-                        algo, "positivity_eta_min_per_subset"
-                    ):
-                        if i < len(algo.positivity_eta_min_per_subset):
-                            algo.positivity_eta_min_per_subset[i] = eta_cap_val
-                            algo.positivity_eta_min_global = min(
-                                algo.positivity_eta_min_per_subset
-                            )
 
                 # Update cache version tracker
                 self.last_cache_version = self.coordinator.cache_version
@@ -574,7 +574,7 @@ def compute_sensitivity_inverse(projectors):
     for proj in projectors:
         # Create a sinogram of ones and back-project it
         ones = proj.range_geometry().get_uniform_copy(1)
-        sens += proj.backward(ones)
+        sens += proj.adjoint(ones)
 
     sens = sens.maximum(0)
     sens_arr = get_array(sens)
@@ -868,6 +868,7 @@ def partition_data_once_cil(
     coordinator=None,
     eta_floor=1e-5,
     count_floor=1e-8,
+    attenuation_map=None,
 ):
     """
     Partition data ONCE and return CIL objective functions.
@@ -887,6 +888,7 @@ def partition_data_once_cil(
         coordinator: SimindCoordinator instance (optional).
         eta_floor: Minimum additive value to maintain positivity.
         count_floor: Minimum measured count used inside the log term.
+        attenuation_map: Attenuation map for FOV masking (optional).
 
     Returns:
         tuple: (
@@ -923,6 +925,7 @@ def partition_data_once_cil(
         mode="staggered",
         eta_floor=eta_floor,
         count_floor=count_floor,
+        attenuation_map=attenuation_map,
     )
 
     logging.info(f"Created {len(kl_objectives)} CIL KL objectives with LINEAR models")
@@ -971,11 +974,13 @@ def run_svrg_with_prior_cil(
     """
     solver_cfg = _get_solver_config(config)
     algorithm = solver_cfg.get("algorithm", "SVRG").upper()
-    max_update_scale = solver_cfg.get("max_update_scale")
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
     count_floor = data_fidelity_cfg.get("counts_floor", 1e-8)
-    count_floor = data_fidelity_cfg.get("counts_floor", 1e-8)
+    projector_cfg = config.get("projector", {})
+    prefetch_initial_correction = bool(
+        projector_cfg.get("prefetch_initial_correction", True)
+    )
 
     logging.info(f"{algorithm} (CIL): {output_prefix}, beta={beta}")
 
@@ -991,7 +996,7 @@ def run_svrg_with_prior_cil(
             both_directions=config["rdp"].get("both_directions", True),
             bnd_cond=config["rdp"].get("boundary_condition", "Periodic"),
         )
-        prior = ScaledFunction(rdp_prior, -beta)
+        prior = ScaledFunction(rdp_prior, beta)
     else:
         prior = False
 
@@ -1029,7 +1034,7 @@ def run_svrg_with_prior_cil(
 
     if use_armijo:
         correction_update_interval = (
-            config["projector"]["correction_update_epochs"] * num_subsets
+            projector_cfg.get("correction_update_epochs", 1) * num_subsets
         )
         periodic_interval = 0
         if use_armijo_periodic:
@@ -1090,6 +1095,60 @@ def run_svrg_with_prior_cil(
             "Configured SaveStepSizeHistoryCallback (logging to %s)", step_csv_path
         )
 
+    eta_callback = None
+    if coordinator is not None and kl_data_functions is not None:
+        eta_callback = UpdateEtaCallback(
+            coordinator,
+            kl_data_functions,
+            partition_indices,
+            eta_floor=eta_floor,
+        )
+        logging.info("Configured UpdateEtaCallback for eta updates after corrections")
+
+    armijo_trigger = None
+    if use_armijo and coordinator is not None:
+        armijo_trigger = ArmijoTriggerCallback(coordinator)
+        logging.info(
+            "Configured ArmijoTriggerCallback to request Armijo after corrections"
+        )
+
+    def _prefetch_corrections(stage_label, algorithm_instance, image):
+        """
+        Force a correction update before the next iteration and refresh eta/Armijo.
+        """
+        if not (
+            prefetch_initial_correction
+            and coordinator is not None
+            and image is not None
+            and algorithm_instance is not None
+        ):
+            return False
+
+        try:
+            coordinator.run_accurate_projection(image, force=True)
+        except TypeError:
+            # Backwards compatibility with coordinators lacking `force`
+            coordinator.run_accurate_projection(image)
+        except Exception as exc:
+            logging.warning(
+                "Skipping %s correction prefetch due to error: %s", stage_label, exc
+            )
+            return False
+
+        if eta_callback is not None:
+            eta_callback(algorithm_instance)
+        if armijo_trigger is not None:
+            armijo_trigger(algorithm_instance)
+
+        logging.info(
+            "Prefetched coordinator corrections before %s (iteration=%d)",
+            stage_label,
+            algorithm_instance.iteration,
+        )
+        return True
+
+    prefetch_stage_label = "initial"
+
     # Optional Armijo warm-up with full-gradient updates
     if use_armijo and warmup_iterations > 0:
         warmup_objective = create_full_objective_with_rdp(kl_objectives, prior)
@@ -1102,19 +1161,16 @@ def run_svrg_with_prior_cil(
             update_objective_interval=update_interval,
             preconditioner=preconditioner,
         )
-        _configure_update_clipping(warmup_algo, max_update_scale)
-        _configure_positivity_cap(
-            warmup_algo,
-            solver_cfg,
-            subset_sensitivity_max,
-            subset_eta_min,
-        )
         warmup_callbacks = [
             PrintObjectiveCallback(interval=update_interval),
             objective_logger,
         ]
         if step_size_logger is not None:
             warmup_callbacks.append(step_size_logger)
+        if eta_callback is not None:
+            warmup_callbacks.append(eta_callback)
+        if armijo_trigger is not None:
+            warmup_callbacks.append(armijo_trigger)
 
         warmup_epochs = warmup_iterations / max(num_subsets, 1)
         logging.info(
@@ -1132,6 +1188,7 @@ def run_svrg_with_prior_cil(
         if coordinator is not None:
             previous_algorithm = coordinator.algorithm
             coordinator.algorithm = warmup_algo
+            _prefetch_corrections("Armijo warm-up", warmup_algo, initial_image)
         try:
             warmup_algo.run(warmup_iterations, verbose=True, callbacks=warmup_callbacks)
         finally:
@@ -1142,21 +1199,6 @@ def run_svrg_with_prior_cil(
                     preconditioner, precond_interval_snapshot
                 )
                 _reset_preconditioner_runtime_state(preconditioner)
-        warmup_clip_iters = getattr(warmup_algo, "_clip_iterations", 0)
-        if warmup_clip_iters:
-            logging.info(
-                "Warm-up clipping active on %d iterations (scale %.3g, last limit %.3e)",
-                warmup_clip_iters,
-                getattr(warmup_algo, "max_update_scale", float("nan")),
-                getattr(warmup_algo, "_last_clip_limit", float("nan")),
-            )
-        warmup_pos_hits = getattr(warmup_algo, "_positivity_cap_hits", 0)
-        if warmup_pos_hits:
-            logging.info(
-                "Warm-up positivity cap active on %d iterations (theta %.3g)",
-                warmup_pos_hits,
-                getattr(warmup_algo, "positivity_theta", float("nan")),
-            )
         initial_image = warmup_algo.solution.clone()
 
         # Reset warm-up configuration before stochastic updates
@@ -1171,6 +1213,7 @@ def run_svrg_with_prior_cil(
             "Completed Armijo warm-up phase (max Armijo step size now %.6f)",
             capped_step,
         )
+        prefetch_stage_label = "post-warm-up"
 
     callbacks = [
         PrintObjectiveCallback(interval=update_interval),
@@ -1193,24 +1236,14 @@ def run_svrg_with_prior_cil(
         )
         logging.info("Preconditioner snapshots enabled (interval=%d)", precond_interval)
 
-    # Add UpdateEtaCallback if residual_correction is enabled
-    if coordinator is not None and kl_data_functions is not None:
-        eta_callback = UpdateEtaCallback(
-            coordinator,
-            kl_data_functions,
-            partition_indices,
-            eta_floor=eta_floor,
-        )
+    if eta_callback is not None:
         callbacks.append(eta_callback)
-        logging.info("Added UpdateEtaCallback for eta updates after SIMIND simulations")
 
     if step_size_logger is not None:
         callbacks.append(step_size_logger)
 
-    if use_armijo and coordinator is not None:
-        armijo_trigger = ArmijoTriggerCallback(coordinator)
+    if armijo_trigger is not None:
         callbacks.append(armijo_trigger)
-        logging.info("Added ArmijoTriggerCallback to trigger Armijo after corrections")
 
     # Create ISTA algorithm
     algo = ISTA(
@@ -1221,16 +1254,11 @@ def run_svrg_with_prior_cil(
         update_objective_interval=update_interval,
         preconditioner=preconditioner,
     )
-    _configure_update_clipping(algo, max_update_scale)
-    _configure_positivity_cap(
-        algo,
-        solver_cfg,
-        subset_sensitivity_max,
-        subset_eta_min,
-    )
 
     if coordinator is not None:
         coordinator.algorithm = algo
+
+    _prefetch_corrections(prefetch_stage_label, algo, initial_image)
 
     # Run reconstruction
     num_iterations = solver_cfg["num_epochs"] * num_subsets
@@ -1240,22 +1268,6 @@ def run_svrg_with_prior_cil(
     )
 
     algo.run(num_iterations, verbose=True, callbacks=callbacks)
-    clip_iters = getattr(algo, "_clip_iterations", 0)
-    if clip_iters:
-        logging.info(
-            "Clipped voxel updates on %d iterations (scale %.3g, last limit %.3e)",
-            clip_iters,
-            getattr(algo, "max_update_scale", float("nan")),
-            getattr(algo, "_last_clip_limit", float("nan")),
-        )
-
-    positivity_hits = getattr(algo, "_positivity_cap_hits", 0)
-    if positivity_hits:
-        logging.info(
-            "Positivity cap active on %d iterations (theta %.3g)",
-            positivity_hits,
-            getattr(algo, "positivity_theta", float("nan")),
-        )
 
     # Save final result
     output_fname = os.path.join(output_dir, f"{output_prefix}_final.hv")
@@ -1287,64 +1299,6 @@ def _get_solver_config(config):
             "Provide config['stochastic'] or legacy config['svrg']."
         )
     return solver_cfg
-
-
-def _configure_update_clipping(algo, scale):
-    """Attach clipping configuration to an ISTA instance."""
-    if scale is None:
-        algo.max_update_scale = None
-        return
-
-    try:
-        scale = float(scale)
-    except (TypeError, ValueError):
-        logging.warning(
-            "Ignoring invalid max_update_scale=%r (expected numeric).", scale
-        )
-        algo.max_update_scale = None
-        return
-
-    if scale <= 0:
-        algo.max_update_scale = None
-        return
-
-    algo.max_update_scale = scale
-    algo._clip_iterations = 0
-    algo._last_clip_limit = None
-    algo._last_clip_step = None
-
-
-def _configure_positivity_cap(algo, solver_cfg, s_max_list, eta_min_list):
-    """Attach positivity-cap parameters to an ISTA instance."""
-
-    cap_cfg = (solver_cfg or {}).get("positivity_cap", {})
-    enabled = bool(cap_cfg.get("enabled", True))
-    theta = cap_cfg.get("theta", 0.1)
-
-    s_list = list(s_max_list or [])
-    eta_list = list(eta_min_list or [])
-
-    if not enabled or not s_list or not eta_list:
-        algo.positivity_cap_enabled = False
-        algo.positivity_theta = float(theta)
-        algo.positivity_s_max_per_subset = s_list
-        algo.positivity_eta_min_per_subset = eta_list
-        algo.positivity_s_max_global = max(s_list) if s_list else None
-        algo.positivity_eta_min_global = min(eta_list) if eta_list else None
-        algo._positivity_cap_hits = 0
-        algo._last_positivity_cap = None
-        algo._last_positivity_subset = None
-        return
-
-    algo.positivity_cap_enabled = True
-    algo.positivity_theta = float(theta)
-    algo.positivity_s_max_per_subset = s_list
-    algo.positivity_eta_min_per_subset = eta_list
-    algo.positivity_s_max_global = float(max(s_list)) if s_list else None
-    algo.positivity_eta_min_global = float(min(eta_list)) if eta_list else None
-    algo._positivity_cap_hits = 0
-    algo._last_positivity_cap = None
-    algo._last_positivity_subset = None
 
 
 def _make_stir_acq_model_factory(
@@ -1467,6 +1421,7 @@ def _run_mode_core(
         coordinator=coordinator,
         eta_floor=eta_floor,
         count_floor=count_floor,
+        attenuation_map=spect_data["attenuation"],
     )
 
     # Loop over beta values
@@ -1481,9 +1436,16 @@ def _run_mode_core(
         # This resets the iteration counter and re-initializes the cumulative
         # additive term from the original data before the reconstruction starts.
         if coordinator is not None:
+            # Update coordinator output directory for this beta
+            beta_simind_dir = os.path.join(output_dir_for_run, "simind_corrections")
+            os.makedirs(beta_simind_dir, exist_ok=True)
+            coordinator.output_dir = beta_simind_dir
+
             coordinator.initialize_with_additive(spect_data["additive"])
             coordinator.reset_iteration_counter()
-            logging.info(f"Coordinator reset for beta={beta}")
+            logging.info(
+                f"Coordinator reset for beta={beta}, output_dir={beta_simind_dir}"
+            )
 
         recon = run_svrg_with_prior_cil(
             kl_objectives,
@@ -1557,37 +1519,59 @@ def run_mode_3(spect_data, config, output_dir):
     )
 
 
-def run_mode_4(spect_data, config, output_dir):
-    """Mode 4: STIR PSF residual correction (no SIMIND) - all beta values."""
-    _log_mode_banner("MODE 4: STIR PSF residual correction")
+def _run_stir_psf_residual_mode(
+    spect_data,
+    config,
+    output_dir,
+    *,
+    mode_no: int,
+    mode_title: str,
+    baseline_use_psf: bool,
+    baseline_use_gaussian: bool,
+    accurate_use_psf: bool,
+    accurate_use_gaussian: bool,
+):
+    """
+    Shared implementation for STIR PSF residual correction modes.
+
+    Args:
+        spect_data: SPECT data dictionary.
+        config: Configuration dictionary.
+        output_dir: Output directory.
+        mode_no: Mode number for output paths.
+        mode_title: Mode title for logging.
+        baseline_use_psf: Whether baseline model uses PSF.
+        baseline_use_gaussian: Whether baseline model uses Gaussian.
+        accurate_use_psf: Whether accurate model uses PSF.
+        accurate_use_gaussian: Whether accurate model uses Gaussian.
+    """
+    _log_mode_banner(f"MODE {mode_no}: {mode_title}")
 
     solver_cfg = _get_solver_config(config)
     num_subsets = solver_cfg["num_subsets"]
 
     # Build STIR acquisition model factories
-    # Fast: no PSF
-    get_am_fast = _make_stir_acq_model_factory(
-        spect_data, config, use_psf=False, use_gaussian=False
+    get_am_baseline = _make_stir_acq_model_factory(
+        spect_data, config, use_psf=baseline_use_psf, use_gaussian=baseline_use_gaussian
     )
-    # Accurate: with PSF
-    get_am_psf = _make_stir_acq_model_factory(
-        spect_data, config, use_psf=True, use_gaussian=False
+    get_am_accurate = _make_stir_acq_model_factory(
+        spect_data, config, use_psf=accurate_use_psf, use_gaussian=accurate_use_gaussian
     )
 
     # Create full-data STIR acquisition models for coordinator
     full_acq_data = spect_data["acquisition_data"]
     initial_image = spect_data["initial_image"]
 
-    # Fast projector (no PSF)
-    stir_fast_am = get_am_fast()
-    stir_fast_am.set_up(full_acq_data, initial_image)
+    # Baseline projector
+    stir_baseline_am = get_am_baseline()
+    stir_baseline_am.set_up(full_acq_data, initial_image)
 
-    # PSF projector (accurate)
-    stir_psf_am = get_am_psf()
-    stir_psf_am.set_up(full_acq_data, initial_image)
+    # Accurate projector
+    stir_accurate_am = get_am_accurate()
+    stir_accurate_am.set_up(full_acq_data, initial_image)
 
     # Create StirPsfCoordinator
-    stir_dir = os.path.join(output_dir, "stir_psf_mode4")
+    stir_dir = os.path.join(output_dir, f"stir_psf_mode{mode_no}")
     os.makedirs(stir_dir, exist_ok=True)
 
     correction_update_interval = (
@@ -1596,8 +1580,8 @@ def run_mode_4(spect_data, config, output_dir):
     total_iterations = solver_cfg["num_epochs"] * num_subsets
 
     coordinator = StirPsfCoordinator(
-        stir_psf_projector=stir_psf_am,
-        stir_fast_projector=stir_fast_am,
+        stir_psf_projector=stir_accurate_am,
+        stir_fast_projector=stir_baseline_am,
         correction_update_interval=correction_update_interval,
         initial_additive=spect_data["additive"],
         output_dir=stir_dir,
@@ -1611,7 +1595,7 @@ def run_mode_4(spect_data, config, output_dir):
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
     count_floor = data_fidelity_cfg.get("count_floor", 1e-5)
 
-    # Partition once using CIL objectives with fast projector
+    # Partition once using CIL objectives with baseline projector
     (
         kl_objectives,
         projectors,
@@ -1622,26 +1606,32 @@ def run_mode_4(spect_data, config, output_dir):
     ) = partition_data_once_cil(
         spect_data["acquisition_data"],
         spect_data["additive"],
-        get_am_fast,
+        get_am_baseline,
         spect_data["initial_image"],
         num_subsets,
         coordinator=coordinator,
         eta_floor=eta_floor,
         count_floor=count_floor,
+        attenuation_map=spect_data["attenuation"],
     )
 
     # Loop over beta values
     results = []
     for beta in config["rdp"]["beta_values"]:
-        logging.info(f"--- Mode: 4, Beta: {beta} ---")
-        output_dir_for_run = os.path.join(output_dir, f"mode4/b{beta}")
+        logging.info(f"--- Mode: {mode_no}, Beta: {beta} ---")
+        output_dir_for_run = os.path.join(output_dir, f"mode{mode_no}/b{beta}")
         os.makedirs(output_dir_for_run, exist_ok=True)
         output_prefix = ""
+
+        # Update coordinator output directory for this beta
+        beta_stir_dir = os.path.join(output_dir_for_run, "stir_psf_corrections")
+        os.makedirs(beta_stir_dir, exist_ok=True)
+        coordinator.output_dir = beta_stir_dir
 
         # Reset coordinator for this beta value
         coordinator.initialize_with_additive(spect_data["additive"])
         coordinator.reset_iteration_counter()
-        logging.info(f"Coordinator reset for beta={beta}")
+        logging.info(f"Coordinator reset for beta={beta}, output_dir={beta_stir_dir}")
 
         recon = run_svrg_with_prior_cil(
             kl_objectives,
@@ -1662,32 +1652,46 @@ def run_mode_4(spect_data, config, output_dir):
     return results
 
 
+def run_mode_4(spect_data, config, output_dir):
+    """Mode 4: STIR PSF residual correction (no SIMIND) - all beta values."""
+    return _run_stir_psf_residual_mode(
+        spect_data,
+        config,
+        output_dir,
+        mode_no=4,
+        mode_title="STIR PSF residual correction",
+        baseline_use_psf=False,
+        baseline_use_gaussian=False,
+        accurate_use_psf=True,
+        accurate_use_gaussian=True,
+    )
+
+
 def run_mode_5(spect_data, config, output_dir):
-    """Mode 5: Fast + SIMIND Geometric residual correction - all beta values."""
-    return _run_mode_core(
+    """Mode 5: PSF (no brems) with STIR PSF+brems residual - all beta values."""
+    return _run_stir_psf_residual_mode(
         spect_data,
         config,
         output_dir,
         mode_no=5,
-        mode_title="Fast + SIMIND Geometric residual",
-        use_psf=False,
-        use_gaussian=False,
-        residual_correction=True,
-        update_additive=False,
-        simind_dir_suffix="mode5",
+        mode_title="PSF (no brems) with STIR PSF+brems residual",
+        baseline_use_psf=True,
+        baseline_use_gaussian=False,
+        accurate_use_psf=True,
+        accurate_use_gaussian=True,
     )
 
 
 def run_mode_6(spect_data, config, output_dir):
-    """Mode 6: Accurate + SIMIND Geometric residual correction - all beta values."""
+    """Mode 6: Fast + SIMIND Geometric residual correction - all beta values."""
     return _run_mode_core(
         spect_data,
         config,
         output_dir,
         mode_no=6,
-        mode_title="Accurate + SIMIND Geometric residual",
-        use_psf=True,
-        use_gaussian=True,
+        mode_title="Fast + SIMIND Geometric residual",
+        use_psf=False,
+        use_gaussian=False,
         residual_correction=True,
         update_additive=False,
         simind_dir_suffix="mode6",
@@ -1695,34 +1699,82 @@ def run_mode_6(spect_data, config, output_dir):
 
 
 def run_mode_7(spect_data, config, output_dir):
-    """Mode 7: Fast + SIMIND Full residual correction - all beta values."""
+    """Mode 7: Accurate (no brems) + SIMIND Geometric residual - all beta values."""
     return _run_mode_core(
         spect_data,
         config,
         output_dir,
         mode_no=7,
-        mode_title="Fast + SIMIND Full residual",
-        use_psf=False,
+        mode_title="Accurate (no brems) + SIMIND Geometric residual",
+        use_psf=True,
         use_gaussian=False,
         residual_correction=True,
-        update_additive=True,
+        update_additive=False,
         simind_dir_suffix="mode7",
     )
 
 
 def run_mode_8(spect_data, config, output_dir):
-    """Mode 8: Accurate + SIMIND Full residual correction - all beta values."""
+    """Mode 8: Accurate (with brems) + SIMIND Geometric residual - all beta values."""
     return _run_mode_core(
         spect_data,
         config,
         output_dir,
         mode_no=8,
-        mode_title="Accurate + SIMIND Full residual",
+        mode_title="Accurate (with brems) + SIMIND Geometric residual",
+        use_psf=True,
+        use_gaussian=True,
+        residual_correction=True,
+        update_additive=False,
+        simind_dir_suffix="mode8",
+    )
+
+
+def run_mode_9(spect_data, config, output_dir):
+    """Mode 9: Fast + SIMIND Full residual correction - all beta values."""
+    return _run_mode_core(
+        spect_data,
+        config,
+        output_dir,
+        mode_no=9,
+        mode_title="Fast + SIMIND Full residual",
+        use_psf=False,
+        use_gaussian=False,
+        residual_correction=True,
+        update_additive=True,
+        simind_dir_suffix="mode9",
+    )
+
+
+def run_mode_10(spect_data, config, output_dir):
+    """Mode 10: Accurate (no brems) + SIMIND Full residual - all beta values."""
+    return _run_mode_core(
+        spect_data,
+        config,
+        output_dir,
+        mode_no=10,
+        mode_title="Accurate (no brems) + SIMIND Full residual",
+        use_psf=True,
+        use_gaussian=False,
+        residual_correction=True,
+        update_additive=True,
+        simind_dir_suffix="mode10",
+    )
+
+
+def run_mode_11(spect_data, config, output_dir):
+    """Mode 11: Accurate (with brems) + SIMIND Full residual - all beta values."""
+    return _run_mode_core(
+        spect_data,
+        config,
+        output_dir,
+        mode_no=11,
+        mode_title="Accurate (with brems) + SIMIND Full residual",
         use_psf=True,
         use_gaussian=True,
         residual_correction=True,
         update_additive=True,
-        simind_dir_suffix="mode8",
+        simind_dir_suffix="mode11",
     )
 
 
@@ -1786,6 +1838,9 @@ def main():
         6: run_mode_6,
         7: run_mode_7,
         8: run_mode_8,
+        9: run_mode_9,
+        10: run_mode_10,
+        11: run_mode_11,
     }
 
     # Run reconstructions - each mode handles all beta values internally
@@ -1810,97 +1865,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-def positivity_preserving_ista_update(self) -> None:
-    """ISTA update with per-iteration positivity and magnitude caps."""
-
-    gradient = self.f.gradient(self.x_old, out=self.gradient_update)
-
-    try:
-        raw_step = self.step_size_rule.get_step_size(self)
-    except NameError as exc:  # pragma: no cover - defensive
-        raise NameError(
-            "`step_size` must be None, a real float or a StepSizeRule instance"
-        ) from exc
-
-    if self.preconditioner is not None:
-        descent = self.preconditioner.apply(self, gradient)
-    else:
-        descent = gradient
-
-    descent_norm = float(np.max(np.abs(get_array(descent))))
-    step_size = raw_step
-
-    clip_hit = False
-    positivity_hit = False
-    subset_idx = getattr(getattr(self, "f", None), "function_num", None)
-
-    # Optional amplitude-based cap |Δx| <= scale * max(x)
-    max_scale = getattr(self, "max_update_scale", None)
-    if max_scale and max_scale > 0 and descent_norm > 0:
-        reference = float(self.x.max())
-        if reference > 0:
-            limit = max_scale * reference
-            scale_cap = limit / descent_norm
-            if scale_cap > 0 and scale_cap < step_size:
-                step_size = scale_cap
-                clip_hit = True
-                self._last_clip_limit = limit
-
-    # Positivity-preserving cap α <= θ μ_min / (||d||∞ s_max)
-    if (
-        getattr(self, "positivity_cap_enabled", False)
-        and descent_norm > 0
-        and getattr(self, "positivity_theta", None) is not None
-    ):
-        theta = float(self.positivity_theta)
-        s_max_list = getattr(self, "positivity_s_max_per_subset", None)
-        eta_min_list = getattr(self, "positivity_eta_min_per_subset", None)
-        mu_min = getattr(self, "positivity_eta_min_global", None)
-        s_max = getattr(self, "positivity_s_max_global", None)
-
-        if eta_min_list and s_max_list and subset_idx is not None:
-            if 0 <= subset_idx < len(eta_min_list):
-                mu_min = eta_min_list[subset_idx]
-            if 0 <= subset_idx < len(s_max_list):
-                s_max = s_max_list[subset_idx]
-
-        if mu_min is not None and s_max is not None and mu_min > 0 and s_max > 0:
-            positivity_cap = theta * mu_min / (descent_norm * s_max)
-            if positivity_cap > 0 and positivity_cap < step_size:
-                step_size = positivity_cap
-                positivity_hit = True
-                self._last_positivity_cap = positivity_cap
-                self._last_positivity_subset = subset_idx
-
-    if step_size < raw_step:
-        if hasattr(self, "step_size_rule") and hasattr(
-            self.step_size_rule, "current_step_size"
-        ):
-            self.step_size_rule.current_step_size = step_size
-            if hasattr(self.step_size_rule, "min_step_size_seen"):
-                self.step_size_rule.min_step_size_seen = min(
-                    self.step_size_rule.min_step_size_seen, step_size
-                )
-
-    if clip_hit:
-        self._clip_iterations = getattr(self, "_clip_iterations", 0) + 1
-        self._last_clip_step = step_size
-
-    if positivity_hit:
-        self._positivity_cap_hits = getattr(self, "_positivity_cap_hits", 0) + 1
-    else:
-        self._last_positivity_cap = getattr(self, "_last_positivity_cap", step_size)
-
-    self._last_step_size = step_size
-
-    self.x_old.sapyb(1.0, descent, -step_size, out=self.x_old)
-
-    M = self.x.max()
-    self.x_old = self.x_old.maximum(-M)
-    self.x_old = self.x_old.minimum(M)
-    self.g.proximal(self.x_old, step_size, out=self.x)
-
-
-ISTA.update = positivity_preserving_ista_update

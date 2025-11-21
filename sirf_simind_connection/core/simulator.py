@@ -72,9 +72,10 @@ class SimindSimulator:
         """
         self.logger = logging.getLogger(__name__)
 
-        # Setup output directory
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Setup output directory (store absolute path so chdir() calls don't break it)
+        output_path = Path(output_dir).expanduser()
+        output_path.mkdir(parents=True, exist_ok=True)
+        self.output_dir = output_path.resolve()
         self.output_prefix = output_prefix
 
         # Handle scoring routine

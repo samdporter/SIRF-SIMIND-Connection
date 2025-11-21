@@ -30,7 +30,7 @@ resolution:
 stochastic:
   algorithm: SVRG  # Options: SVRG, SAGA
   num_subsets: 18
-  num_epochs: 100
+  num_epochs: 50
   initial_step_size: 2 # will be updated by armijo
   relaxation_eta: 0.00
   snapshot_update_interval: 18
@@ -40,12 +40,8 @@ stochastic:
   armijo_periodic_epochs: 1  # Run Armijo search every epoch when periodic mode is enabled
   armijo_initial_iterations: 5  # Number of full-gradient warm-up updates before stochastic phase
   armijo_beta: 0.5      # Backtracking factor
-  armijo_max_iter: 20   # Max backtracking iterations
-  armijo_tol: 0.0001    # Sufficient decrease tolerance
-  max_update_scale: 1.0  # Set >0 to cap |delta| <= scale * current image max per voxel
-  positivity_cap:
-    enabled: true
-    theta: 0.1  # Safety margin for μ keeping positivity
+  armijo_max_iter: 5   # Max backtracking iterations
+  armijo_tol: 0.2    # Sufficient decrease tolerance
 
 
 # RDP prior parameters
@@ -80,11 +76,12 @@ preconditioner:
 
 # SimindProjector update control
 projector:
-  correction_update_epochs: 20  # Update corrections every N epochs
+  correction_update_epochs: 5  # Update corrections every N epochs
+  prefetch_initial_correction: true  # Run a correction before the first iteration
 
 # Reconstruction selection
 reconstruction:
-  modes: [2,3,4,5,6,7,8]  # Which modes to run
+  modes: [5,6,7,8,9,10,11]  # Which modes to run
 
 # Output options
 output:

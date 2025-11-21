@@ -391,7 +391,7 @@ class SimindCoordinator(Coordinator):
 
         return True
 
-    def run_full_simulation(self, image):
+    def run_full_simulation(self, image, force=False):
         """
         Run one full SIMIND simulation (all views) and cache results.
 
@@ -407,7 +407,7 @@ class SimindCoordinator(Coordinator):
             raise ValueError("Algorithm must be set")
 
         # Guard: skip if already updated in this iteration
-        if self._last_update_iteration == self.algorithm.iteration:
+        if not force and self._last_update_iteration == self.algorithm.iteration:
             return
 
         logging.info(
@@ -514,38 +514,38 @@ class SimindCoordinator(Coordinator):
             import os
 
             # Save cached projections and corrections
+            # Use algorithm iteration for clearer naming
+            iter_label = self.algorithm.iteration if self.algorithm else -1
             if self.cached_b01:
                 self.cached_b01.write(
-                    os.path.join(self.output_dir, f"b01_iter_{self.cache_version}.hs")
+                    os.path.join(self.output_dir, f"b01_iter_{iter_label}.hs")
                 )
             if self.cached_b02:
                 self.cached_b02.write(
-                    os.path.join(self.output_dir, f"b02_iter_{self.cache_version}.hs")
+                    os.path.join(self.output_dir, f"b02_iter_{iter_label}.hs")
                 )
             if self.cached_linear_proj:
                 self.cached_linear_proj.write(
-                    os.path.join(
-                        self.output_dir, f"linear_proj_iter_{self.cache_version}.hs"
-                    )
+                    os.path.join(self.output_dir, f"linear_proj_iter_{iter_label}.hs")
                 )
             if self.cached_stir_full_proj:
                 self.cached_stir_full_proj.write(
                     os.path.join(
-                        self.output_dir, f"stir_full_proj_iter_{self.cache_version}.hs"
+                        self.output_dir, f"stir_full_proj_iter_{iter_label}.hs"
                     )
                 )
             if self.cached_residual_full is not None:
                 self.cached_residual_full.write(
                     os.path.join(
                         self.output_dir,
-                        f"residual_iter_{self.cache_version}.hs",
+                        f"residual_iter_{iter_label}.hs",
                     )
                 )
             if self.current_additive:
                 self.current_additive.write(
                     os.path.join(
                         self.output_dir,
-                        f"current_additive_iter_{self.cache_version}.hs",
+                        f"current_additive_iter_{iter_label}.hs",
                     )
                 )
 
@@ -631,14 +631,14 @@ class SimindCoordinator(Coordinator):
         self._last_algorithm_iteration = None
         logging.info("SimindCoordinator iteration counter reset")
 
-    def run_accurate_projection(self, image):
+    def run_accurate_projection(self, image, force=False):
         """
         Alias for run_full_simulation() to conform to Coordinator interface.
 
         Args:
             image (ImageData): Current image estimate.
         """
-        return self.run_full_simulation(image)
+        return self.run_full_simulation(image, force=force)
 
     # Properties required by Coordinator base class
     @property
@@ -794,7 +794,7 @@ class StirPsfCoordinator(Coordinator):
 
         return True
 
-    def run_accurate_projection(self, image):
+    def run_accurate_projection(self, image, force=False):
         """
         Run PSF projection and compute residual corrections.
 
@@ -809,7 +809,7 @@ class StirPsfCoordinator(Coordinator):
             raise ValueError("Algorithm must be set")
 
         # Guard: skip if already updated in this iteration
-        if self._last_update_iteration == self.algorithm.iteration:
+        if not force and self._last_update_iteration == self.algorithm.iteration:
             return
 
         logging.info(
@@ -845,22 +845,24 @@ class StirPsfCoordinator(Coordinator):
         if self.output_dir:
             import os
 
+            # Use algorithm iteration for clearer naming
+            iter_label = self.algorithm.iteration if self.algorithm else -1
             self.cached_psf_proj.write(
-                os.path.join(self.output_dir, f"psf_proj_iter_{self.cache_version}.hs")
+                os.path.join(self.output_dir, f"psf_proj_iter_{iter_label}.hs")
             )
             self.cached_fast_proj.write(
-                os.path.join(self.output_dir, f"fast_proj_iter_{self.cache_version}.hs")
+                os.path.join(self.output_dir, f"fast_proj_iter_{iter_label}.hs")
             )
             residual.write(
                 os.path.join(
                     self.output_dir,
-                    f"residual_iter_{self.cache_version}.hs",
+                    f"residual_iter_{iter_label}.hs",
                 )
             )
             self.current_additive.write(
                 os.path.join(
                     self.output_dir,
-                    f"current_additive_iter_{self.cache_version}.hs",
+                    f"current_additive_iter_{iter_label}.hs",
                 )
             )
 

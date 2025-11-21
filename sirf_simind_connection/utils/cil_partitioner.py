@@ -11,6 +11,7 @@ import logging
 
 try:
     from cil.optimisation.functions import OperatorCompositionFunction
+    from cil.optimisation.operators import CompositionOperator, MaskOperator
     from sirf.contrib.partitioner import partitioner
 
     CIL_AVAILABLE = True
@@ -96,6 +97,7 @@ def partition_data_with_cil_objectives(
     mode="staggered",
     eta_floor=1e-5,
     count_floor=1e-8,
+    attenuation_map=None,
 ):
     """
     Partition SPECT data into subsets and create CIL KL objective functions.
@@ -123,6 +125,9 @@ def partition_data_with_cil_objectives(
         mode (str): Partitioning mode ("staggered", "sequential", "random").
         eta_floor (float): Minimum additive value applied via max(additive, eta_floor).
         count_floor (float): Minimum measured count used in the logarithm to avoid log(0).
+        attenuation_map (ImageData, optional): Attenuation map for FOV masking.
+            If provided, creates a binary mask (mu_map > 0.001) that is composed
+            with each acquisition model to prevent boundary artifacts.
 
     Returns:
         tuple: (
@@ -191,6 +196,22 @@ def partition_data_with_cil_objectives(
 
     logging.info(f"Created {len(acquisition_models)} subset acquisition models")
 
+    # Create binary mask from attenuation map if provided
+    mask_operator = None
+    if attenuation_map is not None:
+        import numpy as np
+
+        # Create mask ImageData with proper geometry
+        mask_image = attenuation_map.clone()
+        mask_array = (get_array(attenuation_map) > 0.001).astype(np.float32)
+        mask_image.fill(mask_array)
+
+        mask_operator = MaskOperator(mask_image, mask_image)
+        logging.info(
+            f"Created FOV mask: {mask_array.sum()}/{mask_array.size} voxels "
+            f"({100 * mask_array.sum() / mask_array.size:.1f}% in FOV)"
+        )
+
     # Create projectors and CIL objectives
     kl_objectives = []
     kl_data_functions = []  # Store unwrapped KL functions for eta updates
@@ -220,6 +241,10 @@ def partition_data_with_cil_objectives(
         else:
             # No coordinator - wrap STIR linear acquisition model for CIL
             projector = CILAcquisitionModelAdapter(linear_acq_model)
+
+        # Compose with mask operator if provided: A_masked = A ∘ mask
+        if mask_operator is not None:
+            projector = CompositionOperator(projector, mask_operator)
 
         projectors.append(projector)
 
@@ -262,7 +287,8 @@ def partition_data_with_cil_objectives(
             f"additive sum={eta_subset.sum():.2e}"
         )
 
-    logging.info("Created CIL KL objectives with LINEAR projectors (standard KL)")
+    mask_status = " with FOV masking" if mask_operator is not None else ""
+    logging.info(f"Created CIL KL objectives with LINEAR projectors{mask_status}")
 
     # Return both composed objectives and unwrapped KL data functions
     return (
