@@ -54,6 +54,35 @@ def _make_stir_acq_model_factory(
     return get_am
 
 
+def _get_restart_strategy(config):
+    """Return restart flag and number of reconstruction cycles."""
+
+    projector_cfg = config.get("projector", {})
+    restart_enabled = bool(
+        projector_cfg.get("restart_reconstruction_on_correction_reset", False)
+    )
+
+    raw_cycles = projector_cfg.get("n_corrections", 1)
+    try:
+        configured_cycles = int(raw_cycles)
+    except (TypeError, ValueError):
+        logging.warning(
+            "Invalid projector.n_corrections=%s. Defaulting to 1 cycle", raw_cycles
+        )
+        configured_cycles = 1
+
+    configured_cycles = max(1, configured_cycles)
+
+    if restart_enabled:
+        logging.info(
+            "Restart strategy: enabled=%s, cycles=%d",
+            restart_enabled,
+            configured_cycles,
+        )
+
+    return restart_enabled, configured_cycles
+
+
 def _run_mode_core(
     spect_data,
     config,
@@ -73,7 +102,11 @@ def _run_mode_core(
     solver_cfg = get_solver_config(config)
     num_subsets = solver_cfg["num_subsets"]
     mask_image = _create_mask_from_attenuation(spect_data.get("attenuation"), 0.05)
-
+    restart_enabled, configured_cycles = _get_restart_strategy(config)
+    num_correction_cycles = (
+        configured_cycles if (residual_correction or update_additive) else 1
+    )
+    base_iterations = solver_cfg["num_epochs"] * num_subsets
     get_am = _make_stir_acq_model_factory(
         spect_data,
         config,
@@ -86,10 +119,8 @@ def _run_mode_core(
         simind_dir = os.path.join(output_dir, f"simind_{simind_dir_suffix}")
         os.makedirs(simind_dir, exist_ok=True)
         simind_sim = create_simind_simulator(config, spect_data, simind_dir)
-        correction_update_interval = (
-            config["projector"]["correction_update_epochs"] * num_subsets
-        )
-        total_iterations = solver_cfg["num_epochs"] * num_subsets
+        correction_update_interval = base_iterations
+        total_iterations = base_iterations * num_correction_cycles
 
         full_acq_data = spect_data["acquisition_data"]
         initial_image = spect_data["initial_image"]
@@ -116,6 +147,7 @@ def _run_mode_core(
         )
 
         coordinator.initialize_with_additive(spect_data["additive"])
+        coordinator.reset_iteration_counter()
 
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
@@ -173,6 +205,8 @@ def _run_mode_core(
             partition_indices=partition_indices,
             subset_sensitivity_max=subset_sensitivity_max,
             subset_eta_min=subset_eta_min,
+            num_correction_cycles=num_correction_cycles,
+            restart_on_correction_reset=restart_enabled and coordinator is not None,
         )
         results.append(recon)
 
@@ -199,6 +233,9 @@ def _run_stir_psf_residual_mode(
     solver_cfg = get_solver_config(config)
     num_subsets = solver_cfg["num_subsets"]
     mask_image = _create_mask_from_attenuation(spect_data.get("attenuation"), 0.05)
+    restart_enabled, configured_cycles = _get_restart_strategy(config)
+    num_correction_cycles = configured_cycles
+    base_iterations = solver_cfg["num_epochs"] * num_subsets
 
     get_am_baseline = _make_stir_acq_model_factory(
         spect_data, config, use_psf=baseline_use_psf, use_gaussian=baseline_use_gaussian
@@ -219,10 +256,8 @@ def _run_stir_psf_residual_mode(
     stir_dir = os.path.join(output_dir, f"stir_psf_mode{mode_no}")
     os.makedirs(stir_dir, exist_ok=True)
 
-    correction_update_interval = (
-        config["projector"]["correction_update_epochs"] * num_subsets
-    )
-    total_iterations = solver_cfg["num_epochs"] * num_subsets
+    correction_update_interval = base_iterations
+    total_iterations = base_iterations * num_correction_cycles
 
     coordinator = StirPsfCoordinator(
         stir_psf_projector=stir_accurate_am,
@@ -235,6 +270,7 @@ def _run_stir_psf_residual_mode(
     )
 
     coordinator.initialize_with_additive(spect_data["additive"])
+    coordinator.reset_iteration_counter()
 
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
@@ -279,7 +315,7 @@ def _run_stir_psf_residual_mode(
         recon = run_svrg_with_prior_cil(
             kl_objectives,
             projectors,
-            spect_data["initial_image"].get_uniform_copy(1.0),
+            spect_data["initial_image"],
             beta,
             config,
             output_prefix,
@@ -289,6 +325,8 @@ def _run_stir_psf_residual_mode(
             partition_indices=partition_indices,
             subset_sensitivity_max=subset_sensitivity_max,
             subset_eta_min=subset_eta_min,
+            num_correction_cycles=num_correction_cycles,
+            restart_on_correction_reset=restart_enabled,
         )
         results.append(recon)
 

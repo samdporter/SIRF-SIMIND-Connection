@@ -115,7 +115,9 @@ rdp:
 
 # SimindProjector
 projector:
-  correction_update_epochs: 5
+  prefetch_initial_correction: false
+  restart_reconstruction_on_correction_reset: false
+  n_corrections: 1  # Run each reconstruction n_corrections times (num_epochs per cycle)
 
 # Reconstruction selection
 reconstruction:
@@ -126,6 +128,10 @@ output:
   save_intermediate: false
   verbose: false
 ```
+
+When `projector.restart_reconstruction_on_correction_reset` is enabled, each beta run
+performs `n_corrections` full reconstructions, so the total number of iterations becomes
+`num_epochs * n_corrections`. Leave `n_corrections=1` to match the no-residual baseline.
 
 ## Command-Line Overrides
 

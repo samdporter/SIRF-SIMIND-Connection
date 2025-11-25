@@ -34,8 +34,11 @@ from psf_compare.modes import (
     run_mode_10,
     run_mode_11,
 )
+from psf_compare.preconditioning import _create_mask_from_attenuation
 from setr.utils import get_spect_data
 from sirf.STIR import AcquisitionData, MessageRedirector
+
+from sirf_simind_connection.utils import get_array
 
 
 def parse_args():
@@ -135,6 +138,13 @@ def main():
 
     start_time = time.time()
     spect_data = get_spect_data(config["data_path"])
+    mask_image = _create_mask_from_attenuation(spect_data.get("attenuation"), 0.05)
+    if mask_image is not None:
+        masked_initial = spect_data["initial_image"].clone()
+        masked_initial.fill(get_array(masked_initial) * get_array(mask_image))
+        spect_data["initial_image"] = masked_initial
+        logging.info("Masked initial image using attenuation-derived FOV")
+
     logging.info("Data loading: %.2fs", time.time() - start_time)
 
     mode_funcs = {

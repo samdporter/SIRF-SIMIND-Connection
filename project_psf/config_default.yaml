@@ -31,7 +31,7 @@ resolution:
 stochastic:
   algorithm: SVRG  # Options: SVRG, SAGA
   num_subsets: 18
-  num_epochs: 50
+  num_epochs: 10
   initial_step_size: 1 # will be updated by armijo
   relaxation_eta: 0.00
   snapshot_update_interval: 18
@@ -44,7 +44,7 @@ stochastic:
 
 # RDP prior parameters
 rdp:
-  beta_values: [0.1]
+  beta_values: [0]
   gamma: 1.0
   epsilon: 0.01
   stencil: 26
@@ -56,7 +56,7 @@ preconditioner:
   update_interval: 1
   bsrem:
     update_interval: 1
-    epsilon: 0.0
+    epsilon: 1.0e-8
     smooth: true
     smoothing_fwhm: [10,10,10]  # in mm
   prior:
@@ -67,12 +67,13 @@ preconditioner:
 
 # SimindProjector update control
 projector:
-  correction_update_epochs: 5  # Update corrections every N epochs
   prefetch_initial_correction: false  # Run a correction before the first iteration
+  restart_reconstruction_on_correction_reset: true  # Restart when resetting residual/additive corrections
+  n_corrections: 5  # Number of reconstruction cycles (total iterations = num_epochs * n_corrections)
 
 # Reconstruction selection
 reconstruction:
-  modes: [2,3,4,5]  # Which modes to run
+  modes: [4]  # Which modes to run
 
 # Output options
 output:

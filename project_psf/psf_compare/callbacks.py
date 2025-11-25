@@ -128,6 +128,8 @@ class UpdateEtaCallback:
         eta_floor=1e-8,
         debug_objective_path=None,
         image_smoothing_fwhm=None,
+        restart_on_update=False,
+        restart_image=None,
     ):
         self.coordinator = coordinator
         self.kl_data_functions = kl_data_functions
@@ -136,6 +138,15 @@ class UpdateEtaCallback:
         self.last_cache_version = 0
         self.debug_objective_path = debug_objective_path
         self.image_smoothing_fwhm = image_smoothing_fwhm
+        self.restart_on_update = bool(restart_on_update)
+        self.restart_image = (
+            restart_image.clone() if restart_image is not None else None
+        )
+        self._restart_array = (
+            get_array(self.restart_image).copy()
+            if self.restart_image is not None
+            else None
+        )
 
     def __call__(self, algorithm):
         """Update eta if new SIMIND simulation results are available."""
@@ -184,6 +195,9 @@ class UpdateEtaCallback:
                 # applied to the additive term.
                 self._trigger_armijo_after_eta_update(algorithm)
 
+                if self.restart_on_update and self._restart_array is not None:
+                    self._restart_algorithm_state(algorithm)
+
     def _trigger_armijo_after_eta_update(self, algorithm):
         """
         Request an Armijo line search immediately after eta is refreshed.
@@ -193,3 +207,20 @@ class UpdateEtaCallback:
             step_rule.force_armijo_after_correction(algorithm)
         elif hasattr(step_rule, "trigger_armijo"):
             step_rule.trigger_armijo = True
+
+    def _restart_algorithm_state(self, algorithm):
+        """Reset algorithm iterates to the stored restart image."""
+        restart_data = self._restart_array
+        if restart_data is None:
+            return
+
+        if hasattr(algorithm, "solution") and algorithm.solution is not None:
+            algorithm.solution.fill(restart_data)
+        if hasattr(algorithm, "x_old") and algorithm.x_old is not None:
+            algorithm.x_old.fill(restart_data)
+        if hasattr(algorithm, "x") and algorithm.x is not None:
+            algorithm.x.fill(restart_data)
+
+        logging.info(
+            "Restarted algorithm state from initial image after correction update"
+        )

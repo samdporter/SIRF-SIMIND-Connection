@@ -16,7 +16,7 @@ from setr.cil_extensions.callbacks import (
     PrintObjectiveCallback,
     SavePreconditionerCallback,
 )
-from sirf.STIR import CudaRelativeDifferencePrior
+from sirf.STIR import RelativeDifferencePrior
 from step_size_rules import (
     ArmijoAfterCorrectionStepSize,
     ArmijoTriggerCallback,
@@ -47,6 +47,8 @@ def run_svrg_with_prior_cil(
     partition_indices=None,
     subset_sensitivity_max=None,
     subset_eta_min=None,
+    num_correction_cycles=1,
+    restart_on_correction_reset=False,
 ):
     """
     Run SVRG reconstruction with CIL objectives and RDP prior.
@@ -64,10 +66,11 @@ def run_svrg_with_prior_cil(
     logging.info("%s (CIL): %s, beta=%s", algorithm, output_prefix, beta)
 
     num_subsets = len(kl_objectives)
+    num_cycles = max(1, int(num_correction_cycles))
 
-    rdp_prior: Optional[CudaRelativeDifferencePrior] = None
+    rdp_prior: Optional[RelativeDifferencePrior] = None
     if beta > 0:
-        rdp_prior = CudaRelativeDifferencePrior()
+        rdp_prior = RelativeDifferencePrior()
         rdp_prior.set_penalisation_factor(beta)
         rdp_prior.set_gamma(config["rdp"].get("gamma", 1.0))
         rdp_prior.set_epsilon(config["rdp"].get("epsilon", 1e-6))
@@ -84,6 +87,13 @@ def run_svrg_with_prior_cil(
         )
     else:
         snapshot_update_interval = None
+
+    if coordinator is not None and getattr(coordinator, "algorithm", None) is None:
+
+        class _WarmStartAlgorithm:
+            iteration = 0
+
+        coordinator.algorithm = _WarmStartAlgorithm()
 
     total_objective = create_svrg_objective_with_rdp(
         kl_objectives,
@@ -158,6 +168,8 @@ def run_svrg_with_prior_cil(
             "Configured SaveStepSizeHistoryCallback (logging to %s)", step_csv_path
         )
 
+    restart_image = initial_image.clone() if restart_on_correction_reset else None
+
     eta_callback = None
     if coordinator is not None and kl_data_functions is not None:
         debug_eta_path = os.path.join(
@@ -172,6 +184,8 @@ def run_svrg_with_prior_cil(
             eta_floor=eta_floor,
             debug_objective_path=debug_eta_path,
             image_smoothing_fwhm=image_smoothing_fwhm,
+            restart_on_update=restart_on_correction_reset,
+            restart_image=restart_image,
         )
         logging.info("Configured UpdateEtaCallback for eta updates after corrections")
 
@@ -260,13 +274,24 @@ def run_svrg_with_prior_cil(
 
     _prefetch_corrections("initial", algo, initial_image)
 
-    num_iterations = solver_cfg["num_epochs"] * num_subsets
-    logging.info(
-        "Running %s for %d iterations (%d epochs)",
-        algorithm,
-        num_iterations,
-        solver_cfg["num_epochs"],
-    )
+    base_epochs = solver_cfg["num_epochs"]
+    total_epochs = base_epochs * num_cycles
+    num_iterations = total_epochs * num_subsets
+    if num_cycles > 1:
+        logging.info(
+            "Running %s for %d iterations (%d epochs x %d cycles)",
+            algorithm,
+            num_iterations,
+            base_epochs,
+            num_cycles,
+        )
+    else:
+        logging.info(
+            "Running %s for %d iterations (%d epochs)",
+            algorithm,
+            num_iterations,
+            base_epochs,
+        )
 
     algo.run(num_iterations, verbose=True, callbacks=callbacks)
 

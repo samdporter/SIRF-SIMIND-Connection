@@ -60,7 +60,9 @@ preconditioner:
 
 # SimindProjector update control
 projector:
-  correction_update_epochs: 2
+  prefetch_initial_correction: false
+  restart_reconstruction_on_correction_reset: false
+  n_corrections: 1
 
 # Reconstruction selection (modes 1-2 only for quick test)
 reconstruction:
