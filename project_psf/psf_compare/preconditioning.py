@@ -75,6 +75,7 @@ def build_preconditioner(
     beta,
     rdp_prior,
     rdp_prior_for_hessian,
+    mask_image=None,
 ):
     """
     Build the preconditioner:
@@ -82,6 +83,7 @@ def build_preconditioner(
     - If beta > 0: return Lehmer(BSREM, prior inv-hessian)
     """
     precond_cfg = _normalise_preconditioner_cfg(config.get("preconditioner"))
+    mask_precond = precond_cfg.get("mask_with_body_mask", True)
     bsrem_cfg = precond_cfg.get("bsrem", {})
     bsrem_update_interval = bsrem_cfg.get(
         "update_interval", precond_cfg.get("update_interval", num_subsets)
@@ -98,6 +100,10 @@ def build_preconditioner(
     )
 
     s_inv = compute_sensitivity_inverse(projectors)
+    if mask_precond and mask_image is not None:
+        s_inv *= mask_image
+    if mask_image is not None:
+        s_inv *= mask_image
     bsrem_precond = BSREMPreconditioner(
         s_inv,
         update_interval=bsrem_update_interval,
@@ -138,6 +144,8 @@ def build_preconditioner(
         arr = rdp_prior_for_hessian.inv_diag_hessian(get_array(image))
         result = image.clone()
         result.fill(arr)
+        if mask_precond and mask_image is not None:
+            result *= mask_image
         return result
 
     prior_precond = ImageFunctionPreconditioner(

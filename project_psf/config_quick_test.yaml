@@ -48,6 +48,7 @@ rdp:
 # Preconditioning options
 preconditioner:
   update_interval: 1
+  mask_with_body_mask: true
   bsrem:
     update_interval: 1
     epsilon: 0.0

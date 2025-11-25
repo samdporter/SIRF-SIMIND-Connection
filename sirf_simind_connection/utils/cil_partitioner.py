@@ -349,7 +349,9 @@ def create_svrg_objective_with_rdp(
         raise ValueError(f"Unsupported stochastic algorithm '{algorithm}'")
 
     total_objective = (
-        SumFunction(stochastic_func, rdp_prior) if rdp_prior else stochastic_func
+        SumFunction(stochastic_func, rdp_prior)
+        if rdp_prior is not None
+        else stochastic_func
     )
     logging.info(
         "Created %s objective with %d subsets%s",

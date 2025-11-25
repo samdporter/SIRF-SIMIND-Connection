@@ -205,6 +205,7 @@ def _run_mode_core(
             partition_indices=partition_indices,
             subset_sensitivity_max=subset_sensitivity_max,
             subset_eta_min=subset_eta_min,
+            mask_image=mask_image,
             num_correction_cycles=num_correction_cycles,
             restart_on_correction_reset=restart_enabled and coordinator is not None,
         )
@@ -325,6 +326,7 @@ def _run_stir_psf_residual_mode(
             partition_indices=partition_indices,
             subset_sensitivity_max=subset_sensitivity_max,
             subset_eta_min=subset_eta_min,
+            mask_image=mask_image,
             num_correction_cycles=num_correction_cycles,
             restart_on_correction_reset=restart_enabled,
         )

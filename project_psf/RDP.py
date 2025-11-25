@@ -306,8 +306,10 @@ class RDP(SmoothFunctionWithDiagonalHessian):
         x = _as_tensor(x, device=self._device)
         d, s = neighbor_difference_and_sum(x, padding=self._padding)
         phi = s + self.gamma * torch.abs(d) + self.eps
+        phi = torch.clamp(phi, min=self.eps)
 
         tmp = ((s - d + self.eps) ** 2) / (phi**3)
+        tmp = torch.nan_to_num(tmp, nan=0.0, posinf=0.0, neginf=0.0)
         if self._weights is not None:
             tmp = tmp * self._weights
 

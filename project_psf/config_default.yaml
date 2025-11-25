@@ -44,7 +44,7 @@ stochastic:
 
 # RDP prior parameters
 rdp:
-  beta_values: [0]
+  beta_values: [0.1]
   gamma: 1.0
   epsilon: 0.01
   stencil: 26
@@ -54,6 +54,7 @@ rdp:
 # Preconditioning options
 preconditioner:
   update_interval: 1
+  mask_with_body_mask: true
   bsrem:
     update_interval: 1
     epsilon: 1.0e-8

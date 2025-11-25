@@ -8,7 +8,7 @@ from typing import Optional
 
 import numpy as np
 from cil.optimisation.algorithms import ISTA
-from cil.optimisation.functions import IndicatorBox, ScaledFunction
+from cil.optimisation.functions import IndicatorBox
 from cil.optimisation.utilities import Sampler
 from RDP import RDP
 from setr.cil_extensions.algorithms.algorithms import ista_update_step
@@ -16,7 +16,7 @@ from setr.cil_extensions.callbacks import (
     PrintObjectiveCallback,
     SavePreconditionerCallback,
 )
-from sirf.STIR import RelativeDifferencePrior
+from sirf.STIR import CudaRelativeDifferencePrior as RelativeDifferencePrior
 from step_size_rules import (
     ArmijoAfterCorrectionStepSize,
     ArmijoTriggerCallback,
@@ -49,6 +49,7 @@ def run_svrg_with_prior_cil(
     subset_eta_min=None,
     num_correction_cycles=1,
     restart_on_correction_reset=False,
+    mask_image=None,
 ):
     """
     Run SVRG reconstruction with CIL objectives and RDP prior.
@@ -75,9 +76,6 @@ def run_svrg_with_prior_cil(
         rdp_prior.set_gamma(config["rdp"].get("gamma", 1.0))
         rdp_prior.set_epsilon(config["rdp"].get("epsilon", 1e-6))
         rdp_prior.set_up(initial_image)
-        prior = ScaledFunction(rdp_prior, 1)
-    else:
-        prior = False
 
     sampler = Sampler.random_without_replacement(num_subsets)
     update_interval = num_subsets
@@ -97,7 +95,7 @@ def run_svrg_with_prior_cil(
 
     total_objective = create_svrg_objective_with_rdp(
         kl_objectives,
-        prior,
+        rdp_prior,
         sampler,
         snapshot_update_interval,
         initial_image,
@@ -145,6 +143,7 @@ def run_svrg_with_prior_cil(
         beta=beta,
         rdp_prior=rdp_prior,
         rdp_prior_for_hessian=rdp_prior_for_hessian,
+        mask_image=mask_image,
     )
 
     objective_csv_path = os.path.join(output_dir, f"{output_prefix}objective.csv")

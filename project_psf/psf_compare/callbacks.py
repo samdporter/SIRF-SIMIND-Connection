@@ -142,11 +142,6 @@ class UpdateEtaCallback:
         self.restart_image = (
             restart_image.clone() if restart_image is not None else None
         )
-        self._restart_array = (
-            get_array(self.restart_image).copy()
-            if self.restart_image is not None
-            else None
-        )
 
     def __call__(self, algorithm):
         """Update eta if new SIMIND simulation results are available."""
@@ -195,7 +190,7 @@ class UpdateEtaCallback:
                 # applied to the additive term.
                 self._trigger_armijo_after_eta_update(algorithm)
 
-                if self.restart_on_update and self._restart_array is not None:
+                if self.restart_on_update and self.restart_image is not None:
                     self._restart_algorithm_state(algorithm)
 
     def _trigger_armijo_after_eta_update(self, algorithm):
@@ -210,16 +205,14 @@ class UpdateEtaCallback:
 
     def _restart_algorithm_state(self, algorithm):
         """Reset algorithm iterates to the stored restart image."""
-        restart_data = self._restart_array
-        if restart_data is None:
+        restart_img = self.restart_image
+        if restart_img is None:
             return
 
-        if hasattr(algorithm, "solution") and algorithm.solution is not None:
-            algorithm.solution.fill(restart_data)
         if hasattr(algorithm, "x_old") and algorithm.x_old is not None:
-            algorithm.x_old.fill(restart_data)
+            algorithm.x_old.fill(restart_img)
         if hasattr(algorithm, "x") and algorithm.x is not None:
-            algorithm.x.fill(restart_data)
+            algorithm.x.fill(restart_img)
 
         logging.info(
             "Restarted algorithm state from initial image after correction update"
