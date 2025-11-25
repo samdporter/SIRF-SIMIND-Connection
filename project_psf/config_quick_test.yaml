@@ -47,20 +47,13 @@ rdp:
 
 # Preconditioning options
 preconditioner:
-  type: "poisson_hessian"  # Options: poisson_hessian, bsrem, both
   update_interval: 1
-  poisson_hessian:
-    mode: "ema"
-    ema_decay: 0.9
-    reset_interval: 12
-    epsilon: 1.0e-8
-    hessian_floor: 1.0e-12
-    scale_to_full: true
-  both:
-    scales: [0.5, 0.5]
+  bsrem:
+    update_interval: 1
+    epsilon: 0.0
+    smooth: false
   prior:
     epsilon: 1.0e-8
-    combine: "lehmer"
   lehmer:
     p: 0.1
     epsilon: 1.0e-8

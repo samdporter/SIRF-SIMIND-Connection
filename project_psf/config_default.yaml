@@ -2,7 +2,7 @@
 
 # Data paths
 data_path: /home/storage/prepared_data/phantom_data/manc_nema_phantom_data/SPECT
-#"/home/storage/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140"
+#data_path: "/home/storage/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140"
 
 # SIMIND configuration
 simind:
@@ -20,6 +20,7 @@ simind:
 data_fidelity:
   eta_floor: 1.0e-5
   counts_floor: 1.0e-8
+  image_smoothing_fwhm: null    # [fz, fy, fx] in mm; smooth image after residual update
 
 # Resolution modeling
 resolution:
@@ -31,45 +32,35 @@ stochastic:
   algorithm: SVRG  # Options: SVRG, SAGA
   num_subsets: 18
   num_epochs: 50
-  initial_step_size: 2 # will be updated by armijo
+  initial_step_size: 1 # will be updated by armijo
   relaxation_eta: 0.00
   snapshot_update_interval: 18
   # Armijo step-size search settings (used when coordinator is active)
-  use_armijo_after_correction: true
-  use_armijo_periodic: true # Trigger Armijo periodically even without a coordinator
-  armijo_periodic_epochs: 1  # Run Armijo search every epoch when periodic mode is enabled
-  armijo_initial_iterations: 5  # Number of full-gradient warm-up updates before stochastic phase
+  use_armijo_after_correction: false
   armijo_beta: 0.5      # Backtracking factor
-  armijo_max_iter: 5   # Max backtracking iterations
-  armijo_tol: 0.2    # Sufficient decrease tolerance
+  armijo_max_iter: 20   # Max backtracking iterations
+  armijo_tol: 0.1    # Sufficient decrease tolerance
 
 
 # RDP prior parameters
 rdp:
-  beta_values: [0]
+  beta_values: [0.1]
   gamma: 1.0
   epsilon: 0.01
-  stencil: 18
+  stencil: 26
   both_directions: true
-  boundary_condition: "Neumann"
+  boundary_condition: "Periodic"
 
 # Preconditioning options
 preconditioner:
-  type: "both"       # Options: poisson_hessian, bsrem, both
-  update_interval: 1            # Override per-type if needed
-  poisson_hessian:
-    mode: "ema"                 # none, sum, mean, ema
-    ema_decay: 0.9
-    reset_interval: 18
-    epsilon: 1.0e-8
-    hessian_floor: 1.0e-12
-    scale_to_full: true
-    max_value: null
-  both:
-    scales: [0.5, 0.5]
+  update_interval: 1
+  bsrem:
+    update_interval: 1
+    epsilon: 0.0
+    smooth: true
+    smoothing_fwhm: [10,10,10]  # in mm
   prior:
     epsilon: 1.0e-8
-    combine: "lehmer"
   lehmer:
     p: 0.1
     epsilon: 1.0e-8
@@ -77,11 +68,11 @@ preconditioner:
 # SimindProjector update control
 projector:
   correction_update_epochs: 5  # Update corrections every N epochs
-  prefetch_initial_correction: true  # Run a correction before the first iteration
+  prefetch_initial_correction: false  # Run a correction before the first iteration
 
 # Reconstruction selection
 reconstruction:
-  modes: [5,6,7,8,9,10,11]  # Which modes to run
+  modes: [2,3,4,5]  # Which modes to run
 
 # Output options
 output:

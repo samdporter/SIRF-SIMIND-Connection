@@ -2,14 +2,19 @@
 
 Compare different SPECT PSF modeling approaches using RDP-regularized SVRG reconstruction.
 
-## 6 Reconstruction Approaches
+## 11 Reconstruction Approaches
 
 1. **Fast SPECT (no res)** - Baseline with no resolution modeling
-2. **Accurate SPECT (with res)** - PSF in projector + image-based Gaussian (6.91mm FWHM)
-3. **Fast + Geometric residual** - (1) + SimindProjector geometric correction only
-4. **Accurate + Geometric residual** - (2) + SimindProjector geometric correction only
-5. **Fast + Full residual** - (1) + SimindProjector full correction (additive + residual)
-6. **Accurate + Full residual** - (2) + SimindProjector full correction (additive + residual)
+2. **Accurate SPECT (with res)** - PSF in projector (no Gaussian)
+3. **Accurate SPECT (with res + Gaussian)** - PSF + image-based Gaussian
+4. **STIR PSF residual** - Fast baseline + STIR PSF residual
+5. **PSF (no brems) + STIR PSF+brems residual** - Accurate PSF baseline with STIR residual
+6. **Fast + SIMIND Geometric residual**
+7. **Accurate (no brems) + SIMIND Geometric residual**
+8. **Accurate (with brems) + SIMIND Geometric residual**
+9. **Fast + SIMIND Full residual** (additive + residual)
+10. **Accurate (no brems) + SIMIND Full residual** (additive + residual)
+11. **Accurate (with brems) + SIMIND Full residual** (additive + residual)
 
 ## Quick Start
 
@@ -63,7 +68,7 @@ python compare_psf_models.py \
 ## Configuration Files
 
 ### config_default.yaml
-Production settings with all 6 modes, 3 beta values, 50 epochs, 14 subsets.
+Production settings with all 11 modes, 3 beta values, 50 epochs, 14 subsets.
 
 ### config_quick_test.yaml
 Fast testing with modes 1-2 only, 1 beta value, 5 epochs, 7 subsets.
@@ -114,7 +119,7 @@ projector:
 
 # Reconstruction selection
 reconstruction:
-  modes: [1, 2, 3, 4, 5, 6]
+  modes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 # Output options
 output:
@@ -160,28 +165,22 @@ This dramatically reduces runtime compared to recreating everything for each (mo
 
 ```
 output_path/
-├── mode1_nores_beta0.010_final.hv
-├── mode1_nores_beta0.100_final.hv
-├── mode1_nores_beta1.000_final.hv
-├── mode2_withres_beta0.010_final.hv
-├── mode2_withres_beta0.100_final.hv
-├── mode2_withres_beta1.000_final.hv
-├── mode3_fast_geom_beta0.010_final.hv
-├── mode3_fast_geom_beta0.100_final.hv
-├── mode3_fast_geom_beta1.000_final.hv
-├── mode4_accurate_geom_beta0.010_final.hv
-├── mode4_accurate_geom_beta0.100_final.hv
-├── mode4_accurate_geom_beta1.000_final.hv
-├── mode5_fast_full_beta0.010_final.hv
-├── mode5_fast_full_beta0.100_final.hv
-├── mode5_fast_full_beta1.000_final.hv
-├── mode6_accurate_full_beta0.010_final.hv
-├── mode6_accurate_full_beta0.100_final.hv
-├── mode6_accurate_full_beta1.000_final.hv
-├── simind_mode3/  # Shared SIMIND dir for all mode3 beta values
-├── simind_mode4/  # Shared SIMIND dir for all mode4 beta values
-├── simind_mode5/  # Shared SIMIND dir for all mode5 beta values
-└── simind_mode6/  # Shared SIMIND dir for all mode6 beta values
+├── mode1/
+│   └── b0.01/
+│       └── _final.hv
+├── mode2/
+│   └── b0.01/
+│       └── _final.hv
+├── ...
+├── mode11/
+│   └── b1.0/
+│       └── _final.hv
+├── simind_mode6/   # SIMIND outputs for geometric residual modes
+├── simind_mode7/
+├── simind_mode8/
+├── simind_mode9/   # SIMIND outputs for full residual modes
+├── simind_mode10/
+└── simind_mode11/
 ```
 
 ## Example: Production Run

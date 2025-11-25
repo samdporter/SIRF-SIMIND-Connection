@@ -608,7 +608,7 @@ class CoordinatedSubsetProjector:
     - References a shared Coordinator (SimindCoordinator or StirPsfCoordinator)
     - Increments global iteration counter on each forward()
     - Triggers coordinator accurate projection when update interval is reached
-    - Applies subset-specific corrections
+    - KL additive term is refreshed via UpdateEtaCallback; forward uses fast model
 
     This design enables efficient parallelized accurate projections across all views,
     with results distributed to individual subset projectors.
@@ -670,8 +670,7 @@ class CoordinatedSubsetProjector:
         1. Increments coordinator's global iteration counter
         2. Checks if coordinator should run accurate projection
         3. Triggers accurate projection if needed
-        4. Applies subset-specific residual correction if new results available
-        5. Returns STIR forward projection
+        4. Returns STIR forward projection (additive handled in KL via eta)
 
         Args:
             image (ImageData): Input image for forward projection.
@@ -693,7 +692,6 @@ class CoordinatedSubsetProjector:
         # Use STIR for fast forward projection (LINEAR model, no additive)
         # Additive correction is handled via eta in KL function, updated by UpdateEtaCallback
         result = self.stir_projector.forward(image, subset_num, num_subsets, out)
-        # If out was provided and result is None, return out
         if result is None and out is not None:
             return out
         return result

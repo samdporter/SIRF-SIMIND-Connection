@@ -203,7 +203,7 @@ def partition_data_with_cil_objectives(
 
         # Create mask ImageData with proper geometry
         mask_image = attenuation_map.clone()
-        mask_array = (get_array(attenuation_map) > 0.001).astype(np.float32)
+        mask_array = (get_array(attenuation_map) > 0.05).astype(np.float32)
         mask_image.fill(mask_array)
 
         mask_operator = MaskOperator(mask_image, mask_image)

@@ -91,126 +91,61 @@ def armijo_rule():
         decay_rate=0.0,
         max_iter=10,
         tol=1e-4,
-        update_interval=0,
-        initial_armijo_iterations=0,
     )
 
 
-def test_armijo_triggers_on_first_iteration_with_preconditioner(armijo_rule):
+def test_armijo_runs_only_after_trigger(armijo_rule):
     precond = RecordingPreconditioner(scale=1.0)
     algo = MockAlgorithm(
         MockDataContainer([1.0, 1.0]), preconditioner=precond, iteration=-1
     )
-    step = armijo_rule.get_step_size(algo)
 
-    assert precond.call_count == 1
-    assert precond.called_with_copy is True, (
-        "Preconditioner should see a copy of the gradient"
-    )
-    np.testing.assert_allclose(algo.gradient_update.data, [1.0, 1.0])
-    assert armijo_rule.armijo_ran_this_iteration is True
+    step = armijo_rule.get_step_size(algo)
+    assert precond.call_count == 0
+    assert armijo_rule.armijo_ran_this_iteration is False
     assert step == pytest.approx(1.0)
 
+    armijo_rule.trigger_armijo = True
+    triggered_step = armijo_rule.get_step_size(algo)
 
-def test_armijo_periodic_trigger_runs_on_epoch_boundary():
-    rule = ArmijoAfterCorrectionStepSize(
-        initial_step_size=1.0,
-        beta=0.5,
-        decay_rate=0.0,
-        max_iter=10,
-        tol=1e-4,
-        update_interval=2,
-        initial_armijo_iterations=0,
-    )
+    assert precond.call_count == 1
+    assert precond.called_with_copy is True
+    np.testing.assert_allclose(algo.gradient_update.data, [1.0, 1.0])
+    assert armijo_rule.armijo_ran_this_iteration is True
+    assert triggered_step == pytest.approx(1.0)
+
+
+def test_force_armijo_runs_immediately_and_caches_step(armijo_rule):
+    precond = RecordingPreconditioner(scale=0.5)
     algo = MockAlgorithm(
-        MockDataContainer([1.0, 1.0]),
-        preconditioner=RecordingPreconditioner(),
-        iteration=-1,
+        MockDataContainer([1.0, 1.0]), preconditioner=precond, iteration=3
     )
 
-    # First iteration: forced Armijo
-    assert rule.get_step_size(algo) == pytest.approx(1.0)
-    assert rule.armijo_ran_this_iteration
+    forced_step = armijo_rule.force_armijo_after_correction(algo)
+    assert armijo_rule.armijo_ran_this_iteration is True
+    assert armijo_rule.cached_step_iteration == algo.iteration
+    assert forced_step == pytest.approx(1.0)
+    assert precond.call_count == 1
 
-    # Next iteration (iteration == 0 -> pending 1): linear decay path
-    algo.iteration = 0
-    step_linear = rule.get_step_size(algo)
-    assert rule.armijo_ran_this_iteration is False
-    assert step_linear == pytest.approx(1.0)  # decay_rate=0 keeps it unchanged
-
-    # Following iteration hits pending_iter % update_interval == 0 -> Armijo
-    algo.iteration = 1
-    step_periodic = rule.get_step_size(algo)
-    assert rule.armijo_ran_this_iteration is True
-    assert step_periodic == pytest.approx(1.0)
+    reused_step = armijo_rule.get_step_size(algo)
+    assert reused_step == pytest.approx(forced_step)
+    assert armijo_rule.armijo_ran_this_iteration is True
+    assert precond.call_count == 1  # cached value reused
 
 
-def test_armijo_warmup_forces_initial_iterations():
-    rule = ArmijoAfterCorrectionStepSize(
-        initial_step_size=1.0,
-        beta=0.5,
-        decay_rate=0.0,
-        max_iter=10,
-        tol=1e-4,
-        update_interval=0,
-        initial_armijo_iterations=2,
-    )
-    algo = MockAlgorithm(MockDataContainer([1.0, 1.0]), iteration=-1)
-
-    # First iteration (pending 0)
-    rule.get_step_size(algo)
-    assert rule.armijo_ran_this_iteration is True
-
-    # Second iteration (pending 1) still within warmup window
-    algo.iteration = 0
-    rule.get_step_size(algo)
-    assert rule.armijo_ran_this_iteration is True
-
-    # Third iteration exits warmup
-    algo.iteration = 1
-    rule.get_step_size(algo)
-    assert rule.armijo_ran_this_iteration is False
-
-
-def test_reinitialize_decay_resets_linear_decay():
-    rule = ArmijoAfterCorrectionStepSize(
-        initial_step_size=2.0,
-        beta=0.5,
-        decay_rate=1.0,
-        max_iter=5,
-        tol=1e-4,
-        update_interval=0,
-        initial_armijo_iterations=0,
-    )
+def test_reset_clears_triggers(armijo_rule):
     algo = MockAlgorithm(MockDataContainer([1.0, 1.0]), iteration=0)
-    rule.current_step_size = 2.0
-    rule.reinitialize_decay(start_iteration=0)
+    armijo_rule.trigger_armijo = True
+    armijo_rule.armijo_ran_this_iteration = True
+    armijo_rule.cached_step_iteration = 0
+    armijo_rule.cached_step_value = 0.1
 
-    first_step = rule.get_step_size(algo)
-    assert first_step == pytest.approx(2.0)
+    armijo_rule.reset()
+    step = armijo_rule.get_step_size(algo)
 
-    algo.iteration = 1
-    second_step = rule.get_step_size(algo)
-    assert second_step == pytest.approx(1.0)
-
-
-def test_apply_warmup_cap_sets_initial_and_current():
-    rule = ArmijoAfterCorrectionStepSize(
-        initial_step_size=1.0,
-        beta=0.5,
-        decay_rate=0.0,
-        max_iter=10,
-        tol=1e-4,
-        update_interval=0,
-        initial_armijo_iterations=0,
-    )
-    rule.min_step_size_seen = 0.25
-    rule.current_step_size = 0.4
-
-    capped = rule.apply_warmup_cap()
-    assert capped == pytest.approx(0.5)
-    assert rule.initial_step_size == pytest.approx(0.5)
-    assert rule.current_step_size == pytest.approx(0.5)
+    assert step == pytest.approx(1.0)
+    assert armijo_rule.trigger_armijo is False
+    assert armijo_rule.armijo_ran_this_iteration is False
 
 
 def test_step_size_history_iteration_offset(tmp_path):

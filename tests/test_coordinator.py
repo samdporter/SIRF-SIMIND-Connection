@@ -52,7 +52,7 @@ def simind_simulator(basic_phantom, acq_template):
     with tempfile.TemporaryDirectory() as temp_dir:
         config = SimulationConfig(get("AnyScan.yaml"))
         # Fast settings for tests
-        config.set_value(26, 0.05)  # 5e4 photons (very fast)
+        config.set_value(26, 0.005)  # 5e3 photons (faster for tests)
         config.set_value(29, 60)  # 60 projections
         config.set_value(76, 64)  # matrix i
         config.set_value(77, 64)  # matrix j
@@ -646,20 +646,17 @@ class TestSimulationIntegration:
         # Mode A should have b01 = None
         assert coordinator.cached_b01 is None
 
-        # Additive term should remain equal to the initial estimate.
-        updated_additive = coordinator.get_full_additive_term()
-        updated_additive_arr = get_array(updated_additive)
-        initial_additive_arr = get_array(initial_additive)
-        np.testing.assert_allclose(
-            updated_additive_arr,
-            initial_additive_arr,
-            rtol=0,
-            atol=1e-6,
-        )
-
         # Residual should match SIMIND geometric minus fast linear projection.
         b02_scaled = coordinator.cached_b02 * coordinator.cached_scale_factor
         expected_residual = b02_scaled - coordinator.cached_linear_proj
+        expected_additive = initial_additive + expected_residual
+        updated_additive = coordinator.get_full_additive_term()
+        np.testing.assert_allclose(
+            get_array(updated_additive),
+            get_array(expected_additive),
+            rtol=0,
+            atol=1e-6,
+        )
         num_views = int(coordinator.cached_linear_proj.dimensions()[2])
         subset_indices = list(range(0, num_views, coordinator.num_subsets))
         subset_residual = coordinator.get_subset_residual(subset_indices)
@@ -766,8 +763,10 @@ class TestSimulationIntegration:
 
         b01_scaled = coordinator.cached_b01 * coordinator.cached_scale_factor
         b02_scaled = coordinator.cached_b02 * coordinator.cached_scale_factor
-        expected_additive = b01_scaled - b02_scaled
-        expected_residual = b02_scaled - coordinator.cached_linear_proj
+        expected_geometric = b02_scaled - coordinator.cached_linear_proj
+        additive_residual = (b01_scaled - b02_scaled) - initial_additive
+        expected_residual = expected_geometric + additive_residual
+        expected_additive = initial_additive + expected_residual
 
         updated_additive = coordinator.get_full_additive_term()
         updated_additive_arr = get_array(updated_additive)

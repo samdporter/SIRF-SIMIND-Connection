@@ -28,11 +28,11 @@ class LinearDecayStepSizeRule(StepSizeRule):
 
 class ArmijoAfterCorrectionStepSize(StepSizeRule):
     """
-    Armijo step size search triggered by callback after correction updates.
+    Armijo step size search triggered only after correction updates.
 
     This step size rule performs an Armijo line search:
-    - At the first iteration (iteration 0)
-    - When explicitly triggered by ArmijoTriggerCallback after coordinator updates
+    - When explicitly triggered after coordinator updates via trigger_armijo
+    - When force_armijo_after_correction is called directly
 
     Between Armijo searches, it uses linear decay.
 
@@ -43,10 +43,9 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
         x_new = prox_g(x - step_size * preconditioned_gradient)
 
     Workflow:
-    1. First iteration: perform Armijo search starting from initial_step_size
-    2. ArmijoTriggerCallback detects coordinator updates and sets trigger flag
-    3. When trigger flag is set, perform Armijo search starting from current_step_size
-    4. Between searches, use linear decay from last Armijo step size
+    1. ArmijoTriggerCallback detects coordinator updates and sets trigger_armijo
+    2. When trigger flag is set, perform Armijo search starting from current_step_size
+    3. Between searches, use linear decay from last Armijo step size
 
     Args:
         initial_step_size (float): Starting step size for Armijo search
@@ -54,8 +53,6 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
         decay_rate (float): Linear decay rate for eta in denominator (1 + eta * k)
         max_iter (int): Maximum Armijo backtracking iterations
         tol (float): Armijo sufficient decrease tolerance
-        update_interval (int, optional): Interval to trigger Armijo periodically
-            if no coordinator is used.
 
     Examples:
         >>> coordinator = SimindCoordinator(...)
@@ -79,8 +76,6 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
         decay_rate: float,
         max_iter: int,
         tol: float,
-        update_interval: int = 0,
-        initial_armijo_iterations: int = 0,
     ):
         super().__init__()
         self.initial_step_size = initial_step_size
@@ -88,8 +83,6 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
         self.max_iter = max_iter
         self.tol = tol
         self.decay_rate = decay_rate
-        self.update_interval = update_interval
-        self.initial_armijo_iterations = max(int(initial_armijo_iterations), 0)
 
         # State tracking
         self.current_step_size = initial_step_size
@@ -97,18 +90,81 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
         self.trigger_armijo = False  # Set by ArmijoTriggerCallback
         self.armijo_ran_this_iteration = False  # Flag for callback to read
         self.min_step_size_seen = initial_step_size
+        self.cached_step_iteration = None
+        self.cached_step_value = None
 
         # Linear decay rule for between-update iterations
         self.linear_decay = LinearDecayStepSizeRule(
             initial_step_size, decay_rate, start_iteration=0
         )
 
+    def _armijo_search(self, algorithm, trigger_reason):
+        """Run Armijo search and cache the step for the current iteration."""
+        self.armijo_ran_this_iteration = True
+        self.trigger_armijo = False
+
+        logging.info(
+            f"Armijo: Running line search at iteration {algorithm.iteration} "
+            f"(reason: {trigger_reason})"
+        )
+
+        f_x = algorithm.f(algorithm.solution) + algorithm.g(algorithm.solution)
+
+        if algorithm.preconditioner is not None:
+            gradient = algorithm.gradient_update.copy()
+            precond_grad = algorithm.preconditioner.apply(algorithm, gradient)
+        else:
+            precond_grad = algorithm.gradient_update
+
+        g_norm = algorithm.gradient_update.dot(precond_grad)
+
+        step_size = self.initial_step_size
+        logging.info(f"Starting Armijo line search with initial step size: {step_size}")
+
+        for armijo_iter in range(self.max_iter):
+            x_new = algorithm.solution.copy().sapyb(1, precond_grad, -step_size)
+            algorithm.g.proximal(x_new, step_size, out=x_new)
+            f_x_new = algorithm.f(x_new) + algorithm.g(x_new)
+
+            if f_x_new <= f_x - self.tol * step_size * g_norm:
+                logging.info(
+                    f"  Armijo accepted: step_size={step_size:.6f} "
+                    f"(iter {armijo_iter}, objective={f_x_new:.6e})"
+                )
+                break
+
+            step_size *= self.beta
+        else:
+            logging.warning(
+                f"  Armijo max iterations ({self.max_iter}) reached, "
+                f"using step_size={step_size:.6f}"
+            )
+
+        self.current_step_size = step_size
+        self.min_step_size_seen = min(self.min_step_size_seen, step_size)
+        self.last_armijo_iteration = algorithm.iteration
+        self.linear_decay = LinearDecayStepSizeRule(
+            step_size, self.decay_rate, start_iteration=self.last_armijo_iteration
+        )
+
+        self.cached_step_iteration = algorithm.iteration
+        self.cached_step_value = step_size
+
+        return step_size
+
+    def force_armijo_after_correction(self, algorithm):
+        """
+        Immediately run Armijo after a correction update and cache the result
+        for reuse in the same iteration.
+        """
+        return self._armijo_search(algorithm, trigger_reason="correction (immediate)")
+
     def get_step_size(self, algorithm):
         """
         Calculate and return the step size.
 
-        Performs Armijo search on first iteration or when trigger_armijo flag is set.
-        Otherwise, uses linear decay.
+        Performs Armijo search only when trigger_armijo flag is set. Otherwise,
+        uses linear decay.
 
         Args:
             algorithm: CIL algorithm instance (ISTA, FISTA, etc.)
@@ -116,106 +172,16 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
         Returns:
             float: Step size for this iteration
         """
-        # Track the zero-based iteration index for the *upcoming* update
-        pending_iter = algorithm.iteration + 1
-
-        # Check if this is the very first iteration (iteration counter starts at -1)
-        first_iteration = algorithm.iteration < 0
-
-        warmup_trigger = pending_iter < self.initial_armijo_iterations
+        # Reuse cached step if Armijo already ran this iteration
+        if self.cached_step_iteration == algorithm.iteration:
+            self.armijo_ran_this_iteration = True
+            return self.cached_step_value
 
         # Reset flag from previous iteration
         self.armijo_ran_this_iteration = False
 
-        # Check for periodic trigger if interval is set
-        periodic_trigger = False
-        if (
-            self.update_interval > 0
-            and pending_iter > 0
-            and (pending_iter % self.update_interval) == 0
-        ):
-            periodic_trigger = True
-
-        # Check if Armijo was triggered by callback or periodically
-        if first_iteration or warmup_trigger or self.trigger_armijo or periodic_trigger:
-            # Set flag that Armijo is running this iteration
-            self.armijo_ran_this_iteration = True
-
-            # Reset trigger flag
-            if self.trigger_armijo:
-                self.trigger_armijo = False
-                trigger_reason = "correction update"
-            elif warmup_trigger and not first_iteration:
-                trigger_reason = "warmup"
-            elif periodic_trigger:
-                trigger_reason = f"periodic update (interval={self.update_interval})"
-            else:
-                trigger_reason = "first iteration"
-
-            logging.info(
-                f"Armijo: Running line search at iteration {algorithm.iteration} "
-                f"(reason: {trigger_reason})"
-            )
-
-            # Compute current objective (f + g)
-            f_x = algorithm.f(algorithm.solution) + algorithm.g(algorithm.solution)
-
-            # Get preconditioned gradient
-            if algorithm.preconditioner is not None:
-                gradient = algorithm.gradient_update.copy()
-                precond_grad = algorithm.preconditioner.apply(algorithm, gradient)
-            else:
-                precond_grad = algorithm.gradient_update
-
-            g_norm = algorithm.gradient_update.dot(precond_grad)
-
-            # Start Armijo search:
-            # - First iteration: use initial_step_size
-            # ALWAYS start from the configured initial value
-            step_size = self.initial_step_size
-            logging.info(
-                f"Starting Armijo line search with initial step size: {step_size}"
-            )
-
-            # Armijo backtracking line search
-            for armijo_iter in range(self.max_iter):
-                # Proximal step: x_new = prox_g(x - step_size * precond_grad)
-                x_new = algorithm.solution.copy().sapyb(1, precond_grad, -step_size)
-                algorithm.g.proximal(x_new, step_size, out=x_new)
-
-                # Evaluate objective at new point
-                f_x_new = algorithm.f(x_new) + algorithm.g(x_new)
-
-                # Check Armijo condition
-                if f_x_new <= f_x - self.tol * step_size * g_norm:
-                    # Accept step size
-                    logging.info(
-                        f"  Armijo accepted: step_size={step_size:.6f} "
-                        f"(iter {armijo_iter}, objective={f_x_new:.6e})"
-                    )
-                    break
-
-                # Reduce step size
-                step_size *= self.beta
-
-            else:
-                # Max iterations reached
-                logging.warning(
-                    f"  Armijo max iterations ({self.max_iter}) reached, "
-                    f"using step_size={step_size:.6f}"
-                )
-
-            # Update current step size
-            self.current_step_size = step_size
-            self.min_step_size_seen = min(self.min_step_size_seen, step_size)
-
-            # Reinitialize linear decay with new step size and current iteration
-            self.last_armijo_iteration = algorithm.iteration
-            self.linear_decay = LinearDecayStepSizeRule(
-                step_size, self.decay_rate, start_iteration=self.last_armijo_iteration
-            )
-
-            return step_size
+        if self.trigger_armijo:
+            return self._armijo_search(algorithm, trigger_reason="correction update")
 
         # Between corrections: use linear decay
         step_size = self.linear_decay.get_step_size(algorithm)
@@ -233,48 +199,12 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
         self.trigger_armijo = False
         self.armijo_ran_this_iteration = False
         self.min_step_size_seen = self.initial_step_size
-        # Note: self.update_interval is not reset
+        self.cached_step_iteration = None
+        self.cached_step_value = None
         self.linear_decay = LinearDecayStepSizeRule(
             self.initial_step_size, self.decay_rate, start_iteration=0
         )
         logging.info("ArmijoAfterCorrectionStepSize reset")
-
-    def reinitialize_decay(self, start_iteration=0):
-        """
-        Rebase the linear decay rule after an external warm-up run.
-
-        Parameters
-        ----------
-        start_iteration : int, optional
-            Iteration index that the subsequent algorithm will report for its
-            next update. Typically 0 when switching to a brand new ISTA
-            instance. Defaults to 0.
-        """
-        self.linear_decay = LinearDecayStepSizeRule(
-            self.current_step_size, self.decay_rate, start_iteration=start_iteration
-        )
-        self.last_armijo_iteration = start_iteration
-        self.armijo_ran_this_iteration = False
-        self.trigger_armijo = False
-        logging.info(
-            "ArmijoAfterCorrectionStepSize linear decay reinitialised "
-            f"(start_iteration={start_iteration})"
-        )
-
-    def apply_warmup_cap(self):
-        """
-        Limit future Armijo searches to 2x the smallest step size observed so far.
-
-        Intended to be called after an initial warm-up phase so that subsequent
-        Armijo line searches never exceed twice the value ofthe most conservative
-        step size found during warm-up.
-        """
-        cap = min(self.initial_step_size, self.min_step_size_seen)
-        self.initial_step_size = cap
-        self.current_step_size = cap
-        self.min_step_size_seen = cap
-        logging.info("Applied Armijo warm-up cap: max_step_size set to %.6f", cap)
-        return cap
 
 
 class ArmijoTriggerCallback:
@@ -310,9 +240,12 @@ class ArmijoTriggerCallback:
         self.last_cache_version = coordinator.cache_version  # Sync with current version
         self.csv_path = csv_path
         self.step_size_history = []  # Store history in memory
+        self.iteration_offset = 0
 
     def __call__(self, algorithm):
         """Check if coordinator updated, trigger Armijo if so, and log step size."""
+        global_iteration = self.iteration_offset + algorithm.iteration
+
         # Get current step size - prefer reading from step_size_rule.current_step_size
         if hasattr(algorithm, "step_size_rule") and hasattr(
             algorithm.step_size_rule, "current_step_size"
@@ -337,7 +270,7 @@ class ArmijoTriggerCallback:
         # Log step size to history
         self.step_size_history.append(
             {
-                "iteration": algorithm.iteration,
+                "iteration": global_iteration,
                 "step_size": current_step_size,
                 "cache_version": self.coordinator.cache_version,
                 "armijo_ran": armijo_ran,
@@ -376,6 +309,10 @@ class ArmijoTriggerCallback:
             df = pd.DataFrame(self.step_size_history)
             df.to_csv(self.csv_path, index=False)
             logging.debug(f"Saved step size history to {self.csv_path}")
+
+    def increment_iteration_offset(self, increment):
+        """Advance the iteration offset for sequential algorithm runs."""
+        self.iteration_offset += int(increment)
 
 
 class SaveStepSizeHistoryCallback:

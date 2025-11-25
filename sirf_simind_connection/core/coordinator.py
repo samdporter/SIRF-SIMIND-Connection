@@ -39,7 +39,6 @@ class Coordinator(ABC):
     - should_update(): Check if correction should run this iteration
     - run_accurate_projection(): Run accurate projection and update corrections
     - get_full_additive_term(): Get full cumulative additive term
-    - get_subset_residual(): Get residual correction for a specific subset
     - reset_iteration_counter(): Reset iteration tracking
     """
 
@@ -78,17 +77,12 @@ class Coordinator(ABC):
         pass
 
     @abstractmethod
-    def get_subset_residual(self, subset_indices, current_additive_subset=None):
+    def get_full_residual_term(self):
         """
-        Get residual correction for a specific subset.
-
-        Args:
-            subset_indices (list): View indices for this subset.
-            current_additive_subset (AcquisitionData, optional): Current additive
-                term estimate for this subset.
+        Get full cumulative residual term (all views).
 
         Returns:
-            AcquisitionData or array-like: Residual correction for this subset.
+            AcquisitionData: Full cumulative residual term, or None if not yet init.
         """
         pass
 
@@ -184,6 +178,7 @@ class SimindCoordinator(Coordinator):
         linear_acquisition_model (AcquisitionModel): Full-data STIR linear model.
         stir_acquisition_model (AcquisitionModel): Full-data STIR model with additive.
         total_iterations (int, optional): Total subiterations for reconstruction.
+        mask_image (ImageData, optional): Binary mask to confine activity to FOV.
     """
 
     def __init__(
@@ -197,6 +192,7 @@ class SimindCoordinator(Coordinator):
         stir_acquisition_model=None,
         output_dir=None,
         total_iterations=None,
+        mask_image=None,
     ):
         """
         Initialize the SimindCoordinator.
@@ -222,6 +218,7 @@ class SimindCoordinator(Coordinator):
         self.update_additive = update_additive
         self.output_dir = output_dir
         self.total_iterations = total_iterations
+        self.mask_image = mask_image
 
         # Store full-data acquisition models
         self._linear_acquisition_model = linear_acquisition_model
@@ -363,9 +360,8 @@ class SimindCoordinator(Coordinator):
         # Update ONE iteration early to allow callbacks to prepare for next iteration
         iterations_since_update = self.algorithm.iteration - self._last_update_iteration
 
-        # Trigger at (interval - 1) so callbacks prepare for interval'th iteration
-        # Example: interval=12 → update at iter 11, callbacks run, Armijo at 12
-        if iterations_since_update < (self.correction_update_interval - 1):
+        # Trigger when full interval has passed since the last update.
+        if iterations_since_update < self.correction_update_interval:
             return False
 
         # If total_iterations is set, check if we're too close to the end
@@ -420,9 +416,14 @@ class SimindCoordinator(Coordinator):
                 "linear_acquisition_model not set. Pass it to coordinator.__init__"
             )
 
+        if self.mask_image is not None:
+            masked_image = image * self.mask_image
+        else:
+            masked_image = image
+
         self.linear_acquisition_model.num_subsets = 1
         self.linear_acquisition_model.subset_num = 0
-        self.cached_linear_proj = self.linear_acquisition_model.forward(image)
+        self.cached_linear_proj = self.linear_acquisition_model.forward(masked_image)
 
         # Ensure SIMIND outputs share the same geometry as the STIR projector
         if getattr(self.simind_simulator, "template_sinogram", None) is None:
@@ -432,7 +433,7 @@ class SimindCoordinator(Coordinator):
                 logging.debug("Simulator does not support template_sinogram")
 
         # Update simulator source
-        self.simind_simulator.set_source(image.clone())
+        self.simind_simulator.set_source(masked_image.clone())
 
         # Run SIMIND simulation
         self.simind_simulator.run_simulation()
@@ -457,13 +458,14 @@ class SimindCoordinator(Coordinator):
         # Compute scaling factor
         if self.mode_residual_only:
             # Scale b02 (geometric output) to match linear projection
-            self.cached_scale_factor = self.cached_linear_proj.sum() / max(
-                self.cached_b02.sum(), 1e-10
+            self.cached_scale_factor = (
+                self.cached_linear_proj.sum() / self.cached_b02.sum()
             )
+
         else:
             # Scale using b02 vs linear projection
-            self.cached_scale_factor = self.cached_linear_proj.sum() / max(
-                self.cached_b02.sum(), 1e-10
+            self.cached_scale_factor = (
+                self.cached_linear_proj.sum() / self.cached_b02.sum()
             )
 
         # For mode_both, also get full STIR projection with additive
@@ -473,35 +475,45 @@ class SimindCoordinator(Coordinator):
                     "stir_acquisition_model required for mode_both (residual + additive). "
                     "Pass it to coordinator.__init__"
                 )
-            self.stir_acquisition_model.num_subsets = 1
-            self.stir_acquisition_model.subset_num = 0
-            self.cached_stir_full_proj = self.stir_acquisition_model.forward(image)
+            self.cached_stir_full_proj = self.stir_acquisition_model.forward(
+                masked_image
+            )
 
-        # --- Update current_additive based on correction mode ---
-        # This term represents the *total* additive data for the next eta update in CIL.
+        # --- Update current_additive and residual based on correction mode ---
+        # baseline_additive represents b_initial (or zeros if not provided).
+        baseline_additive = (
+            self.initial_additive if self.initial_additive is not None else 0
+        )
 
+        b02_scaled = self.cached_b02 * self.cached_scale_factor
+        geometric_residual = b02_scaled - self.cached_linear_proj  # A_acc - A_fast
+
+        additive_residual = None
+        if self.mode_additive_only or self.mode_both:
+            b01_scaled = self.cached_b01 * self.cached_scale_factor
+            # (b_new - b_initial)
+            additive_residual = (b01_scaled - b02_scaled) - baseline_additive
+
+        # Residual term r (additive offset applied in KL via eta = b + r)
         if self.mode_residual_only:
-            # Mode A: only residual correction. Preserve the original additive estimate.
-            b02_scaled = self.cached_b02 * self.cached_scale_factor
-            self.cached_residual_full = b02_scaled - self.cached_linear_proj
-            if self.initial_additive is not None:
-                self.current_additive = self.initial_additive.clone()
-            else:
-                self.current_additive = self.cached_linear_proj.get_uniform_copy(0)
-
+            residual_full = geometric_residual
         elif self.mode_additive_only:
-            # Mode B: replace additive term with SIMIND scatter estimate.
-            b01_scaled = self.cached_b01 * self.cached_scale_factor
-            b02_scaled = self.cached_b02 * self.cached_scale_factor
-            self.current_additive = b01_scaled - b02_scaled
-            self.cached_residual_full = None
-
+            # r = b_new - b_initial
+            residual_full = additive_residual
         elif self.mode_both:
-            # Mode C: store both additive (scatter) and residual (geometric) corrections.
-            b01_scaled = self.cached_b01 * self.cached_scale_factor
-            b02_scaled = self.cached_b02 * self.cached_scale_factor
-            self.current_additive = b01_scaled - b02_scaled
-            self.cached_residual_full = b02_scaled - self.cached_linear_proj
+            residual_full = geometric_residual + additive_residual
+        else:
+            residual_full = baseline_additive.get_uniform_copy(0)
+
+        # Additive (eta) update: always b + r
+        additive_update = baseline_additive + residual_full
+
+        # Cache residuals for modes that actually apply a residual correction.
+        if self.mode_residual_only or self.mode_both:
+            self.cached_residual_full = residual_full
+        else:
+            self.cached_residual_full = None
+        self.current_additive = additive_update
 
         # --- End of update logic ---
 
@@ -559,59 +571,15 @@ class SimindCoordinator(Coordinator):
             )
         )
 
-    def get_subset_residual(self, subset_indices, current_additive_subset=None):
-        """
-        Get residual correction for a specific subset.
-
-        Computes the full residual first, then extracts the relevant views for
-        this subset using get_subset(subset_indices). This ensures ProjDataInfo
-        compatibility when performing arithmetic operations.
-
-        Args:
-            subset_indices (list): View indices for this subset.
-            current_additive_subset (AcquisitionData, optional): Current additive
-                term estimate for this subset (required for mode_both when
-                additive updates are applied).
-
-        Returns:
-            AcquisitionData: Residual correction for this subset's views.
-        """
-        if self.mode_residual_only:
-            # Mode A: residual correction = SIMIND geometric - fast linear projection.
-            if self.cached_residual_full is None:
-                raise RuntimeError(
-                    "No cached residual available. Call run_full_simulation() first."
-                )
-            residual_full = self.cached_residual_full
-
-        elif self.mode_additive_only:
-            # Mode B: no residual correction.
-            residual_full = self.cached_linear_proj.get_uniform_copy(0)
-
-        elif self.mode_both:
-            # Mode C: residual correction identical to Mode A.
-            if self.cached_residual_full is None:
-                raise RuntimeError(
-                    "No cached residual available. Call run_full_simulation() first."
-                )
-            residual_full = self.cached_residual_full
-
-        else:
-            # No correction
-            if current_additive_subset is not None:
-                return current_additive_subset.get_uniform_copy(0)
-            return self.cached_linear_proj.get_uniform_copy(0)
-
-        return residual_full.get_subset(subset_indices)
-
     def get_full_additive_term(self):
         """
         Get the current full additive term for updating eta in CIL KL functions.
 
         This term is calculated during `run_full_simulation` based on the mode:
-        - **Mode A (residual_only)**: unchanged initial additive estimate.
-        - **Mode B (additive_only)**: `simind_full_projection - simind_geometric`.
-        - **Mode C (both)**: `simind_full_projection - simind_geometric`.
+        - **Mode A (residual_only)**: `initial_additive` (residual applied separately).
+        - **Mode B (additive_only)**: `initial_additive + (b_acc - b_initial)` = `b_new`.
+        - **Mode C (both)**: `initial_additive + (A_acc - A_fast) + (b_acc - b_initial)`
+          so that eta = b + r in the KL term.
 
         Returns:
             AcquisitionData: The most recently computed additive term for all views,
@@ -619,6 +587,21 @@ class SimindCoordinator(Coordinator):
         """
         # Return current_additive if it exists (either from initialization or simulation)
         return self.current_additive
+
+    def get_full_residual_term(self):
+        """
+        Get the current full residual term for all views.
+
+        This term is calculated during `run_full_simulation` based on the mode:
+        - **Mode A (residual_only)**: `A_acc - A_fast`.
+        - **Mode B (additive_only)**: `b_new - b_initial`.
+        - **Mode C (both)**: `(A_acc - A_fast) + (b_new - b_initial)`.
+
+        Returns:
+            AcquisitionData: The most recently computed residual term for all views,
+            or None if not initialized or not applicable.
+        """
+        return self.cached_residual_full
 
     def reset_iteration_counter(self):
         """
@@ -679,6 +662,7 @@ class StirPsfCoordinator(Coordinator):
         correction_update_interval (int): Subiterations between updates.
         initial_additive (AcquisitionData): Fixed additive term (scatter).
         total_iterations (int, optional): Total subiterations for reconstruction.
+        mask_image (ImageData, optional): Binary mask to confine activity to FOV.
     """
 
     def __init__(
@@ -689,6 +673,7 @@ class StirPsfCoordinator(Coordinator):
         initial_additive=None,
         output_dir=None,
         total_iterations=None,
+        mask_image=None,
     ):
         """
         Initialize the StirPsfCoordinator.
@@ -708,6 +693,7 @@ class StirPsfCoordinator(Coordinator):
         self.correction_update_interval = correction_update_interval
         self.output_dir = output_dir
         self.total_iterations = total_iterations
+        self.mask_image = mask_image
 
         # Store fast projector as linear_acquisition_model
         # (for compatibility with cil_partitioner)
@@ -768,9 +754,9 @@ class StirPsfCoordinator(Coordinator):
         # Update ONE iteration early to allow callbacks to prepare for next iteration
         iterations_since_update = self.algorithm.iteration - self._last_update_iteration
 
-        # Trigger at (interval - 1) so callbacks prepare for interval'th iteration
+        # Trigger when full interval has passed since the last update.
         # Example: interval=12 → update at iter 11, callbacks run, Armijo at 12
-        if iterations_since_update < (self.correction_update_interval - 1):
+        if iterations_since_update < self.correction_update_interval:
             return False
 
         # If total_iterations is set, check if we're too close to the end
@@ -816,25 +802,30 @@ class StirPsfCoordinator(Coordinator):
             f"Running STIR PSF projection at subiteration {self.algorithm.iteration}"
         )
 
+        # Apply FOV mask if provided
+        if self.mask_image is not None:
+            masked_image = image * self.mask_image
+        else:
+            masked_image = image
+
         # Compute PSF projection (accurate)
         self.stir_psf_projector.num_subsets = 1
         self.stir_psf_projector.subset_num = 0
-        self.cached_psf_proj = self.stir_psf_projector.forward(image)
+        self.cached_psf_proj = self.stir_psf_projector.forward(masked_image)
 
         # Compute fast projection (no PSF)
         self.stir_fast_projector.num_subsets = 1
         self.stir_fast_projector.subset_num = 0
-        self.cached_fast_proj = self.stir_fast_projector.forward(image)
+        self.cached_fast_proj = self.stir_fast_projector.forward(masked_image)
 
         # Compute residual
         residual = self.cached_psf_proj - self.cached_fast_proj
 
-        # Update cumulative additive
-        # The new additive term is the initial scatter + the PSF residual.
+        # Update additive term seen by KL: eta = b + r (r = PSF - fast)
         if self.initial_additive is not None:
             self.current_additive = self.initial_additive + residual
         else:
-            # If no initial additive, the current additive is just the residual
+            # No initial additive provided, just use residual
             self.current_additive = residual
 
         # Update tracking
@@ -880,26 +871,16 @@ class StirPsfCoordinator(Coordinator):
         """
         return self.current_additive
 
-    def get_subset_residual(self, subset_indices, current_additive_subset=None):
+    def get_full_residual_term(self):
         """
-        Get residual correction for a specific subset.
-
-        Args:
-            subset_indices (list): View indices for this subset.
-            current_additive_subset (AcquisitionData, optional): Not used
-                for StirPsfCoordinator (kept for interface compatibility).
+        Get the current full residual term (all views).
 
         Returns:
-            AcquisitionData: Residual Subset
+            AcquisitionData: Full residual term, or None if not initialized.
         """
-        if self.current_additive is None:
-            raise RuntimeError(
-                "No cached corrections. Call run_accurate_projection() first."
-            )
-
-        # This method is not used by the UpdateEtaCallback, but for correctness,
-        # it should return the residual part only.
-        return (self.cached_psf_proj - self.cached_fast_proj).get_subset(subset_indices)
+        if self.cached_psf_proj is None or self.cached_fast_proj is None:
+            return None
+        return self.cached_psf_proj - self.cached_fast_proj
 
     def reset_iteration_counter(self):
         """
