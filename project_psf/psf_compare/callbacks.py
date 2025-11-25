@@ -171,6 +171,10 @@ class UpdateEtaCallback:
 
                     if hasattr(kl_func, "eta"):
                         kl_func.eta = additive_subset
+                        # CIL KL (numba backend) caches eta as numpy array once;
+                        # refresh cache so objective/prox evaluations see updates.
+                        if hasattr(kl_func, "eta_np"):
+                            kl_func.eta_np = get_array(additive_subset)
                     else:
                         raise TypeError(
                             "UpdateEtaCallback requires KL functions with an 'eta' attribute"

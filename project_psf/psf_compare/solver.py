@@ -81,7 +81,7 @@ def run_svrg_with_prior_cil(
     update_interval = num_subsets
     if algorithm == "SVRG":
         snapshot_update_interval = solver_cfg.get(
-            "snapshot_update_interval", update_interval
+            "snapshot_update_interval", update_interval * 2
         )
     else:
         snapshot_update_interval = None
