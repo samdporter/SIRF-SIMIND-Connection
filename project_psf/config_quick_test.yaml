@@ -32,6 +32,7 @@ stochastic:
   num_epochs: 5
   initial_step_size: 0.1
   relaxation_eta: 0.02
+  armijo_trigger_every_n_epochs: null
   positivity_cap:
     enabled: true
     theta: 0.1

@@ -31,11 +31,12 @@ resolution:
 stochastic:
   algorithm: SVRG  # Options: SVRG, SAGA
   num_subsets: 18
-  num_epochs: 10
+  num_epochs: 50
   initial_step_size: 1 # will be updated by armijo
   relaxation_eta: 0.00
   snapshot_update_interval: 18
   # Armijo step-size search settings (used when coordinator is active)
+  armijo_trigger_every_n_epochs: 1  # e.g., 5 to force Armijo every 5 epochs
   use_armijo_after_correction: false
   armijo_beta: 0.5      # Backtracking factor
   armijo_max_iter: 20   # Max backtracking iterations
@@ -69,12 +70,12 @@ preconditioner:
 # SimindProjector update control
 projector:
   prefetch_initial_correction: false  # Run a correction before the first iteration
-  restart_reconstruction_on_correction_reset: true  # Restart when resetting residual/additive corrections
+  restart_reconstruction_on_correction_reset: false  # Restart when resetting residual/additive corrections
   n_corrections: 5  # Number of reconstruction cycles (total iterations = num_epochs * n_corrections)
 
 # Reconstruction selection
 reconstruction:
-  modes: [4]  # Which modes to run
+  modes: [3,2,1]  # Which modes to run
 
 # Output options
 output:

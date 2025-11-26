@@ -3,6 +3,7 @@ import pytest
 
 from project_psf.step_size_rules import (
     ArmijoAfterCorrectionStepSize,
+    ArmijoPeriodicCallback,
     SaveStepSizeHistoryCallback,
 )
 
@@ -170,3 +171,29 @@ def test_step_size_history_iteration_offset(tmp_path):
 
     iterations = [entry["iteration"] for entry in callback.step_size_history]
     assert iterations == [0, 5]
+
+
+def test_armijo_periodic_callback_triggers_every_interval(armijo_rule):
+    algo = MockAlgorithm(MockDataContainer([1.0, 1.0]), iteration=-1)
+    algo.step_size_rule = armijo_rule
+    callback = ArmijoPeriodicCallback(iteration_interval=2)
+
+    callback(algo)
+    assert armijo_rule.armijo_ran_this_iteration is False
+
+    algo.iteration = 0
+    callback(algo)
+    assert armijo_rule.armijo_ran_this_iteration is False
+
+    algo.iteration = 1
+    callback(algo)
+    assert armijo_rule.armijo_ran_this_iteration is True
+
+    armijo_rule.armijo_ran_this_iteration = False
+    algo.iteration = 2
+    callback(algo)
+    assert armijo_rule.armijo_ran_this_iteration is False
+
+    algo.iteration = 3
+    callback(algo)
+    assert armijo_rule.armijo_ran_this_iteration is True

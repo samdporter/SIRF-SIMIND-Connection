@@ -19,6 +19,7 @@ from setr.cil_extensions.callbacks import (
 from sirf.STIR import CudaRelativeDifferencePrior as RelativeDifferencePrior
 from step_size_rules import (
     ArmijoAfterCorrectionStepSize,
+    ArmijoPeriodicCallback,
     ArmijoTriggerCallback,
     LinearDecayStepSizeRule,
     SaveStepSizeHistoryCallback,
@@ -104,10 +105,35 @@ def run_svrg_with_prior_cil(
 
     g = IndicatorBox(lower=0, upper=np.inf)
 
+    periodic_epoch_interval = solver_cfg.get("armijo_trigger_every_n_epochs")
+    periodic_iteration_interval = None
+    if periodic_epoch_interval is not None:
+        try:
+            periodic_epoch_interval = float(periodic_epoch_interval)
+        except (TypeError, ValueError):
+            logging.warning(
+                "Invalid armijo_trigger_every_n_epochs=%s; ignoring periodic Armijo",
+                periodic_epoch_interval,
+            )
+            periodic_epoch_interval = None
+        else:
+            if periodic_epoch_interval <= 0:
+                logging.info(
+                    "armijo_trigger_every_n_epochs=%s <= 0; periodic Armijo disabled",
+                    periodic_epoch_interval,
+                )
+                periodic_epoch_interval = None
+            else:
+                periodic_iteration_interval = max(
+                    int(round(periodic_epoch_interval * num_subsets)), 1
+                )
+
+    periodic_requests_armijo = periodic_iteration_interval is not None
+
     use_armijo_after_correction = coordinator is not None and solver_cfg.get(
         "use_armijo_after_correction", True
     )
-    use_armijo = use_armijo_after_correction
+    use_armijo = use_armijo_after_correction or periodic_requests_armijo
 
     if use_armijo:
         step_size_rule = ArmijoAfterCorrectionStepSize(
@@ -117,9 +143,24 @@ def run_svrg_with_prior_cil(
             max_iter=solver_cfg.get("armijo_max_iter", 20),
             tol=solver_cfg.get("armijo_tol", 1e-4),
         )
-        logging.info(
-            "Using ArmijoAfterCorrectionStepSize (triggered only after residual updates)"
-        )
+        if use_armijo_after_correction and periodic_requests_armijo:
+            logging.info(
+                "Using ArmijoAfterCorrectionStepSize (correction-triggered + periodic)"
+            )
+        elif use_armijo_after_correction:
+            logging.info(
+                "Using ArmijoAfterCorrectionStepSize (triggered only after corrections)"
+            )
+        else:
+            logging.info("Using ArmijoAfterCorrectionStepSize (periodic trigger only)")
+        if periodic_requests_armijo:
+            # Ensure the very first iteration also uses an Armijo search.
+            step_size_rule.trigger_armijo = True
+            logging.info(
+                "Periodic Armijo enabled: interval=%d iterations (~%.2f epochs)",
+                periodic_iteration_interval,
+                periodic_iteration_interval / num_subsets,
+            )
     else:
         step_size_rule = LinearDecayStepSizeRule(
             solver_cfg["initial_step_size"],
@@ -157,15 +198,13 @@ def run_svrg_with_prior_cil(
     image_prefix = os.path.join(output_dir, f"{output_prefix}image")
     image_logger = SaveImageCallback(image_prefix, interval=update_interval)
 
-    step_size_logger = None
-    if use_armijo:
-        step_csv_path = os.path.join(output_dir, f"{output_prefix}step_sizes.csv")
-        step_size_logger = SaveStepSizeHistoryCallback(
-            step_csv_path, coordinator=coordinator
-        )
-        logging.info(
-            "Configured SaveStepSizeHistoryCallback (logging to %s)", step_csv_path
-        )
+    step_csv_path = os.path.join(output_dir, f"{output_prefix}step_sizes.csv")
+    step_size_logger = SaveStepSizeHistoryCallback(
+        step_csv_path, coordinator=coordinator
+    )
+    logging.info(
+        "Configured SaveStepSizeHistoryCallback (logging to %s)", step_csv_path
+    )
 
     restart_image = initial_image.clone() if restart_on_correction_reset else None
 
@@ -253,11 +292,16 @@ def run_svrg_with_prior_cil(
         )
         logging.info("Preconditioner snapshots enabled (interval=%d)", precond_interval)
 
-    if step_size_logger is not None:
-        callbacks.append(step_size_logger)
+    periodic_callback = None
+    if use_armijo and periodic_requests_armijo:
+        periodic_callback = ArmijoPeriodicCallback(periodic_iteration_interval)
+
+    callbacks.append(step_size_logger)
 
     if armijo_trigger is not None:
         callbacks.append(armijo_trigger)
+    if periodic_callback is not None:
+        callbacks.append(periodic_callback)
 
     algo = ISTA(
         initial=initial_image.clone(),

@@ -315,6 +315,54 @@ class ArmijoTriggerCallback:
         self.iteration_offset += int(increment)
 
 
+class ArmijoPeriodicCallback:
+    """
+    Trigger Armijo line searches at fixed iteration intervals.
+
+    This is useful for coordinator-free runs where we still want Armijo
+    updates every N epochs (N * num_subsets iterations).
+    """
+
+    def __init__(self, iteration_interval):
+        self.iteration_interval = max(1, int(iteration_interval))
+        self.next_trigger_iteration = self.iteration_interval
+
+    def __call__(self, algorithm):
+        """Force Armijo whenever the next trigger iteration is reached."""
+        current_iter = algorithm.iteration + 1  # Convert to 1-based count
+        if current_iter < self.next_trigger_iteration:
+            return
+
+        step_rule = getattr(algorithm, "step_size_rule", None)
+        if step_rule is None:
+            logging.warning(
+                "ArmijoPeriodicCallback: algorithm missing step_size_rule reference"
+            )
+            self._schedule_next_trigger()
+            return
+
+        logging.info(
+            "ArmijoPeriodicCallback: forcing Armijo at iteration %d "
+            "(interval=%d iterations)",
+            algorithm.iteration,
+            self.iteration_interval,
+        )
+
+        if hasattr(step_rule, "force_armijo_after_correction"):
+            step_rule.force_armijo_after_correction(algorithm)
+        elif hasattr(step_rule, "trigger_armijo"):
+            step_rule.trigger_armijo = True
+        else:
+            logging.warning(
+                "ArmijoPeriodicCallback: step size rule lacks Armijo trigger interface"
+            )
+
+        self._schedule_next_trigger()
+
+    def _schedule_next_trigger(self):
+        self.next_trigger_iteration += self.iteration_interval
+
+
 class SaveStepSizeHistoryCallback:
     """
     Callback to log step size history, specifically for ArmijoAfterCorrectionStepSize.
