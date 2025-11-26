@@ -217,6 +217,7 @@ class RDP(SmoothFunctionWithDiagonalHessian):
         eps: float | None = None,
         gamma: float = 2.0,
         padding: str = "replicate",
+        num_anatomical_neighbors: int | None = None,
         device: torch.device | None = None,
     ) -> None:
         self._gamma = gamma
@@ -252,6 +253,7 @@ class RDP(SmoothFunctionWithDiagonalHessian):
 
         self._weights = self._voxel_size_weights
         self._kappa = None
+        self._num_anatomical_neighbors = num_anatomical_neighbors
 
     @property
     def gamma(self) -> float:
@@ -272,10 +274,57 @@ class RDP(SmoothFunctionWithDiagonalHessian):
     @kappa.setter
     def kappa(self, image: TensorLike) -> None:
         self._kappa = _as_tensor(image, device=self._device)
-        self._weights = (
+        self._update_weights()
+
+    @property
+    def num_anatomical_neighbors(self) -> int | None:
+        return self._num_anatomical_neighbors
+
+    @num_anatomical_neighbors.setter
+    def num_anatomical_neighbors(self, count: int | None) -> None:
+        self._num_anatomical_neighbors = count
+        if self._kappa is not None:
+            self._update_weights()
+
+    def _update_weights(self) -> None:
+        if self._kappa is None:
+            self._weights = self._voxel_size_weights
+            return
+
+        weights = (
             neighbor_product(self._kappa, padding=self._padding)
             * self._voxel_size_weights
         )
+
+        mask = self._compute_anatomical_mask()
+        if mask is not None:
+            weights = weights * mask
+
+        self._weights = weights
+
+    def _compute_anatomical_mask(self) -> torch.Tensor | None:
+        count = self._num_anatomical_neighbors
+        if count is None:
+            return None
+
+        count = int(count)
+        if count <= 0:
+            return torch.zeros_like(self._voxel_size_weights)
+
+        if count >= self._num_neigh:
+            return None
+
+        diffs, _ = neighbor_difference_and_sum(self._kappa, padding=self._padding)
+        similarity = torch.abs(diffs)
+
+        count = min(count, self._num_neigh - 1)
+        _, indices = torch.topk(-similarity, k=count, dim=0)
+
+        mask = torch.zeros_like(
+            similarity, dtype=self._voxel_size_weights.dtype, device=self._device
+        )
+        mask.scatter_(0, indices, 1.0)
+        return mask
 
     def _call(self, x: torch.Tensor) -> torch.Tensor:
         x = _as_tensor(x, device=self._device)
