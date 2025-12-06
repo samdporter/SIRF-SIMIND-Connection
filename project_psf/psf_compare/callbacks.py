@@ -61,6 +61,20 @@ class SaveObjectiveCallback:
         """Delay logging until the given iteration (local to the current run)."""
         self.start_iteration = int(start_iteration)
 
+    def load_history(self, records, interval=None):
+        """
+        Seed the callback with existing records so restarted runs append cleanly.
+        """
+        if not records:
+            return
+        self.records = list(records)
+        try:
+            last_iteration = max(int(r.get("iteration", 0)) for r in records)
+        except (TypeError, ValueError):
+            last_iteration = 0
+        interval = interval or self._interval
+        self.set_start_iteration(last_iteration + interval)
+
     def _flush(self):
         """Persist the collected objective history to CSV."""
         output_dir = os.path.dirname(self.csv_path)
@@ -199,7 +213,7 @@ class UpdateEtaCallback:
 
     def _trigger_armijo_after_eta_update(self, algorithm):
         """
-        Request an Armijo line search immediately after eta is refreshed.
+        Schedule an Armijo line search so it runs with the refreshed gradient.
         """
         step_rule = getattr(algorithm, "step_size_rule", None)
         if hasattr(step_rule, "force_armijo_after_correction"):

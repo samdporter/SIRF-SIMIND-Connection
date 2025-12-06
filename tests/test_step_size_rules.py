@@ -116,22 +116,22 @@ def test_armijo_runs_only_after_trigger(armijo_rule):
     assert triggered_step == pytest.approx(1.0)
 
 
-def test_force_armijo_runs_immediately_and_caches_step(armijo_rule):
+def test_force_armijo_schedules_next_iteration_search(armijo_rule):
     precond = RecordingPreconditioner(scale=0.5)
     algo = MockAlgorithm(
         MockDataContainer([1.0, 1.0]), preconditioner=precond, iteration=3
     )
 
     forced_step = armijo_rule.force_armijo_after_correction(algo)
-    assert armijo_rule.armijo_ran_this_iteration is True
-    assert armijo_rule.cached_step_iteration == algo.iteration
+    assert armijo_rule.trigger_armijo is True
+    assert armijo_rule.armijo_ran_this_iteration is False
     assert forced_step == pytest.approx(1.0)
-    assert precond.call_count == 1
+    assert precond.call_count == 0
 
-    reused_step = armijo_rule.get_step_size(algo)
-    assert reused_step == pytest.approx(forced_step)
+    scheduled_step = armijo_rule.get_step_size(algo)
+    assert scheduled_step == pytest.approx(forced_step)
     assert armijo_rule.armijo_ran_this_iteration is True
-    assert precond.call_count == 1  # cached value reused
+    assert precond.call_count == 1
 
 
 def test_reset_clears_triggers(armijo_rule):
@@ -180,20 +180,31 @@ def test_armijo_periodic_callback_triggers_every_interval(armijo_rule):
 
     callback(algo)
     assert armijo_rule.armijo_ran_this_iteration is False
+    assert armijo_rule.trigger_armijo is False
 
     algo.iteration = 0
     callback(algo)
     assert armijo_rule.armijo_ran_this_iteration is False
+    assert armijo_rule.trigger_armijo is False
 
     algo.iteration = 1
     callback(algo)
+    assert armijo_rule.trigger_armijo is True
+    assert armijo_rule.armijo_ran_this_iteration is False
+    armijo_rule.get_step_size(algo)
     assert armijo_rule.armijo_ran_this_iteration is True
+    assert armijo_rule.trigger_armijo is False
 
     armijo_rule.armijo_ran_this_iteration = False
     algo.iteration = 2
     callback(algo)
     assert armijo_rule.armijo_ran_this_iteration is False
+    assert armijo_rule.trigger_armijo is False
 
     algo.iteration = 3
     callback(algo)
+    assert armijo_rule.trigger_armijo is True
+    assert armijo_rule.armijo_ran_this_iteration is False
+    armijo_rule.get_step_size(algo)
     assert armijo_rule.armijo_ran_this_iteration is True
+    assert armijo_rule.trigger_armijo is False

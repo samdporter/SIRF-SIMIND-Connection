@@ -154,10 +154,21 @@ class ArmijoAfterCorrectionStepSize(StepSizeRule):
 
     def force_armijo_after_correction(self, algorithm):
         """
-        Immediately run Armijo after a correction update and cache the result
-        for reuse in the same iteration.
+        Request an Armijo search after a correction update.
+
+        The actual line search is deferred until the next call to
+        ``get_step_size`` so that it executes with the freshly updated gradient.
         """
-        return self._armijo_search(algorithm, trigger_reason="correction (immediate)")
+        self.trigger_armijo = True
+        self.cached_step_iteration = None
+        self.cached_step_value = None
+        self.armijo_ran_this_iteration = False
+        logging.debug(
+            "ArmijoAfterCorrectionStepSize: scheduled Armijo after correction at "
+            "iteration %d",
+            getattr(algorithm, "iteration", -1),
+        )
+        return self.current_step_size
 
     def get_step_size(self, algorithm):
         """
@@ -380,9 +391,13 @@ class SaveStepSizeHistoryCallback:
         self.coordinator = coordinator
         self.step_size_history = []
         self.iteration_offset = 0
+        self.min_iteration = 0
 
     def __call__(self, algorithm):
         """Log step size and related metadata for the current iteration."""
+        if algorithm.iteration < self.min_iteration:
+            return
+
         # Get current step size - prefer reading from step_size_rule.current_step_size
         # (which is now always kept up-to-date), fallback to algorithm.step_size
         if hasattr(algorithm, "step_size_rule") and hasattr(
@@ -430,6 +445,17 @@ class SaveStepSizeHistoryCallback:
     def increment_iteration_offset(self, increment):
         """Advance the iteration offset when chaining multiple algorithm runs."""
         self.iteration_offset += int(increment)
+
+    def load_history(self, rows):
+        """Seed CSV history so restarted runs can append without duplicates."""
+        if not rows:
+            return
+        self.step_size_history = list(rows)
+        try:
+            last_iteration = max(int(r.get("iteration", 0)) for r in rows)
+        except (TypeError, ValueError):
+            last_iteration = 0
+        self.min_iteration = last_iteration + 1
 
 
 class ConstantStepSize(StepSizeRule):
