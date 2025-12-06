@@ -9,6 +9,7 @@ This refactored entrypoint keeps orchestration thin and delegates to modular hel
 """
 
 import argparse
+import gc
 import logging
 import os
 import time
@@ -35,7 +36,7 @@ from psf_compare.modes import (
     run_mode_11,
 )
 from psf_compare.preconditioning import _create_mask_from_attenuation
-from setr.utils import get_spect_data
+from psf_compare.spect_utils import get_spect_data
 from sirf.STIR import AcquisitionData, MessageRedirector
 
 from sirf_simind_connection.utils import get_array
@@ -166,8 +167,13 @@ def main():
     for mode in config["reconstruction"]["modes"]:
         mode_start = time.time()
         try:
-            mode_funcs[mode](spect_data, config, output_root)
+            results = mode_funcs[mode](spect_data, config, output_root)
             logging.info("Mode %s (all betas): %.2fs", mode, time.time() - mode_start)
+
+            # Explicitly delete results and force garbage collection
+            logging.info("Cleaning up mode %s results from memory", mode)
+            del results
+            gc.collect()
         except Exception as exc:
             logging.error("Mode %s failed: %s", mode, exc, exc_info=True)
 
