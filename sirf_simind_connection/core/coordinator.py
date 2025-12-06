@@ -96,6 +96,13 @@ class Coordinator(ABC):
         """
         pass
 
+    @abstractmethod
+    def set_iteration_counter(self, iteration: int):
+        """
+        Force the internal iteration tracker to a specific value.
+        """
+        pass
+
     @property
     @abstractmethod
     def cache_version(self):
@@ -571,6 +578,14 @@ class SimindCoordinator(Coordinator):
             )
         )
 
+        # Free memory: delete intermediate cached projections after they've been used
+        # These are only needed during residual computation and saving, not between updates
+        # Keep cached_residual_full as it's part of the public API (get_full_residual_term)
+        self.cached_b01 = None
+        self.cached_b02 = None
+        self.cached_linear_proj = None
+        self.cached_stir_full_proj = None
+
     def get_full_additive_term(self):
         """
         Get the current full additive term for updating eta in CIL KL functions.
@@ -613,6 +628,14 @@ class SimindCoordinator(Coordinator):
         self._last_update_iteration = -1
         self._last_algorithm_iteration = None
         logging.info("SimindCoordinator iteration counter reset")
+
+    def set_iteration_counter(self, iteration: int):
+        """Set the last update iteration to a specific value."""
+        self._last_update_iteration = int(iteration)
+        logging.info(
+            "SimindCoordinator iteration counter set to %d",
+            self._last_update_iteration,
+        )
 
     def run_accurate_projection(self, image, force=False):
         """
@@ -821,6 +844,9 @@ class StirPsfCoordinator(Coordinator):
         # Compute residual
         residual = self.cached_psf_proj - self.cached_fast_proj
 
+        # Cache residual for get_full_residual_term() API
+        self.cached_residual = residual
+
         # Update additive term seen by KL: eta = b + r (r = PSF - fast)
         if self.initial_additive is not None:
             self.current_additive = self.initial_additive + residual
@@ -862,6 +888,11 @@ class StirPsfCoordinator(Coordinator):
             f"current_additive sum={self.current_additive.sum():.2e}"
         )
 
+        # Free memory: delete cached projections after they've been used
+        # These are only needed during residual computation and saving, not between updates
+        self.cached_psf_proj = None
+        self.cached_fast_proj = None
+
     def get_full_additive_term(self):
         """
         Get the current full additive term (all views).
@@ -878,9 +909,7 @@ class StirPsfCoordinator(Coordinator):
         Returns:
             AcquisitionData: Full residual term, or None if not initialized.
         """
-        if self.cached_psf_proj is None or self.cached_fast_proj is None:
-            return None
-        return self.cached_psf_proj - self.cached_fast_proj
+        return getattr(self, "cached_residual", None)
 
     def reset_iteration_counter(self):
         """
@@ -891,6 +920,14 @@ class StirPsfCoordinator(Coordinator):
         """
         self._last_update_iteration = -1
         logging.info("StirPsfCoordinator iteration counter reset")
+
+    def set_iteration_counter(self, iteration: int):
+        """Set the last update iteration to a specific value."""
+        self._last_update_iteration = int(iteration)
+        logging.info(
+            "StirPsfCoordinator iteration counter set to %d",
+            self._last_update_iteration,
+        )
 
     # Properties required by Coordinator base class
     @property

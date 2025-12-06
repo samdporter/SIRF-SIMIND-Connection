@@ -51,6 +51,7 @@ def run_svrg_with_prior_cil(
     num_correction_cycles=1,
     restart_on_correction_reset=False,
     mask_image=None,
+    restart_state=None,
 ):
     """
     Run SVRG reconstruction with CIL objectives and RDP prior.
@@ -59,7 +60,7 @@ def run_svrg_with_prior_cil(
     algorithm = solver_cfg.get("algorithm", "SVRG").upper()
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
-    count_floor = data_fidelity_cfg.get("counts_floor", 1e-8)
+    data_fidelity_cfg.get("counts_floor", 1e-8)
     projector_cfg = config.get("projector", {})
     prefetch_initial_correction = bool(
         projector_cfg.get("prefetch_initial_correction", True)
@@ -69,6 +70,12 @@ def run_svrg_with_prior_cil(
 
     num_subsets = len(kl_objectives)
     num_cycles = max(1, int(num_correction_cycles))
+    restart_iteration = 0
+    if restart_state is not None:
+        restart_iteration = max(int(getattr(restart_state, "iteration", 0)), 0)
+        logging.info("Resuming reconstruction from iteration %d", restart_iteration)
+        if getattr(restart_state, "image_path", None):
+            logging.info("Restart image source: %s", restart_state.image_path)
 
     rdp_prior: Optional[RelativeDifferencePrior] = None
     if beta > 0:
@@ -194,6 +201,10 @@ def run_svrg_with_prior_cil(
         start_iteration=0,
         log_on_armijo=True,
     )
+    if restart_state is not None and restart_state.objective_history:
+        objective_logger.load_history(
+            restart_state.objective_history, interval=update_interval
+        )
 
     image_prefix = os.path.join(output_dir, f"{output_prefix}image")
     image_logger = SaveImageCallback(image_prefix, interval=update_interval)
@@ -202,6 +213,8 @@ def run_svrg_with_prior_cil(
     step_size_logger = SaveStepSizeHistoryCallback(
         step_csv_path, coordinator=coordinator
     )
+    if restart_state is not None and restart_state.step_history:
+        step_size_logger.load_history(restart_state.step_history)
     logging.info(
         "Configured SaveStepSizeHistoryCallback (logging to %s)", step_csv_path
     )
@@ -314,29 +327,51 @@ def run_svrg_with_prior_cil(
 
     if coordinator is not None:
         coordinator.algorithm = algo
+        if restart_iteration > 0 and hasattr(coordinator, "set_iteration_counter"):
+            coordinator.set_iteration_counter(restart_iteration)
 
-    _prefetch_corrections("initial", algo, initial_image)
+    if restart_iteration > 0:
+        try:
+            algo.iteration = restart_iteration
+        except AttributeError:
+            logging.warning(
+                "Algorithm does not expose iteration attribute; restart iteration ignored"
+            )
 
     base_epochs = solver_cfg["num_epochs"]
     total_epochs = base_epochs * num_cycles
-    num_iterations = total_epochs * num_subsets
+    iterations_per_run = total_epochs * num_subsets
+    start_iteration = restart_iteration
+    target_iteration = start_iteration + iterations_per_run
+    remaining_iterations = max(target_iteration - start_iteration, 0)
     if num_cycles > 1:
         logging.info(
-            "Running %s for %d iterations (%d epochs x %d cycles)",
+            "Running %s for %d iterations (%d epochs x %d cycles; start=%d, stop=%d)",
             algorithm,
-            num_iterations,
+            remaining_iterations,
             base_epochs,
             num_cycles,
+            start_iteration,
+            target_iteration,
         )
     else:
         logging.info(
-            "Running %s for %d iterations (%d epochs)",
+            "Running %s for %d iterations (%d epochs; start=%d, stop=%d)",
             algorithm,
-            num_iterations,
+            remaining_iterations,
             base_epochs,
+            start_iteration,
+            target_iteration,
         )
-
-    algo.run(num_iterations, verbose=True, callbacks=callbacks)
+    if remaining_iterations > 0:
+        _prefetch_corrections("initial", algo, initial_image)
+    if remaining_iterations > 0:
+        algo.run(remaining_iterations, verbose=True, callbacks=callbacks)
+    else:
+        logging.info(
+            "All %d planned iterations already completed; skipping solver run",
+            iterations_per_run,
+        )
 
     output_fname = os.path.join(output_dir, f"{output_prefix}_final.hv")
     algo.solution.write(output_fname)

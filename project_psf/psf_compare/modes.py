@@ -2,10 +2,9 @@
 Mode dispatch and orchestration for PSF comparison.
 """
 
+import gc
 import logging
 import os
-
-from setr.utils import get_spect_am
 
 from sirf_simind_connection.core.coordinator import (
     SimindCoordinator,
@@ -15,8 +14,11 @@ from sirf_simind_connection.core.coordinator import (
 from .config import get_solver_config
 from .partitioning import partition_data_once_cil
 from .preconditioning import _create_mask_from_attenuation
+from .restart import load_restart_state
+from .restart import restart_enabled as resume_runs_enabled
 from .simind import create_simind_simulator
 from .solver import run_svrg_with_prior_cil
+from .spect_utils import get_spect_am
 
 
 def _log_mode_banner(title: str):
@@ -103,9 +105,9 @@ def _run_mode_core(
     num_subsets = solver_cfg["num_subsets"]
     mask_image = _create_mask_from_attenuation(spect_data.get("attenuation"), 0.05)
     restart_enabled, configured_cycles = _get_restart_strategy(config)
-    num_correction_cycles = (
-        configured_cycles if (residual_correction or update_additive) else 1
-    )
+    resume_reconstruction = resume_runs_enabled(config)
+    # All modes run for num_epochs * n_corrections (even without residual correction)
+    num_correction_cycles = configured_cycles
     base_iterations = solver_cfg["num_epochs"] * num_subsets
     get_am = _make_stir_acq_model_factory(
         spect_data,
@@ -114,63 +116,19 @@ def _run_mode_core(
         use_gaussian=use_gaussian,
     )
 
-    coordinator = None
-    if residual_correction or update_additive:
-        simind_dir = os.path.join(output_dir, f"simind_{simind_dir_suffix}")
-        os.makedirs(simind_dir, exist_ok=True)
-        simind_sim = create_simind_simulator(config, spect_data, simind_dir)
-        correction_update_interval = base_iterations
-        total_iterations = base_iterations * num_correction_cycles
-
-        full_acq_data = spect_data["acquisition_data"]
-        initial_image = spect_data["initial_image"]
-
-        linear_am = get_am()
-        linear_am.set_up(full_acq_data, initial_image)
-
-        stir_am = None
-        if residual_correction and update_additive:
-            stir_am = get_am()
-            stir_am.set_up(full_acq_data, initial_image)
-
-        coordinator = SimindCoordinator(
-            simind_simulator=simind_sim,
-            num_subsets=num_subsets,
-            correction_update_interval=correction_update_interval,
-            residual_correction=residual_correction,
-            update_additive=update_additive,
-            linear_acquisition_model=linear_am,
-            stir_acquisition_model=stir_am,
-            output_dir=simind_dir,
-            total_iterations=total_iterations,
-            mask_image=mask_image,
-        )
-
-        coordinator.initialize_with_additive(spect_data["additive"])
-        coordinator.reset_iteration_counter()
-
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
     count_floor = data_fidelity_cfg.get("count_floor", 1e-5)
 
-    (
-        kl_objectives,
-        projectors,
-        kl_data_functions,
-        partition_indices,
-        subset_sensitivity_max,
-        subset_eta_min,
-    ) = partition_data_once_cil(
-        spect_data["acquisition_data"],
-        spect_data["additive"],
-        get_am,
-        spect_data["initial_image"],
-        num_subsets,
-        coordinator=coordinator,
-        eta_floor=eta_floor,
-        count_floor=count_floor,
-        attenuation_map=spect_data["attenuation"],
-    )
+    full_acq_data = spect_data["acquisition_data"]
+    initial_image = spect_data["initial_image"]
+
+    # Prepare SIMIND simulator if needed (reused across betas)
+    simind_sim = None
+    if residual_correction or update_additive:
+        simind_dir = os.path.join(output_dir, f"simind_{simind_dir_suffix}")
+        os.makedirs(simind_dir, exist_ok=True)
+        simind_sim = create_simind_simulator(config, spect_data, simind_dir)
 
     results = []
     for beta in config["rdp"]["beta_values"]:
@@ -178,24 +136,82 @@ def _run_mode_core(
         output_dir_for_run = os.path.join(output_dir, f"mode{mode_no}/b{beta}")
         os.makedirs(output_dir_for_run, exist_ok=True)
         output_prefix = ""
+        restart_state = None
+        if resume_reconstruction:
+            restart_state = load_restart_state(
+                config,
+                output_dir_for_run,
+                f"{output_prefix}image",
+            )
+        if restart_state is not None:
+            run_initial_image = restart_state.image.clone()
+        else:
+            run_initial_image = spect_data["initial_image"]
 
-        if coordinator is not None:
+        # Create fresh coordinator and acquisition models for each beta
+        coordinator = None
+        linear_am = None
+        stir_am = None
+
+        if residual_correction or update_additive:
             beta_simind_dir = os.path.join(output_dir_for_run, "simind_corrections")
             os.makedirs(beta_simind_dir, exist_ok=True)
-            coordinator.output_dir = beta_simind_dir
+
+            correction_update_interval = base_iterations
+            total_iterations = base_iterations * num_correction_cycles
+
+            linear_am = get_am()
+            linear_am.set_up(full_acq_data, initial_image)
+
+            if residual_correction and update_additive:
+                stir_am = get_am()
+                stir_am.set_up(full_acq_data, initial_image)
+
+            coordinator = SimindCoordinator(
+                simind_simulator=simind_sim,
+                num_subsets=num_subsets,
+                correction_update_interval=correction_update_interval,
+                residual_correction=residual_correction,
+                update_additive=update_additive,
+                linear_acquisition_model=linear_am,
+                stir_acquisition_model=stir_am,
+                output_dir=beta_simind_dir,
+                total_iterations=total_iterations,
+                mask_image=mask_image,
+            )
 
             coordinator.initialize_with_additive(spect_data["additive"])
             coordinator.reset_iteration_counter()
             logging.info(
-                "Coordinator reset for beta=%s, output_dir=%s",
+                "Created fresh coordinator for beta=%s, output_dir=%s",
                 beta,
                 beta_simind_dir,
             )
 
+        # Create fresh partitioning for each beta
+        (
+            kl_objectives,
+            projectors,
+            kl_data_functions,
+            partition_indices,
+            subset_sensitivity_max,
+            subset_eta_min,
+        ) = partition_data_once_cil(
+            spect_data["acquisition_data"],
+            spect_data["additive"],
+            get_am,
+            spect_data["initial_image"],
+            num_subsets,
+            coordinator=coordinator,
+            eta_floor=eta_floor,
+            count_floor=count_floor,
+            attenuation_map=spect_data["attenuation"],
+        )
+
         recon = run_svrg_with_prior_cil(
             kl_objectives,
             projectors,
-            spect_data["initial_image"],
+            run_initial_image,
             beta,
             config,
             output_prefix,
@@ -208,8 +224,19 @@ def _run_mode_core(
             mask_image=mask_image,
             num_correction_cycles=num_correction_cycles,
             restart_on_correction_reset=restart_enabled and coordinator is not None,
+            restart_state=restart_state,
         )
         results.append(recon)
+
+        # Explicit cleanup after each beta
+        logging.info("Cleaning up memory after beta=%s", beta)
+        del kl_objectives
+        del projectors
+        del kl_data_functions
+        del coordinator
+        del linear_am
+        del stir_am
+        gc.collect()
 
     return results
 
@@ -235,66 +262,29 @@ def _run_stir_psf_residual_mode(
     num_subsets = solver_cfg["num_subsets"]
     mask_image = _create_mask_from_attenuation(spect_data.get("attenuation"), 0.05)
     restart_enabled, configured_cycles = _get_restart_strategy(config)
+    # All modes run for num_epochs * n_corrections
     num_correction_cycles = configured_cycles
     base_iterations = solver_cfg["num_epochs"] * num_subsets
 
     get_am_baseline = _make_stir_acq_model_factory(
-        spect_data, config, use_psf=baseline_use_psf, use_gaussian=baseline_use_gaussian
+        spect_data,
+        config,
+        use_psf=baseline_use_psf,
+        use_gaussian=baseline_use_gaussian,
     )
     get_am_accurate = _make_stir_acq_model_factory(
-        spect_data, config, use_psf=accurate_use_psf, use_gaussian=accurate_use_gaussian
+        spect_data,
+        config,
+        use_psf=accurate_use_psf,
+        use_gaussian=accurate_use_gaussian,
     )
 
     full_acq_data = spect_data["acquisition_data"]
     initial_image = spect_data["initial_image"]
 
-    stir_baseline_am = get_am_baseline()
-    stir_baseline_am.set_up(full_acq_data, initial_image)
-
-    stir_accurate_am = get_am_accurate()
-    stir_accurate_am.set_up(full_acq_data, initial_image)
-
-    stir_dir = os.path.join(output_dir, f"stir_psf_mode{mode_no}")
-    os.makedirs(stir_dir, exist_ok=True)
-
-    correction_update_interval = base_iterations
-    total_iterations = base_iterations * num_correction_cycles
-
-    coordinator = StirPsfCoordinator(
-        stir_psf_projector=stir_accurate_am,
-        stir_fast_projector=stir_baseline_am,
-        correction_update_interval=correction_update_interval,
-        initial_additive=spect_data["additive"],
-        output_dir=stir_dir,
-        total_iterations=total_iterations,
-        mask_image=mask_image,
-    )
-
-    coordinator.initialize_with_additive(spect_data["additive"])
-    coordinator.reset_iteration_counter()
-
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
     count_floor = data_fidelity_cfg.get("count_floor", 1e-5)
-
-    (
-        kl_objectives,
-        projectors,
-        kl_data_functions,
-        partition_indices,
-        subset_sensitivity_max,
-        subset_eta_min,
-    ) = partition_data_once_cil(
-        spect_data["acquisition_data"],
-        spect_data["additive"],
-        get_am_baseline,
-        spect_data["initial_image"],
-        num_subsets,
-        coordinator=coordinator,
-        eta_floor=eta_floor,
-        count_floor=count_floor,
-        attenuation_map=spect_data["attenuation"],
-    )
 
     results = []
     for beta in config["rdp"]["beta_values"]:
@@ -302,21 +292,71 @@ def _run_stir_psf_residual_mode(
         output_dir_for_run = os.path.join(output_dir, f"mode{mode_no}/b{beta}")
         os.makedirs(output_dir_for_run, exist_ok=True)
         output_prefix = ""
+        restart_state = None
+        if resume_runs_enabled(config):
+            restart_state = load_restart_state(
+                config,
+                output_dir_for_run,
+                f"{output_prefix}image",
+            )
+        if restart_state is not None:
+            run_initial_image = restart_state.image.clone()
+        else:
+            run_initial_image = spect_data["initial_image"]
+
+        # Create fresh acquisition models and coordinator for each beta
+        stir_baseline_am = get_am_baseline()
+        stir_baseline_am.set_up(full_acq_data, initial_image)
+
+        stir_accurate_am = get_am_accurate()
+        stir_accurate_am.set_up(full_acq_data, initial_image)
 
         beta_stir_dir = os.path.join(output_dir_for_run, "stir_psf_corrections")
         os.makedirs(beta_stir_dir, exist_ok=True)
-        coordinator.output_dir = beta_stir_dir
+
+        correction_update_interval = base_iterations
+        total_iterations = base_iterations * num_correction_cycles
+
+        coordinator = StirPsfCoordinator(
+            stir_psf_projector=stir_accurate_am,
+            stir_fast_projector=stir_baseline_am,
+            correction_update_interval=correction_update_interval,
+            initial_additive=spect_data["additive"],
+            output_dir=beta_stir_dir,
+            total_iterations=total_iterations,
+            mask_image=mask_image,
+        )
 
         coordinator.initialize_with_additive(spect_data["additive"])
         coordinator.reset_iteration_counter()
         logging.info(
-            "Coordinator reset for beta=%s, output_dir=%s", beta, beta_stir_dir
+            "Created fresh coordinator for beta=%s, output_dir=%s", beta, beta_stir_dir
+        )
+
+        # Create fresh partitioning for each beta
+        (
+            kl_objectives,
+            projectors,
+            kl_data_functions,
+            partition_indices,
+            subset_sensitivity_max,
+            subset_eta_min,
+        ) = partition_data_once_cil(
+            spect_data["acquisition_data"],
+            spect_data["additive"],
+            get_am_baseline,
+            spect_data["initial_image"],
+            num_subsets,
+            coordinator=coordinator,
+            eta_floor=eta_floor,
+            count_floor=count_floor,
+            attenuation_map=spect_data["attenuation"],
         )
 
         recon = run_svrg_with_prior_cil(
             kl_objectives,
             projectors,
-            spect_data["initial_image"],
+            run_initial_image,
             beta,
             config,
             output_prefix,
@@ -329,8 +369,19 @@ def _run_stir_psf_residual_mode(
             mask_image=mask_image,
             num_correction_cycles=num_correction_cycles,
             restart_on_correction_reset=restart_enabled,
+            restart_state=restart_state,
         )
         results.append(recon)
+
+        # Explicit cleanup after each beta
+        logging.info("Cleaning up memory after beta=%s", beta)
+        del kl_objectives
+        del projectors
+        del kl_data_functions
+        del coordinator
+        del stir_baseline_am
+        del stir_accurate_am
+        gc.collect()
 
     return results
 
