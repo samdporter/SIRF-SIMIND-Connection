@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 from sirf.STIR import ImageData
 
 
@@ -75,8 +76,18 @@ class STIRSPECTImageDataBuilder:
                 f.write(temp_str)
 
         # Write raw image data to a temporary file.
+        if self.pixel_array is None:
+            self.pixel_array = np.zeros(
+                (
+                    int(self.header["!matrix size [1]"]),
+                    int(self.header["!matrix size [2]"]),
+                    int(self.header["!matrix size [3]"]),
+                ),
+                dtype=np.float32,
+            )
+
         raw_file_path = "temp.v"
-        self.img.tofile(raw_file_path)
+        self.pixel_array.tofile(raw_file_path)
 
         print("Image written to: " + header_path)
 

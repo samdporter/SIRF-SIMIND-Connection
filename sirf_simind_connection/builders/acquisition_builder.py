@@ -69,9 +69,9 @@ class STIRSPECTAcquisitionDataBuilder:
         matrix_size_2 = int(self.header.get("!matrix size [2]", 128))
         num_projections = int(self.header.get("!number of projections", 1))
         if self.pixel_array is None:
-            self.pixel_array = np.zeros(
-                (1, matrix_size_1, num_projections, matrix_size_2), dtype=np.float32
-            )
+            shape = (1, matrix_size_2, num_projections, matrix_size_1)
+            print(f"Debug: Creating zero pixel array with shape {shape}")
+            self.pixel_array = np.zeros(shape, dtype=np.float32)
         else:
             self.pixel_array = np.array(self.pixel_array, dtype=np.float32)
 
