@@ -6,6 +6,9 @@ import gc
 import logging
 import os
 
+from cil.optimisation.operators import CompositionOperator
+from setr.cil_extensions.operators.blurring import GaussianBlurringOperator
+
 from sirf_simind_connection.core.coordinator import (
     SimindCoordinator,
     StirPsfCoordinator,
@@ -30,30 +33,50 @@ def _log_mode_banner(title: str):
 def _make_stir_acq_model_factory(
     spect_data, config, *, use_psf: bool, use_gaussian: bool
 ):
-    """Return a factory function that builds STIR acquisition models (no SIMIND wrapper)."""
+    """
+    Return a factory function that builds STIR acquisition models.
+
+    Returns:
+        tuple: (get_am_func, blur_operator_or_none)
+            - get_am_func: Factory that creates SIRF acquisition models (no Gaussian)
+            - blur_operator_or_none: GaussianBlurringOperator if use_gaussian=True, else None
+
+    The blur operator should be applied AFTER partitioning by wrapping each subset model
+    in a CompositionOperator.
+    """
 
     def get_am():
         res = None
-        gauss_fwhm = None
         if use_psf:
             res = (
                 config["resolution"]["stir_psf_params"][0],
                 config["resolution"]["stir_psf_params"][1],
                 False,
             )
-        if use_gaussian:
-            gauss_fwhm = config["resolution"]["psf_fwhm"]
 
+        # Always create acquisition model WITHOUT image processor
         stir_am = get_spect_am(
             spect_data,
             res=res,
             keep_all_views_in_cache=True,
-            gauss_fwhm=gauss_fwhm,
+            gauss_fwhm=None,  # Don't use SIRF's image processor
             attenuation=True,
         )
+
+        # Always set up the SIRF acquisition model
+        stir_am.set_up(spect_data["acquisition_data"], spect_data["initial_image"])
+
         return stir_am
 
-    return get_am
+    # Create blur operator if needed (will be applied after partitioning)
+    blur_op = None
+    if use_gaussian:
+        gauss_fwhm = config["resolution"]["psf_fwhm"]
+        blur_op = GaussianBlurringOperator(
+            gauss_fwhm, spect_data["initial_image"], backend="auto"
+        )
+
+    return get_am, blur_op
 
 
 def _get_restart_strategy(config):
@@ -109,7 +132,7 @@ def _run_mode_core(
     # All modes run for num_epochs * n_corrections (even without residual correction)
     num_correction_cycles = configured_cycles
     base_iterations = solver_cfg["num_epochs"] * num_subsets
-    get_am = _make_stir_acq_model_factory(
+    get_am, blur_op = _make_stir_acq_model_factory(
         spect_data,
         config,
         use_psf=use_psf,
@@ -161,11 +184,9 @@ def _run_mode_core(
             total_iterations = base_iterations * num_correction_cycles
 
             linear_am = get_am()
-            linear_am.set_up(full_acq_data, initial_image)
 
             if residual_correction and update_additive:
                 stir_am = get_am()
-                stir_am.set_up(full_acq_data, initial_image)
 
             coordinator = SimindCoordinator(
                 simind_simulator=simind_sim,
@@ -206,6 +227,7 @@ def _run_mode_core(
             eta_floor=eta_floor,
             count_floor=count_floor,
             attenuation_map=spect_data["attenuation"],
+            blur_operator=blur_op,
         )
 
         recon = run_svrg_with_prior_cil(
@@ -266,13 +288,13 @@ def _run_stir_psf_residual_mode(
     num_correction_cycles = configured_cycles
     base_iterations = solver_cfg["num_epochs"] * num_subsets
 
-    get_am_baseline = _make_stir_acq_model_factory(
+    get_am_baseline, blur_op_baseline = _make_stir_acq_model_factory(
         spect_data,
         config,
         use_psf=baseline_use_psf,
         use_gaussian=baseline_use_gaussian,
     )
-    get_am_accurate = _make_stir_acq_model_factory(
+    get_am_accurate, blur_op_accurate = _make_stir_acq_model_factory(
         spect_data,
         config,
         use_psf=accurate_use_psf,
@@ -306,10 +328,13 @@ def _run_stir_psf_residual_mode(
 
         # Create fresh acquisition models and coordinator for each beta
         stir_baseline_am = get_am_baseline()
-        stir_baseline_am.set_up(full_acq_data, initial_image)
-
         stir_accurate_am = get_am_accurate()
-        stir_accurate_am.set_up(full_acq_data, initial_image)
+
+        # Compose with blur operators if needed (for coordinator's full-data models)
+        if blur_op_baseline is not None:
+            stir_baseline_am = CompositionOperator(stir_baseline_am, blur_op_baseline)
+        if blur_op_accurate is not None:
+            stir_accurate_am = CompositionOperator(stir_accurate_am, blur_op_accurate)
 
         beta_stir_dir = os.path.join(output_dir_for_run, "stir_psf_corrections")
         os.makedirs(beta_stir_dir, exist_ok=True)
@@ -351,6 +376,7 @@ def _run_stir_psf_residual_mode(
             eta_floor=eta_floor,
             count_floor=count_floor,
             attenuation_map=spect_data["attenuation"],
+            blur_operator=blur_op_baseline,
         )
 
         recon = run_svrg_with_prior_cil(

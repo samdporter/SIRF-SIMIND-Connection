@@ -98,6 +98,7 @@ def partition_data_with_cil_objectives(
     eta_floor=1e-5,
     count_floor=1e-8,
     attenuation_map=None,
+    blur_operator=None,
 ):
     """
     Partition SPECT data into subsets and create CIL KL objective functions.
@@ -245,6 +246,10 @@ def partition_data_with_cil_objectives(
         # Compose with mask operator if provided: A_masked = A ∘ mask
         if mask_operator is not None:
             projector = CompositionOperator(projector, mask_operator)
+
+        # Compose with blur operator if provided: A_blurred = A ∘ blur
+        if blur_operator is not None:
+            projector = CompositionOperator(projector, blur_operator)
 
         projectors.append(projector)
 

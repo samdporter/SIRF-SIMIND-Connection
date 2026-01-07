@@ -428,9 +428,12 @@ class SimindCoordinator(Coordinator):
         else:
             masked_image = image
 
-        self.linear_acquisition_model.num_subsets = 1
-        self.linear_acquisition_model.subset_num = 0
-        self.cached_linear_proj = self.linear_acquisition_model.forward(masked_image)
+        # Set subset parameters if available (SIRF models only)
+        if hasattr(self.linear_acquisition_model, "num_subsets"):
+            self.linear_acquisition_model.num_subsets = 1
+            self.linear_acquisition_model.subset_num = 0
+        # Always use direct() for linear models (works with both SIRF and CIL)
+        self.cached_linear_proj = self.linear_acquisition_model.direct(masked_image)
 
         # Ensure SIMIND outputs share the same geometry as the STIR projector
         if getattr(self.simind_simulator, "template_sinogram", None) is None:
@@ -482,7 +485,8 @@ class SimindCoordinator(Coordinator):
                     "stir_acquisition_model required for mode_both (residual + additive). "
                     "Pass it to coordinator.__init__"
                 )
-            self.cached_stir_full_proj = self.stir_acquisition_model.forward(
+            # Always use direct() for linear models (works with both SIRF and CIL)
+            self.cached_stir_full_proj = self.stir_acquisition_model.direct(
                 masked_image
             )
 
@@ -834,12 +838,12 @@ class StirPsfCoordinator(Coordinator):
         # Compute PSF projection (accurate)
         self.stir_psf_projector.num_subsets = 1
         self.stir_psf_projector.subset_num = 0
-        self.cached_psf_proj = self.stir_psf_projector.forward(masked_image)
+        self.cached_psf_proj = self.stir_psf_projector.direct(masked_image)
 
         # Compute fast projection (no PSF)
         self.stir_fast_projector.num_subsets = 1
         self.stir_fast_projector.subset_num = 0
-        self.cached_fast_proj = self.stir_fast_projector.forward(masked_image)
+        self.cached_fast_proj = self.stir_fast_projector.direct(masked_image)
 
         # Compute residual
         residual = self.cached_psf_proj - self.cached_fast_proj

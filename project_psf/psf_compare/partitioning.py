@@ -15,6 +15,7 @@ def partition_data_once_cil(
     eta_floor=1e-5,
     count_floor=1e-8,
     attenuation_map=None,
+    blur_operator=None,
 ):
     """
     Partition data ONCE and return CIL objective functions.
@@ -24,6 +25,10 @@ def partition_data_once_cil(
 
     IMPORTANT: Returns LINEAR acquisition models and KL functions with eta parameter
     for proper CIL LinearOperator compatibility.
+
+    Args:
+        blur_operator: Optional GaussianBlurringOperator to compose with each projector.
+                      If provided, each projector will be wrapped as CompositionOperator(projector, blur_op).
     """
     from sirf_simind_connection.utils.cil_partitioner import (
         partition_data_with_cil_objectives,
@@ -52,6 +57,7 @@ def partition_data_once_cil(
         eta_floor=eta_floor,
         count_floor=count_floor,
         attenuation_map=attenuation_map,
+        blur_operator=blur_operator,
     )
 
     logging.info("Created %d CIL KL objectives with LINEAR models", len(kl_objectives))
