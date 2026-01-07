@@ -12,7 +12,7 @@ simind:
   energy_upper: 126.16  # keV
   collimator: "ge-megp"  # Collimator type (CC runtime switch)
   source_type: "y90_frey"  # Source type (FI runtime switch)
-  photon_multiplier: 1
+  photon_multiplier: 1.0
   use_mpi: true  # Use MPI parallel execution
   num_mpi_cores: 6  # Number of MPI cores
 
@@ -31,13 +31,13 @@ resolution:
 stochastic:
   algorithm: SVRG  # Options: SVRG, SAGA
   num_subsets: 18
-  num_epochs: 50
+  num_epochs: 5
   initial_step_size: 1 # will be updated by armijo
   relaxation_eta: 0.00
   snapshot_update_interval: 18
   # Armijo step-size search settings (used when coordinator is active)
-  armijo_trigger_every_n_epochs: 1  # e.g., 5 to force Armijo every 5 epochs
-  use_armijo_after_correction: false
+  armijo_trigger_every_n_epochs: 5  # e.g., 5 to force Armijo every 5 epochs
+  use_armijo_after_correction: true
   armijo_beta: 0.5      # Backtracking factor
   armijo_max_iter: 20   # Max backtracking iterations
   armijo_tol: 0.1    # Sufficient decrease tolerance
@@ -45,7 +45,7 @@ stochastic:
 
 # RDP prior parameters
 rdp:
-  beta_values: [0.1]
+  beta_values: [0.05]
   gamma: 1.0
   epsilon: 0.01
   stencil: 26
@@ -60,7 +60,7 @@ preconditioner:
     update_interval: 1
     epsilon: 1.0e-8
     smooth: true
-    smoothing_fwhm: [10,10,10]  # in mm
+    smoothing_fwhm: [1,1,1]  # in mm
   prior:
     epsilon: 1.0e-8
   lehmer:
@@ -71,11 +71,11 @@ preconditioner:
 projector:
   prefetch_initial_correction: false  # Run a correction before the first iteration
   restart_reconstruction_on_correction_reset: false  # Restart when resetting residual/additive corrections
-  n_corrections: 5  # Number of reconstruction cycles (total iterations = num_epochs * n_corrections)
+  n_corrections: 10  # Number of reconstruction cycles (total iterations = num_epochs * n_corrections)
 
 # Reconstruction selection
 reconstruction:
-  modes: [3,2,1]  # Which modes to run
+  modes: [3,5]  # Which modes to run
 
 # Output options
 output:
@@ -83,6 +83,10 @@ output:
   verbose: false
   save_preconditioner: true
   preconditioner_interval: 18
+
+# Restart / resume options
+restart:
+  enabled: false  # Resume from latest checkpoint image_{iteration}.hv if available
 
 # Cluster submission defaults (used when --execution cluster)
 cluster:

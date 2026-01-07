@@ -526,6 +526,14 @@ class SimindCoordinator(Coordinator):
             self.cached_residual_full = None
         self.current_additive = additive_update
 
+        # Cache scaled projections for effective objective calculation
+        # (before deleting raw cached projections for memory management)
+        self.cached_b02_scaled = b02_scaled
+        if self.mode_both:
+            self.cached_b01_scaled = self.cached_b01 * self.cached_scale_factor
+        else:
+            self.cached_b01_scaled = None
+
         # --- End of update logic ---
 
         # Update tracking
@@ -621,6 +629,47 @@ class SimindCoordinator(Coordinator):
             or None if not initialized or not applicable.
         """
         return self.cached_residual_full
+
+    def get_effective_objective_terms(self):
+        """
+        Return (accurate_projection, effective_eta) for effective objective calculation.
+
+        This provides the terms needed to compute what the objective would be
+        if using the accurate forward model with the original additive, rather
+        than the fast model with residual-corrected additive.
+
+        Returns:
+            tuple: (accurate_proj, effective_eta) or (None, None) if not available
+
+        For geometric modes (mode_residual_only):
+            - accurate_proj = cached_b02_scaled (geometric collimation)
+            - effective_eta = initial_additive (original scatter)
+
+        For full modes (mode_both):
+            - accurate_proj = cached_b01_scaled (all interactions)
+            - effective_eta = None (b01 includes everything)
+        """
+        # Check if we have cached scaled projections from a recent simulation
+        if not hasattr(self, "cached_b02_scaled") or self.cached_b02_scaled is None:
+            return None, None
+
+        if self.mode_residual_only:
+            # Geometric: use b02_scaled with original additive
+            accurate_proj = self.cached_b02_scaled
+            effective_eta = self.initial_additive
+            return accurate_proj, effective_eta
+
+        elif self.mode_both:
+            # Full: use b01_scaled with no additive (it's already included)
+            if not hasattr(self, "cached_b01_scaled") or self.cached_b01_scaled is None:
+                return None, None
+            accurate_proj = self.cached_b01_scaled
+            effective_eta = None  # b01 includes scatter/penetration
+            return accurate_proj, effective_eta
+
+        else:
+            # mode_additive_only: no residual correction, no effective objective
+            return None, None
 
     def reset_iteration_counter(self):
         """
@@ -914,6 +963,22 @@ class StirPsfCoordinator(Coordinator):
             AcquisitionData: Full residual term, or None if not initialized.
         """
         return getattr(self, "cached_residual", None)
+
+    def get_effective_objective_terms(self):
+        """
+        Return (accurate_projection, effective_eta) for effective objective calculation.
+
+        For STIR PSF modes:
+            - accurate_proj = cached_psf_proj (PSF projection)
+            - effective_eta = initial_additive (original scatter)
+
+        Returns:
+            tuple: (accurate_proj, effective_eta) or (None, None) if not available
+        """
+        if not hasattr(self, "cached_psf_proj") or self.cached_psf_proj is None:
+            return None, None
+
+        return self.cached_psf_proj, self.initial_additive
 
     def reset_iteration_counter(self):
         """

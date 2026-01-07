@@ -27,7 +27,12 @@ from step_size_rules import (
 
 from sirf_simind_connection.utils.cil_partitioner import create_svrg_objective_with_rdp
 
-from .callbacks import SaveImageCallback, SaveObjectiveCallback, UpdateEtaCallback
+from .callbacks import (
+    SaveEffectiveObjectiveCallback,
+    SaveImageCallback,
+    SaveObjectiveCallback,
+    UpdateEtaCallback,
+)
 from .config import get_solver_config
 from .preconditioning import build_preconditioner
 
@@ -52,6 +57,7 @@ def run_svrg_with_prior_cil(
     restart_on_correction_reset=False,
     mask_image=None,
     restart_state=None,
+    full_acquisition_data=None,
 ):
     """
     Run SVRG reconstruction with CIL objectives and RDP prior.
@@ -240,6 +246,39 @@ def run_svrg_with_prior_cil(
         )
         logging.info("Configured UpdateEtaCallback for eta updates after corrections")
 
+    effective_obj_callback = None
+    if coordinator is not None and full_acquisition_data is not None:
+        effective_obj_csv_path = os.path.join(
+            output_dir, f"{output_prefix}effective_objective.csv"
+        )
+        effective_obj_callback = SaveEffectiveObjectiveCallback(
+            coordinator=coordinator,
+            measured_data=full_acquisition_data,
+            csv_path=effective_obj_csv_path,
+        )
+        # Support restart/resume
+        if restart_state is not None:
+            effective_csv = os.path.join(
+                output_dir, f"{output_prefix}effective_objective.csv"
+            )
+            if os.path.exists(effective_csv):
+                import csv as csv_module
+
+                try:
+                    with open(effective_csv, "r") as f:
+                        reader = csv_module.DictReader(f)
+                        effective_records = list(reader)
+                        effective_obj_callback.load_history(effective_records)
+                except Exception as exc:
+                    logging.warning(
+                        "Failed to load effective objective history: %s", exc
+                    )
+
+        logging.info(
+            "Configured SaveEffectiveObjectiveCallback (logging to %s)",
+            effective_obj_csv_path,
+        )
+
     armijo_trigger = None
     if use_armijo and coordinator is not None:
         armijo_trigger = ArmijoTriggerCallback(coordinator)
@@ -283,6 +322,9 @@ def run_svrg_with_prior_cil(
 
     if eta_callback is not None:
         callbacks.append(eta_callback)
+
+    if effective_obj_callback is not None:
+        callbacks.append(effective_obj_callback)
 
     callbacks.extend(
         [

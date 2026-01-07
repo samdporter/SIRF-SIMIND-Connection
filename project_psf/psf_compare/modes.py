@@ -247,6 +247,7 @@ def _run_mode_core(
             num_correction_cycles=num_correction_cycles,
             restart_on_correction_reset=restart_enabled and coordinator is not None,
             restart_state=restart_state,
+            full_acquisition_data=full_acq_data,
         )
         results.append(recon)
 
@@ -396,6 +397,7 @@ def _run_stir_psf_residual_mode(
             num_correction_cycles=num_correction_cycles,
             restart_on_correction_reset=restart_enabled,
             restart_state=restart_state,
+            full_acquisition_data=full_acq_data,
         )
         results.append(recon)
 

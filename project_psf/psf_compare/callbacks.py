@@ -125,6 +125,86 @@ class SaveImageCallback:
         self.interval = max(int(interval), 1)
 
 
+class SaveEffectiveObjectiveCallback:
+    """
+    Track effective objective using accurate forward model with original additive.
+
+    This callback computes what the objective would be if we used the accurate
+    forward projection (from SIMIND or STIR PSF) with the original additive term,
+    rather than the fast model with residual-corrected additive.
+    """
+
+    def __init__(self, coordinator, measured_data, csv_path):
+        self.coordinator = coordinator
+        self.measured_data = measured_data  # Full measured acquisition data
+        self.csv_path = csv_path
+        self.records = []
+        self.last_cache_version = 0
+
+    def __call__(self, algorithm):
+        """Log effective objective when coordinator has new accurate projection."""
+        # Only log when coordinator has new accurate projection
+        if self.coordinator.cache_version > self.last_cache_version:
+            # Get accurate projection and effective eta from coordinator
+            terms = self.coordinator.get_effective_objective_terms()
+            accurate_proj, effective_eta = terms
+
+            if accurate_proj is not None:
+                # Compute KL(accurate_proj, measured_data, eta=effective_eta)
+                effective_obj = self._compute_kl(
+                    accurate_proj, self.measured_data, effective_eta
+                )
+
+                self.records.append(
+                    {
+                        "iteration": algorithm.iteration,
+                        "effective_objective": float(effective_obj),
+                    }
+                )
+                self._flush()
+                self.last_cache_version = self.coordinator.cache_version
+
+    def _compute_kl(self, forward_proj, measured_data, eta):
+        """Compute KL using CIL's KullbackLeibler."""
+        from cil.optimisation.functions import KullbackLeibler
+
+        # Create temporary KL function
+        # KullbackLeibler(b, eta=eta)(forward_proj) computes
+        # KL(b + eta || forward_proj + eta)
+        if eta is not None:
+            kl_func = KullbackLeibler(b=measured_data, eta=eta)
+        else:
+            kl_func = KullbackLeibler(b=measured_data)
+
+        # Evaluate at the forward projection
+        kl_value = kl_func(forward_proj)
+        return float(kl_value)
+
+    def _flush(self):
+        """Persist the collected effective objective history to CSV."""
+        output_dir = os.path.dirname(self.csv_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+
+        try:
+            with open(self.csv_path, "w", newline="") as csvfile:
+                writer = csv.DictWriter(
+                    csvfile, fieldnames=["iteration", "effective_objective"]
+                )
+                writer.writeheader()
+                writer.writerows(self.records)
+        except OSError as exc:
+            logging.error(
+                "Failed to write effective objective to %s: %s", self.csv_path, exc
+            )
+
+    def load_history(self, records):
+        """Seed the callback with existing records so restarted runs append cleanly."""
+        if not records:
+            return
+        self.records = list(records)
+
+
 class UpdateEtaCallback:
     """
     Callback to update additive/residual terms in KL functions after SIMIND simulations.
