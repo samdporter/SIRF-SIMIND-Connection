@@ -200,6 +200,7 @@ class SimindCoordinator(Coordinator):
         output_dir=None,
         total_iterations=None,
         mask_image=None,
+        track_effective_objective=False,
     ):
         """
         Initialize the SimindCoordinator.
@@ -217,6 +218,9 @@ class SimindCoordinator(Coordinator):
             total_iterations (int, optional): Total number of subiterations for the reconstruction.
                 If provided, updates will be skipped in the final correction_update_interval block
                 to avoid wasting computation on corrections that won't be used.
+            mask_image (ImageData, optional): Binary mask to confine activity to FOV.
+            track_effective_objective (bool): Cache projections for effective objective
+                calculation. Disable to reduce memory usage.
         """
         self.simind_simulator = simind_simulator
         self.num_subsets = num_subsets
@@ -226,6 +230,7 @@ class SimindCoordinator(Coordinator):
         self.output_dir = output_dir
         self.total_iterations = total_iterations
         self.mask_image = mask_image
+        self.track_effective_objective = track_effective_objective
 
         # Store full-data acquisition models
         self._linear_acquisition_model = linear_acquisition_model
@@ -528,10 +533,15 @@ class SimindCoordinator(Coordinator):
 
         # Cache scaled projections for effective objective calculation
         # (before deleting raw cached projections for memory management)
-        self.cached_b02_scaled = b02_scaled
-        if self.mode_both:
-            self.cached_b01_scaled = self.cached_b01 * self.cached_scale_factor
+        # Only cache if tracking is enabled to save memory
+        if self.track_effective_objective:
+            self.cached_b02_scaled = b02_scaled
+            if self.mode_both:
+                self.cached_b01_scaled = self.cached_b01 * self.cached_scale_factor
+            else:
+                self.cached_b01_scaled = None
         else:
+            self.cached_b02_scaled = None
             self.cached_b01_scaled = None
 
         # --- End of update logic ---
@@ -593,6 +603,8 @@ class SimindCoordinator(Coordinator):
         # Free memory: delete intermediate cached projections after they've been used
         # These are only needed during residual computation and saving, not between updates
         # Keep cached_residual_full as it's part of the public API (get_full_residual_term)
+        # Keep cached_b02_scaled and cached_b01_scaled temporarily for effective objective
+        # (will be cleaned up after effective objective is computed by callback)
         self.cached_b01 = None
         self.cached_b02 = None
         self.cached_linear_proj = None
@@ -690,6 +702,64 @@ class SimindCoordinator(Coordinator):
             self._last_update_iteration,
         )
 
+    def set_measured_data_for_effective_obj(self, measured_data):
+        """
+        Store measured data for effective objective computation.
+
+        This is called once by SaveEffectiveObjectiveCallback during initialization.
+        The data is stored only long enough to compute effective objectives.
+
+        Args:
+            measured_data (AcquisitionData): Full measured acquisition data.
+        """
+        self._measured_data_for_effective_obj = measured_data
+
+    def compute_effective_objective(self):
+        """
+        Compute effective objective using cached accurate projection and measured data.
+
+        This computes what the objective would be if using the accurate forward model
+        with the original additive, rather than the fast model with residual-corrected additive.
+
+        After computing, this method immediately cleans up cached scaled projections to
+        minimize memory overhead.
+
+        Returns:
+            float: Effective objective value, or None if not available.
+        """
+        from cil.optimisation.functions import KullbackLeibler
+
+        # Get terms from cache
+        accurate_proj, effective_eta = self.get_effective_objective_terms()
+
+        if accurate_proj is None:
+            return None
+
+        if not hasattr(self, "_measured_data_for_effective_obj"):
+            logging.warning("Measured data not set for effective objective computation")
+            return None
+
+        # Compute KL divergence
+        try:
+            if effective_eta is not None:
+                kl_func = KullbackLeibler(
+                    b=self._measured_data_for_effective_obj, eta=effective_eta
+                )
+            else:
+                kl_func = KullbackLeibler(b=self._measured_data_for_effective_obj)
+
+            kl_value = kl_func(accurate_proj)
+
+            # Immediately clean up cached scaled projections to free memory
+            self.cached_b02_scaled = None
+            self.cached_b01_scaled = None
+
+            return float(kl_value)
+
+        except Exception as exc:
+            logging.warning("Failed to compute effective objective: %s", exc)
+            return None
+
     def run_accurate_projection(self, image, force=False):
         """
         Alias for run_full_simulation() to conform to Coordinator interface.
@@ -750,6 +820,7 @@ class StirPsfCoordinator(Coordinator):
         output_dir=None,
         total_iterations=None,
         mask_image=None,
+        track_effective_objective=False,
     ):
         """
         Initialize the StirPsfCoordinator.
@@ -763,6 +834,9 @@ class StirPsfCoordinator(Coordinator):
             initial_additive (AcquisitionData, optional): Fixed additive term.
             output_dir (str, optional): Directory for saving intermediate results.
             total_iterations (int, optional): Total subiterations for reconstruction.
+            mask_image (ImageData, optional): Binary mask to confine activity to FOV.
+            track_effective_objective (bool): Cache projections for effective objective
+                calculation. Disable to reduce memory usage.
         """
         self.stir_psf_projector = stir_psf_projector
         self.stir_fast_projector = stir_fast_projector
@@ -770,6 +844,7 @@ class StirPsfCoordinator(Coordinator):
         self.output_dir = output_dir
         self.total_iterations = total_iterations
         self.mask_image = mask_image
+        self.track_effective_objective = track_effective_objective
 
         # Store fast projector as linear_acquisition_model
         # (for compatibility with cil_partitioner)
@@ -907,6 +982,13 @@ class StirPsfCoordinator(Coordinator):
             # No initial additive provided, just use residual
             self.current_additive = residual
 
+        # Cache PSF projection for effective objective (kept until callback computes it)
+        # Only cache if tracking is enabled to save memory
+        if self.track_effective_objective:
+            self.cached_psf_proj_for_effective_obj = self.cached_psf_proj.clone()
+        else:
+            self.cached_psf_proj_for_effective_obj = None
+
         # Update tracking
         self._last_update_iteration = self.algorithm.iteration
         self._cache_version += 1
@@ -943,6 +1025,7 @@ class StirPsfCoordinator(Coordinator):
 
         # Free memory: delete cached projections after they've been used
         # These are only needed during residual computation and saving, not between updates
+        # Keep cached_psf_proj_for_effective_obj temporarily (will be cleaned up after callback)
         self.cached_psf_proj = None
         self.cached_fast_proj = None
 
@@ -969,16 +1052,76 @@ class StirPsfCoordinator(Coordinator):
         Return (accurate_projection, effective_eta) for effective objective calculation.
 
         For STIR PSF modes:
-            - accurate_proj = cached_psf_proj (PSF projection)
+            - accurate_proj = cached_psf_proj_for_effective_obj (PSF projection)
             - effective_eta = initial_additive (original scatter)
 
         Returns:
             tuple: (accurate_proj, effective_eta) or (None, None) if not available
         """
-        if not hasattr(self, "cached_psf_proj") or self.cached_psf_proj is None:
+        if (
+            not hasattr(self, "cached_psf_proj_for_effective_obj")
+            or self.cached_psf_proj_for_effective_obj is None
+        ):
             return None, None
 
-        return self.cached_psf_proj, self.initial_additive
+        return self.cached_psf_proj_for_effective_obj, self.initial_additive
+
+    def set_measured_data_for_effective_obj(self, measured_data):
+        """
+        Store measured data for effective objective computation.
+
+        This is called once by SaveEffectiveObjectiveCallback during initialization.
+        The data is stored only long enough to compute effective objectives.
+
+        Args:
+            measured_data (AcquisitionData): Full measured acquisition data.
+        """
+        self._measured_data_for_effective_obj = measured_data
+
+    def compute_effective_objective(self):
+        """
+        Compute effective objective using cached PSF projection and measured data.
+
+        This computes what the objective would be if using the PSF forward model
+        with the original additive, rather than the fast model with residual-corrected additive.
+
+        After computing, this method immediately cleans up cached PSF projection to
+        minimize memory overhead.
+
+        Returns:
+            float: Effective objective value, or None if not available.
+        """
+        from cil.optimisation.functions import KullbackLeibler
+
+        # Get terms from cache
+        accurate_proj, effective_eta = self.get_effective_objective_terms()
+
+        if accurate_proj is None:
+            return None
+
+        if not hasattr(self, "_measured_data_for_effective_obj"):
+            logging.warning("Measured data not set for effective objective computation")
+            return None
+
+        # Compute KL divergence
+        try:
+            if effective_eta is not None:
+                kl_func = KullbackLeibler(
+                    b=self._measured_data_for_effective_obj, eta=effective_eta
+                )
+            else:
+                kl_func = KullbackLeibler(b=self._measured_data_for_effective_obj)
+
+            kl_value = kl_func(accurate_proj)
+
+            # Immediately clean up cached PSF projection to free memory
+            self.cached_psf_proj_for_effective_obj = None
+
+            return float(kl_value)
+
+        except Exception as exc:
+            logging.warning("Failed to compute effective objective: %s", exc)
+            return None
 
     def reset_iteration_counter(self):
         """

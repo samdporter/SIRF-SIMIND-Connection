@@ -19,6 +19,7 @@ from psf_compare.config import (
     apply_overrides,
     configure_logging,
     ensure_output_dir,
+    get_data_path,
     get_solver_config,
     load_config,
 )
@@ -105,11 +106,13 @@ def main():
 
     configure_logging(config["output"]["verbose"])
 
+    data_path = get_data_path(config)
+
     logging.info("=" * 80)
     logging.info("SPECT PSF Model Comparison")
     logging.info("=" * 80)
     logging.info("Config: %s", args.config)
-    logging.info("Data: %s", config["data_path"])
+    logging.info("Data: %s", data_path)
     logging.info("Output: %s", args.output_path)
     logging.info("Execution mode: %s", args.execution)
     logging.info("Modes: %s", config["reconstruction"]["modes"])
@@ -138,7 +141,7 @@ def main():
     msg = MessageRedirector()
 
     start_time = time.time()
-    spect_data = get_spect_data(config["data_path"])
+    spect_data = get_spect_data(data_path)
     mask_image = _create_mask_from_attenuation(spect_data.get("attenuation"), 0.05)
     if mask_image is not None:
         masked_initial = spect_data["initial_image"].clone()

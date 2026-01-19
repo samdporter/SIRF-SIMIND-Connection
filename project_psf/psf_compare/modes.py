@@ -7,7 +7,7 @@ import logging
 import os
 
 from cil.optimisation.operators import CompositionOperator
-from setr.cil_extensions.operators.blurring import GaussianBlurringOperator
+from recon_core.cil_extensions.operators.blurring import GaussianBlurringOperator
 
 from sirf_simind_connection.core.coordinator import (
     SimindCoordinator,
@@ -143,7 +143,12 @@ def _run_mode_core(
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
     count_floor = data_fidelity_cfg.get("count_floor", 1e-5)
 
-    full_acq_data = spect_data["acquisition_data"]
+    output_cfg = config.get("output", {})
+    track_effective_objective = output_cfg.get("track_effective_objective", False)
+
+    full_acq_data = (
+        spect_data["acquisition_data"] if track_effective_objective else None
+    )
     initial_image = spect_data["initial_image"]
 
     # Prepare SIMIND simulator if needed (reused across betas)
@@ -302,12 +307,18 @@ def _run_stir_psf_residual_mode(
         use_gaussian=accurate_use_gaussian,
     )
 
-    full_acq_data = spect_data["acquisition_data"]
     initial_image = spect_data["initial_image"]
 
     data_fidelity_cfg = config.get("data_fidelity", {})
     eta_floor = data_fidelity_cfg.get("eta_floor", 1e-5)
     count_floor = data_fidelity_cfg.get("count_floor", 1e-5)
+
+    output_cfg = config.get("output", {})
+    track_effective_objective = output_cfg.get("track_effective_objective", False)
+
+    full_acq_data = (
+        spect_data["acquisition_data"] if track_effective_objective else None
+    )
 
     results = []
     for beta in config["rdp"]["beta_values"]:
@@ -351,6 +362,7 @@ def _run_stir_psf_residual_mode(
             output_dir=beta_stir_dir,
             total_iterations=total_iterations,
             mask_image=mask_image,
+            track_effective_objective=track_effective_objective,
         )
 
         coordinator.initialize_with_additive(spect_data["additive"])

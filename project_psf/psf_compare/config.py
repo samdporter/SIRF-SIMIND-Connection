@@ -78,3 +78,26 @@ def ensure_output_dir(path: str) -> str:
     abs_path = os.path.abspath(path)
     os.makedirs(abs_path, exist_ok=True)
     return abs_path
+
+
+def get_data_path(config: Dict[str, Any]) -> str:
+    """
+    Resolve the data path for local execution.
+
+    Priority:
+    1. config["data_path"] (single path or override from cluster job)
+    2. First entry in config["data_paths"] (multi-source list)
+
+    Raises ValueError if no data path is configured.
+    """
+    if "data_path" in config and config["data_path"]:
+        return config["data_path"]
+    if "data_paths" in config and config["data_paths"]:
+        paths = config["data_paths"]
+        if isinstance(paths, str):
+            return paths
+        if isinstance(paths, list) and len(paths) > 0:
+            return paths[0]
+    raise ValueError(
+        "No data path configured. Set 'data_path' or 'data_paths' in config."
+    )

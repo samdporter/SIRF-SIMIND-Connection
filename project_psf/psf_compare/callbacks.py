@@ -132,11 +132,16 @@ class SaveEffectiveObjectiveCallback:
     This callback computes what the objective would be if we used the accurate
     forward projection (from SIMIND or STIR PSF) with the original additive term,
     rather than the fast model with residual-corrected additive.
+
+    To minimize memory overhead, this delegates effective objective computation
+    to the coordinator, which can immediately clean up cached projections after use.
     """
 
     def __init__(self, coordinator, measured_data, csv_path):
         self.coordinator = coordinator
-        self.measured_data = measured_data  # Full measured acquisition data
+        # Pass measured_data to coordinator for effective objective computation
+        # Coordinator will NOT keep a long-lived reference to it
+        self.coordinator.set_measured_data_for_effective_obj(measured_data)
         self.csv_path = csv_path
         self.records = []
         self.last_cache_version = 0
@@ -145,16 +150,11 @@ class SaveEffectiveObjectiveCallback:
         """Log effective objective when coordinator has new accurate projection."""
         # Only log when coordinator has new accurate projection
         if self.coordinator.cache_version > self.last_cache_version:
-            # Get accurate projection and effective eta from coordinator
-            terms = self.coordinator.get_effective_objective_terms()
-            accurate_proj, effective_eta = terms
+            # Ask coordinator to compute and return effective objective
+            # Coordinator will clean up cached projections immediately after
+            effective_obj = self.coordinator.compute_effective_objective()
 
-            if accurate_proj is not None:
-                # Compute KL(accurate_proj, measured_data, eta=effective_eta)
-                effective_obj = self._compute_kl(
-                    accurate_proj, self.measured_data, effective_eta
-                )
-
+            if effective_obj is not None:
                 self.records.append(
                     {
                         "iteration": algorithm.iteration,
@@ -163,22 +163,6 @@ class SaveEffectiveObjectiveCallback:
                 )
                 self._flush()
                 self.last_cache_version = self.coordinator.cache_version
-
-    def _compute_kl(self, forward_proj, measured_data, eta):
-        """Compute KL using CIL's KullbackLeibler."""
-        from cil.optimisation.functions import KullbackLeibler
-
-        # Create temporary KL function
-        # KullbackLeibler(b, eta=eta)(forward_proj) computes
-        # KL(b + eta || forward_proj + eta)
-        if eta is not None:
-            kl_func = KullbackLeibler(b=measured_data, eta=eta)
-        else:
-            kl_func = KullbackLeibler(b=measured_data)
-
-        # Evaluate at the forward projection
-        kl_value = kl_func(forward_proj)
-        return float(kl_value)
 
     def _flush(self):
         """Persist the collected effective objective history to CSV."""

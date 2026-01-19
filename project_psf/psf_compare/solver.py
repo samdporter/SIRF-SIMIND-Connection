@@ -11,8 +11,8 @@ from cil.optimisation.algorithms import ISTA
 from cil.optimisation.functions import IndicatorBox
 from cil.optimisation.utilities import Sampler
 from RDP import RDP
-from setr.cil_extensions.algorithms.algorithms import ista_update_step
-from setr.cil_extensions.callbacks import (
+from recon_core.cil_extensions.algorithms.algorithms import ista_update_step
+from recon_core.cil_extensions.callbacks import (
     PrintObjectiveCallback,
     SavePreconditionerCallback,
 )
@@ -90,6 +90,32 @@ def run_svrg_with_prior_cil(
         rdp_prior.set_gamma(config["rdp"].get("gamma", 1.0))
         rdp_prior.set_epsilon(config["rdp"].get("epsilon", 1e-6))
         rdp_prior.set_up(initial_image)
+
+        # Apply spatial penalty if enabled in config
+        spatial_beta_cfg = config.get("rdp", {}).get("spatial_beta", {})
+        if spatial_beta_cfg.get("enabled", False):
+            if coordinator is None:
+                logging.warning(
+                    "spatial_beta enabled but no coordinator provided; "
+                    "using scalar beta instead"
+                )
+            else:
+                from .preconditioning import compute_spatial_penalty_map
+
+                kappa_map = compute_spatial_penalty_map(
+                    coordinator=coordinator,
+                    initial_image=initial_image,
+                    floor=spatial_beta_cfg.get("floor", 1e-6),
+                    normalize=spatial_beta_cfg.get("normalize", False),
+                )
+
+                if kappa_map is not None:
+                    # For SIRF RDP: set kappa directly (NOT squared!)
+                    # The RDP formula includes κ_r * κ_{r+dr}, which gives ~kappa^2 for smooth maps
+                    rdp_prior.set_kappa(kappa_map)
+                    logging.info(
+                        "Applied spatial penalty map (kappa) to SIRF RDP prior"
+                    )
 
     sampler = Sampler.random_without_replacement(num_subsets)
     update_interval = num_subsets
@@ -187,6 +213,30 @@ def run_svrg_with_prior_cil(
         eps=config["rdp"].get("epsilon", 1e-6),
     )
     rdp_prior_for_hessian.scale = beta
+
+    # Apply spatial beta to torch RDP as well
+    spatial_beta_cfg = config.get("rdp", {}).get("spatial_beta", {})
+    if spatial_beta_cfg.get("enabled", False) and coordinator is not None:
+        from .preconditioning import compute_spatial_penalty_map
+
+        kappa_map = compute_spatial_penalty_map(
+            coordinator=coordinator,
+            initial_image=initial_image,
+            floor=spatial_beta_cfg.get("floor", 1e-6),
+            normalize=spatial_beta_cfg.get("normalize", False),
+        )
+
+        if kappa_map is not None:
+            import torch
+
+            kappa_arr = get_array(kappa_map)
+            # For torch RDP: set spatial_beta = kappa^2 (squared)
+            # This directly scales the penalty, unlike SIRF where kappa appears in neighbor products
+            kappa_tensor = torch.from_numpy(kappa_arr).to(dtype=torch.float32)
+            rdp_prior_for_hessian.spatial_beta = kappa_tensor**2
+            logging.info(
+                "Applied spatial penalty map (kappa^2) to torch RDP for Hessian"
+            )
 
     preconditioner = build_preconditioner(
         config=config,

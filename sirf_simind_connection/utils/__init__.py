@@ -17,7 +17,10 @@ def get_array(obj):
     """Return the fastest available NumPy view of a SIRF-backed object."""
 
     if hasattr(obj, "asarray"):
-        return obj.asarray()
+        try:
+            return obj.asarray()
+        except:
+            return obj.as_array()
     if hasattr(obj, "as_array"):
         return obj.as_array()
     raise AttributeError(

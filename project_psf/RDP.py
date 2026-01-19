@@ -253,6 +253,7 @@ class RDP(SmoothFunctionWithDiagonalHessian):
 
         self._weights = self._voxel_size_weights
         self._kappa = None
+        self._spatial_beta = None  # Spatially varying penalty strength
         self._num_anatomical_neighbors = num_anatomical_neighbors
 
     @property
@@ -285,6 +286,22 @@ class RDP(SmoothFunctionWithDiagonalHessian):
         self._num_anatomical_neighbors = count
         if self._kappa is not None:
             self._update_weights()
+
+    @property
+    def spatial_beta(self) -> torch.Tensor | None:
+        """Spatially varying penalty strength map."""
+        return self._spatial_beta
+
+    @spatial_beta.setter
+    def spatial_beta(self, beta_map: TensorLike) -> None:
+        """Set spatially varying penalty strength.
+
+        Args:
+            beta_map: Spatial map to multiply with base penalisation_factor.
+                      Should have same shape as in_shape. This represents
+                      kappa(x)^2 where kappa is the sensitivity map.
+        """
+        self._spatial_beta = _as_tensor(beta_map, device=self._device)
 
     def _update_weights(self) -> None:
         if self._kappa is None:
@@ -338,6 +355,11 @@ class RDP(SmoothFunctionWithDiagonalHessian):
         if self._weights is not None:
             tmp = tmp * self._weights
 
+        # Apply spatially varying penalty strength
+        if self._spatial_beta is not None:
+            spatial_beta_expanded = self._spatial_beta.unsqueeze(0)  # (1, *in_shape)
+            tmp = tmp * spatial_beta_expanded
+
         return 0.5 * torch.sum(tmp, dtype=torch.float64)
 
     def _gradient(self, x: torch.Tensor) -> torch.Tensor:
@@ -348,6 +370,11 @@ class RDP(SmoothFunctionWithDiagonalHessian):
         tmp = d * (2 * phi - (d + self.gamma * torch.abs(d))) / (phi**2)
         if self._weights is not None:
             tmp = tmp * self._weights
+
+        # Apply spatially varying penalty strength
+        if self._spatial_beta is not None:
+            spatial_beta_expanded = self._spatial_beta.unsqueeze(0)  # (1, *in_shape)
+            tmp = tmp * spatial_beta_expanded
 
         return tmp.sum(dim=0)
 
@@ -361,6 +388,11 @@ class RDP(SmoothFunctionWithDiagonalHessian):
         tmp = torch.nan_to_num(tmp, nan=0.0, posinf=0.0, neginf=0.0)
         if self._weights is not None:
             tmp = tmp * self._weights
+
+        # Apply spatially varying penalty strength
+        if self._spatial_beta is not None:
+            spatial_beta_expanded = self._spatial_beta.unsqueeze(0)  # (1, *in_shape)
+            tmp = tmp * spatial_beta_expanded
 
         return 2 * tmp.sum(dim=0)
 

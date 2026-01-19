@@ -22,24 +22,68 @@ def _format_literal(value) -> str:
     return repr(value)
 
 
-def _generate_mode_beta_combinations(config: Dict) -> List[Tuple[int, str]]:
-    """Return sorted list of (mode, beta_literal) pairs for cluster runs."""
+def _get_data_paths(config: Dict) -> List[str]:
+    """Extract data paths from config, supporting both single and multiple paths."""
+    if "data_paths" in config and config["data_paths"]:
+        paths = config["data_paths"]
+        if isinstance(paths, str):
+            return [paths]
+        return list(paths)
+    if "data_path" in config and config["data_path"]:
+        return [config["data_path"]]
+    return []
+
+
+def _get_data_source_name(data_path: str) -> str:
+    """Extract a short identifier from a data path for output organization."""
+    import os
+
+    path = data_path.rstrip("/")
+    # Use parent directory name if last component is generic (e.g., "SPECT")
+    basename = os.path.basename(path)
+    if basename.upper() in ("SPECT", "DATA", "OUTPUT"):
+        parent = os.path.basename(os.path.dirname(path))
+        return parent if parent else basename
+    return basename
+
+
+def _generate_sweep_combinations(
+    config: Dict,
+) -> List[Tuple[str, str, int, str]]:
+    """Return list of (data_path, source_name, mode, beta_literal) for cluster runs.
+
+    Sweeps over: data_paths × modes × beta_values
+    """
+    data_paths = _get_data_paths(config)
     modes = sorted(int(mode) for mode in config["reconstruction"]["modes"])
     betas = config["rdp"]["beta_values"]
+
     combinations = []
-    for mode in modes:
-        for beta in betas:
-            combinations.append((mode, _format_literal(beta)))
+    for data_path in data_paths:
+        source_name = _get_data_source_name(data_path)
+        for mode in modes:
+            for beta in betas:
+                combinations.append(
+                    (data_path, source_name, mode, _format_literal(beta))
+                )
     return combinations
 
 
 def run_cluster_sweep(args, config: Dict[str, Any]) -> None:
-    """Launch or stage an SGE array sweep over (mode, beta) combinations."""
+    """Launch or stage an SGE array sweep over (data_source, mode, beta) combinations."""
 
-    combinations = _generate_mode_beta_combinations(config)
+    combinations = _generate_sweep_combinations(config)
     if not combinations:
-        logging.error("No (mode, beta) combinations available for cluster run")
+        logging.error(
+            "No (data_source, mode, beta) combinations available for cluster run"
+        )
         return
+
+    # Log data sources being swept
+    data_paths = _get_data_paths(config)
+    logging.info("Data sources (%d):", len(data_paths))
+    for dp in data_paths:
+        logging.info("  - %s", dp)
 
     cluster_cfg = config.get("cluster", {})
     job_name = cluster_cfg.get("job_name", "psf_mode_beta")
@@ -78,8 +122,9 @@ def run_cluster_sweep(args, config: Dict[str, Any]) -> None:
 
     task_file = os.path.join(cluster_root, f"{job_name}_tasks.csv")
     with open(task_file, "w", encoding="utf-8") as f:
-        for mode, beta_literal in combinations:
-            f.write(f"{mode},{beta_literal}\n")
+        for data_path, source_name, mode, beta_literal in combinations:
+            # CSV format: data_path,source_name,mode,beta
+            f.write(f"{data_path},{source_name},{mode},{beta_literal}\n")
 
     overrides_file = None
     if args.override:
@@ -147,7 +192,7 @@ def run_cluster_sweep(args, config: Dict[str, Any]) -> None:
     qsub_cmd.extend(qsub_extra)
     qsub_cmd.extend(["-v", env_export_str, job_script])
 
-    logging.info("Prepared %d SGE tasks (modes × betas).", total_tasks)
+    logging.info("Prepared %d SGE tasks (data_sources × modes × betas).", total_tasks)
     logging.info("Task file: %s", task_file)
     logging.info("Logs directory: %s", logs_dir)
     logging.info("Job script: %s", job_script)

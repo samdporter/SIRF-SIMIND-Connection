@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict
 
 import numpy as np
-from setr.cil_extensions.preconditioners import (
+from recon_core.cil_extensions.preconditioners import (
     BSREMPreconditioner,
     ImageFunctionPreconditioner,
     LehmerMeanPreconditioner,
@@ -32,6 +32,114 @@ def compute_sensitivity_inverse(projectors):
     sens.fill(s_inv)
     sens = sens.minimum(1e3)
     return sens
+
+
+def compute_spatial_penalty_map(
+    coordinator,
+    initial_image,
+    floor=1e-6,
+    normalize=False,
+):
+    """
+    Compute spatially varying penalty strength kappa(x) for RDP.
+
+    Formula: kappa(x) = sqrt(A^T D[1/A(x_init)] A 1)
+
+    This accounts for local sensitivity variations in the forward model,
+    applying stronger regularization where the projector is more sensitive.
+
+    Args:
+        coordinator (Coordinator): Coordinator with accurate projector.
+                                   Must have linear_acquisition_model set.
+        initial_image (ImageData): Initial activity estimate x_init.
+        floor (float): Minimum value for 1/A(x_init) to avoid division by zero.
+        normalize (bool): If True, normalize kappa to have mean=1 (preserves beta scale).
+
+    Returns:
+        ImageData: Spatial penalty map kappa(x), same geometry as initial_image.
+                   Returns None if coordinator is None or doesn't support accurate projection.
+
+    Raises:
+        ValueError: If coordinator.linear_acquisition_model is not set.
+    """
+    if coordinator is None:
+        logging.warning(
+            "No coordinator provided; cannot compute spatial penalty map. "
+            "Using scalar beta instead."
+        )
+        return None
+
+    # Get accurate projector from coordinator
+    if not hasattr(coordinator, "linear_acquisition_model"):
+        logging.warning(
+            "Coordinator does not have linear_acquisition_model; "
+            "cannot compute spatial penalty map. Using scalar beta instead."
+        )
+        return None
+
+    accurate_am = coordinator.linear_acquisition_model
+    if accurate_am is None:
+        raise ValueError(
+            "Coordinator.linear_acquisition_model is None. "
+            "Must be set before computing spatial penalty map."
+        )
+
+    logging.info("Computing spatial penalty map kappa(x) using accurate projector...")
+
+    # Step 1: Forward projection A(x_init)
+    logging.info("  Step 1/4: Computing A(x_init)...")
+    # Ensure full-data projection (num_subsets=1, subset_num=0)
+    if hasattr(accurate_am, "num_subsets"):
+        accurate_am.num_subsets = 1
+        accurate_am.subset_num = 0
+
+    fwd_proj = accurate_am.direct(initial_image)
+
+    # Step 2: Compute D[1/A(x_init)] = element-wise reciprocal with floor
+    logging.info("  Step 2/4: Computing D[1/A(x_init)] with floor=%g...", floor)
+    fwd_arr = get_array(fwd_proj)
+
+    # Apply floor to avoid division by zero
+    fwd_arr_safe = np.maximum(fwd_arr, floor)
+    inv_fwd_arr = 1.0 / fwd_arr_safe
+
+    inv_fwd = fwd_proj.clone()
+    inv_fwd.fill(inv_fwd_arr)
+
+    # Step 3: Compute A 1 (forward projection of uniform image)
+    logging.info("  Step 3/4: Computing A(1)...")
+    ones_image = initial_image.get_uniform_copy(1.0)
+    fwd_ones = accurate_am.direct(ones_image)
+
+    # Step 4: Apply diagonal D and backproject: A^T (D * A(1))
+    logging.info("  Step 4/4: Computing A^T D[1/A(x_init)] A(1)...")
+    weighted_fwd = fwd_ones * inv_fwd  # Element-wise multiplication
+    kappa_squared = accurate_am.adjoint(weighted_fwd)
+
+    # Take square root to get kappa
+    kappa_squared_arr = get_array(kappa_squared)
+    kappa_arr = np.sqrt(np.maximum(kappa_squared_arr, 0))  # Ensure non-negative
+
+    kappa = initial_image.clone()
+    kappa.fill(kappa_arr)
+
+    # Optional normalization
+    if normalize:
+        mean_kappa = kappa_arr.mean()
+        if mean_kappa > 0:
+            kappa_arr_norm = kappa_arr / mean_kappa
+            kappa.fill(kappa_arr_norm)
+            logging.info("  Normalized kappa to mean=1 (original mean=%g)", mean_kappa)
+
+    # Log statistics
+    logging.info(
+        "Spatial penalty map computed: min=%g, max=%g, mean=%g",
+        kappa_arr.min(),
+        kappa_arr.max(),
+        kappa_arr.mean(),
+    )
+
+    return kappa
 
 
 def _normalise_preconditioner_cfg(precond_cfg: Any) -> Dict[str, Any]:

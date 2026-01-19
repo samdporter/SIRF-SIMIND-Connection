@@ -1,8 +1,16 @@
 # SPECT PSF Model Comparison - Default Configuration
 
 # Data paths
-data_path: /home/storage/prepared_data/phantom_data/manc_nema_phantom_data/SPECT
-#data_path: "/home/storage/prepared_data/phantom_data/anthropomorphic_phantom_data/SPECT/phantom_140"
+# Single path (for local runs or single-source cluster sweep):
+#data_path: /home/storage/prepared_data/oxford_patient_data/sirt3/SPECT
+
+# Multiple paths (for cluster sweep over multiple data sources):
+# When data_paths is set, cluster mode will sweep over all sources.
+# In local mode, only the first path is used (or data_path if set).
+data_paths:
+  - "/home/storage/prepared_data/phantom_data/manc_nema_phantom_data/SPECT"
+  # - "/home/storage/prepared_data/oxford_patient_data/sirt3/SPECT"
+  # - "/home/storage/prepared_data/anthropomorphic_phantom/SPECT"
 
 # SIMIND configuration
 simind:
@@ -31,8 +39,8 @@ resolution:
 stochastic:
   algorithm: SVRG  # Options: SVRG, SAGA
   num_subsets: 18
-  num_epochs: 5
-  initial_step_size: 1 # will be updated by armijo
+  num_epochs: 10
+  initial_step_size: 0.5 # will be updated by armijo
   relaxation_eta: 0.00
   snapshot_update_interval: 18
   # Armijo step-size search settings (used when coordinator is active)
@@ -45,12 +53,20 @@ stochastic:
 
 # RDP prior parameters
 rdp:
-  beta_values: [0.05]
+  beta_values: [0, 0.001, 0.01, 0.1]
   gamma: 1.0
   epsilon: 0.01
   stencil: 26
   both_directions: true
   boundary_condition: "Periodic"
+
+  # Spatially varying penalty strength
+  # Based on: kappa(x) = sqrt(A^T D[1/A(x_init)] A 1)
+  # where A is the accurate (PSF/SIMIND) projector from coordinator
+  spatial_beta:
+    enabled: false          # Enable beta(x) = kappa(x)^2 * beta_base
+    floor: 1.0e-6          # Minimum value for 1/A(x_init) to avoid div-by-zero
+    normalize: false       # Normalize kappa to mean=1 (preserves overall beta scale)
 
 # Preconditioning options
 preconditioner:
@@ -71,11 +87,11 @@ preconditioner:
 projector:
   prefetch_initial_correction: false  # Run a correction before the first iteration
   restart_reconstruction_on_correction_reset: false  # Restart when resetting residual/additive corrections
-  n_corrections: 10  # Number of reconstruction cycles (total iterations = num_epochs * n_corrections)
+  n_corrections: 5  # Number of reconstruction cycles (total iterations = num_epochs * n_corrections)
 
 # Reconstruction selection
 reconstruction:
-  modes: [3,5]  # Which modes to run
+  modes: [5,2]  # Which modes to run
 
 # Output options
 output:
@@ -83,6 +99,7 @@ output:
   verbose: false
   save_preconditioner: true
   preconditioner_interval: 18
+  track_effective_objective: false  # Track objective with accurate projector (memory intensive)
 
 # Restart / resume options
 restart:
