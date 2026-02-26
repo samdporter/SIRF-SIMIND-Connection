@@ -88,3 +88,39 @@ Detailed Use Cases
 2. **Advanced Configuration** - Using custom YAML configurations.
 3. **Density Conversion** - Choose between bilinear and Schneider models for HU-to-density conversion.
 4. **Extensive Output Analysis** - Understand the output from SCATTWIN vs PENETRATE routines.
+
+Pure Python Connector
+---------------------
+
+Use the new NumPy-first connector when you want a backend-agnostic SIMIND run:
+
+.. code-block:: python
+
+    from sirf_simind_connection import RuntimeOperator, SimindPythonConnector
+    from sirf_simind_connection.configs import get
+
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir="output/python_connector",
+        output_prefix="case01",
+        quantization_scale=1.0,
+    )
+
+    outputs = connector.run(
+        RuntimeOperator(
+            switches={"NN": 1, "RR": 12345},
+        )
+    )
+
+    total = outputs["tot_w1"]
+    print(total.projection.shape)
+    print(total.header_path)
+
+``quantization_scale`` controls source integer quantization before writing SIMIND
+``.smi`` files:
+
+- ``1.0`` uses the full internal source integer range (best numeric precision)
+- values below ``1.0`` run faster for toy examples but increase rounding error
+
+SIMIND treats source maps as integer weights; absolute scaling is controlled by
+activity/time simulation settings.

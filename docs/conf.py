@@ -3,6 +3,7 @@
 import os
 import sys
 from datetime import datetime
+from importlib import metadata as importlib_metadata
 
 
 # Add the package to the path
@@ -12,7 +13,11 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "SIRF-SIMIND-Connection"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-release = "1.0.0"
+try:
+    release = importlib_metadata.version("sirf-simind-connection")
+except importlib_metadata.PackageNotFoundError:
+    release = "0.4.0"
+version = ".".join(release.split(".")[:2])
 
 # General configuration
 extensions = [
@@ -52,6 +57,15 @@ autodoc_default_options = {
     "undoc-members": True,
     "exclude-members": "__weakref__",
 }
+autodoc_mock_imports = [
+    "sirf",
+    "stir",
+    "stirextra",
+    "cil",
+    "setr",
+    "torch",
+    "pytomography",
+]
 
 # Napoleon settings for NumPy and Google style docstrings
 napoleon_google_docstring = True

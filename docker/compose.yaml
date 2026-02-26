@@ -1,0 +1,73 @@
+services:
+  python:
+    build:
+      context: ..
+      dockerfile: docker/python/Dockerfile
+    image: sirf-simind/python:dev
+    working_dir: /workspace
+    environment:
+      SIMIND_CONNECTOR_BACKEND: python
+      SIMIND_ROOT: /workspace/simind
+      SIMIND_BIN: /workspace/simind/simind
+      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
+      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_DATA_DIR: /workspace/simind/smc_dir/
+      SMC_DIR: /workspace/simind/smc_dir/
+    volumes:
+      - ..:/workspace
+    command: python examples/06_schneider_density_conversion.py
+
+  stir:
+    build:
+      context: ..
+      dockerfile: docker/stir/Dockerfile
+    image: sirf-simind/stir:dev
+    working_dir: /workspace
+    environment:
+      SIMIND_CONNECTOR_BACKEND: stir
+      SIMIND_ROOT: /workspace/simind
+      SIMIND_BIN: /workspace/simind/simind
+      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
+      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_DATA_DIR: /workspace/simind/smc_dir/
+      SMC_DIR: /workspace/simind/smc_dir/
+    volumes:
+      - ..:/workspace
+    command: python examples/07A_stir_adaptor_osem.py
+
+  sirf:
+    build:
+      context: ..
+      dockerfile: docker/sirf/Dockerfile
+    image: sirf-simind/sirf:dev
+    working_dir: /workspace
+    environment:
+      SIMIND_CONNECTOR_BACKEND: sirf
+      SIMIND_ROOT: /workspace/simind
+      SIMIND_BIN: /workspace/simind/simind
+      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
+      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_DATA_DIR: /workspace/simind/smc_dir/
+      SMC_DIR: /workspace/simind/smc_dir/
+    volumes:
+      - ..:/workspace
+    command: python examples/07B_sirf_adaptor_osem.py
+
+  pytomography:
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: docker/pytomography/Dockerfile
+    image: sirf-simind/pytomography:dev
+    working_dir: /workspace
+    environment:
+      SIMIND_CONNECTOR_BACKEND: pytomography
+      SIMIND_ROOT: /workspace/simind
+      SIMIND_BIN: /workspace/simind/simind
+      SIMIND_MPI_BIN: /workspace/simind/simind_mpi
+      SIMIND_SMC_DIR: /workspace/simind/smc_dir/
+      SIMIND_DATA_DIR: /workspace/simind/smc_dir/
+      SMC_DIR: /workspace/simind/smc_dir/
+    volumes:
+      - ..:/workspace
+    command: python examples/07C_pytomography_adaptor_osem.py

@@ -10,6 +10,60 @@ The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`
 Unreleased
 ----------
 
+[0.4.0] - 2026-02-26
+--------------------
+
+**Breaking Changes**
+~~~~~~~~~~~~~~~~~~~~
+
+**Example suite renumbering and adaptor split**
+  The old monolithic OSEM examples were replaced with backend-specific adaptor
+  examples:
+
+  - ``07A_stir_adaptor_osem.py``
+  - ``07B_sirf_adaptor_osem.py``
+  - ``07C_pytomography_adaptor_osem.py``
+  - ``08A/08B/08C`` DICOM-driven adaptor examples
+
+  Legacy numbering and naming references should be updated to the new files.
+
+**Connector/adaptor naming normalization**
+  Public docs and examples now consistently use:
+
+  - ``SimindPythonConnector`` for backend-agnostic NumPy workflows
+  - ``StirSimindAdaptor`` / ``SirfSimindAdaptor`` / ``PyTomographySimindAdaptor``
+    for backend-native workflows
+
+Added
+~~~~~
+
+- Geometry documentation for SIMIND/STIR/SIRF/PyTomography axis conventions
+  (``docs/geometry.rst``).
+- Container scripts for split validation and examples:
+  ``scripts/run_container_validation.sh`` and
+  ``scripts/run_container_examples.sh``.
+- Backend-isolation and connector/adaptor unit tests (markers + import gating).
+- Example profile config (``configs/Example.yaml``) and Python-connector helper
+  flow for lightweight deterministic runs.
+
+Changed
+~~~~~~~
+
+- Core examples 01-06 now use the pure Python connector path.
+- OSEM examples now use dedicated adaptor paths and backend-specific outputs.
+- Documentation updated for new example numbering, runtime flags, and testing
+  entry points.
+- Versioning aligned across package metadata and docs.
+
+Fixed
+~~~~~
+
+- PENETRATE component header parsing via ``.bXX`` outputs in the Python
+  connector.
+- SIMIND optional-availability handling in container scripts (fail-fast option
+  plus skip-by-default behavior when binary is absent).
+- Quantization scaling docs and naming consistency (``quantization_scale``).
+
 [0.3.0] - 2025-01-23
 --------------------
 
@@ -122,7 +176,7 @@ New Features
   - ``SimindSubsetProjector``: Projector for individual subsets
   - CIL partitioner utilities for subset-based reconstruction
   - 12× faster for 12-subset reconstruction
-  - See :doc:`coordinator_architecture` for complete documentation
+  - See coordinator-related API/docs sections for implementation details
 
 **SimindProjector AcquisitionModel Interface**
   Drop-in replacement for SIRF AcquisitionModel with Monte Carlo corrections:

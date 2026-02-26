@@ -19,10 +19,13 @@ from .types import MAX_SOURCE, ORBIT_FILE_EXTENSION, SIMIND_VOXEL_UNIT_CONVERSIO
 class DataFileManager:
     """Manages input data file preparation."""
 
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, quantization_scale: float = 1.0):
         self.output_dir = output_dir
         self.logger = logging.getLogger(__name__)
         self.temp_files: List[Path] = []
+        self.quantization_scale = float(quantization_scale)
+        if self.quantization_scale <= 0:
+            raise ValueError("quantization_scale must be > 0")
 
     def prepare_source_file(self, source, output_prefix: str) -> str:
         """Prepare source data file for SIMIND.
@@ -37,11 +40,13 @@ class DataFileManager:
         source_arr = get_array(source)
 
         # Normalize to uint16 range
-        source_max = source.max()
+        source_max = float(np.max(source_arr))
         if source_max > 0:
-            source_arr = source_arr / source_max * MAX_SOURCE
+            source_arr = (
+                source_arr / source_max * (MAX_SOURCE * self.quantization_scale)
+            )
 
-        source_arr = np.round(source_arr).astype(np.uint16)
+        source_arr = np.clip(np.round(source_arr), 0, MAX_SOURCE).astype(np.uint16)
 
         filename = f"{output_prefix}_src.smi"
         filepath = self.output_dir / filename

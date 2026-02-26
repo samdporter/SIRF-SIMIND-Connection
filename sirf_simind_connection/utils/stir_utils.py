@@ -8,6 +8,7 @@ import contextlib
 import os
 import re
 import tempfile
+from typing import Optional
 
 import numpy as np
 
@@ -346,18 +347,31 @@ def extract_attributes_from_stir_headerfile(filename: str) -> dict:
     return harmonize_stir_attributes(attributes)
 
 
-def create_stir_image(matrix_dim: list, voxel_size: list, backend="STIR"):
-    """
-    Creates a uniform (zeros) STIR ImageData object given specified parameters.
+def _normalize_backend_name(backend: Optional[str]) -> Optional[str]:
+    """Normalize explicit backend names for builder helpers."""
+    if backend is None:
+        return None
 
-    Parameters:
-    matrix_dim (list of int): A three element list containing the matrix size
-        for each dimension of the image.
-    voxel_size (list of float): A three element list describing the voxel size
-        in the image (mm).
+    normalized = backend.lower()
+    if normalized not in {"sirf", "stir"}:
+        raise ValueError(
+            f"Invalid backend {backend!r}. Expected one of: 'sirf', 'stir', or None."
+        )
+    return normalized
 
-    Returns [ImageData]: The ImageData object.
 
+def create_stir_image(
+    matrix_dim: list, voxel_size: list, backend: Optional[str] = None
+):
+    """Create a uniform (zeros) STIR image object.
+
+    Args:
+        matrix_dim: Three-element matrix size in ``(z, y, x)`` order.
+        voxel_size: Three-element voxel size in mm for ``(z, y, x)``.
+        backend: Optional explicit backend (``"sirf"`` or ``"stir"``).
+
+    Returns:
+        Backend image object created by ``STIRSPECTImageDataBuilder``.
     """
     try:
         from sirf_simind_connection.builders import STIRSPECTImageDataBuilder
@@ -366,7 +380,7 @@ def create_stir_image(matrix_dim: list, voxel_size: list, backend="STIR"):
             "STIRSPECTImageDataBuilder requires SIRF/STIR to be installed"
         ) from exc
 
-    builder = STIRSPECTImageDataBuilder()
+    builder = STIRSPECTImageDataBuilder(backend=_normalize_backend_name(backend))
     builder.update_header(
         {
             "!matrix size [1]": str(matrix_dim[2]),
@@ -381,19 +395,22 @@ def create_stir_image(matrix_dim: list, voxel_size: list, backend="STIR"):
     return builder.build()
 
 
-def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: list):
-    """
-    Creates a uniform (zeros) STIR AcquisitionData object given specified parameters.
+def create_stir_acqdata(
+    proj_matrix: list,
+    num_projections: int,
+    pixel_size: list,
+    backend: Optional[str] = None,
+):
+    """Create a uniform (zeros) STIR acquisition object.
 
-    Parameters:
-    proj_matrix (list of int): A two element list containing the matrix size for
-        each dimension of the projections.
-    num_projections (int): The number of projections in the acquisition data file.
-    pixel_size (list of float): A two element list describing the pixel size
-        in the projections (mm).
+    Args:
+        proj_matrix: Two-element projection matrix size in ``(radial, tangential)``.
+        num_projections: Number of projection views.
+        pixel_size: Two-element pixel size in mm for ``(radial, tangential)``.
+        backend: Optional explicit backend (``"sirf"`` or ``"stir"``).
 
-    Returns [AcquisiitonData]: The AcquisitionData object.
-
+    Returns:
+        Backend acquisition object created by ``STIRSPECTAcquisitionDataBuilder``.
     """
     try:
         from sirf_simind_connection.builders import STIRSPECTAcquisitionDataBuilder
@@ -402,7 +419,7 @@ def create_stir_acqdata(proj_matrix: list, num_projections: int, pixel_size: lis
             "STIRSPECTAcquisitionDataBuilder requires SIRF/STIR to be installed"
         ) from exc
 
-    builder = STIRSPECTAcquisitionDataBuilder()
+    builder = STIRSPECTAcquisitionDataBuilder(backend=_normalize_backend_name(backend))
     builder.update_header(
         {
             "!matrix size [1]": str(proj_matrix[0]),

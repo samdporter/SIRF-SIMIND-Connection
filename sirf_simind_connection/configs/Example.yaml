@@ -1,0 +1,420 @@
+metadata:
+  comment: Minimal toy-example SIMIND configuration
+  source_file: Example.yaml
+parameters:
+  source:
+    photon_energy:
+      index: 1
+      value: 140.0
+      description: Photon energy in keV (e.g., 140 for 99mTc, 208 for 177Lu)
+    source_half_length:
+      index: 2
+      value: 0.0
+      description: Source half-length in cm
+    source_half_width:
+      index: 3
+      value: 0.1
+      description: Source half-width in cm
+    source_half_height:
+      index: 4
+      value: 0.1
+      description: Source half-height in cm
+    source_type:
+      index: 15
+      value: 5.0
+      description: Source type code (0=sphere, 1=cylinder, etc.) - check SIMIND manual
+    shift_source_x:
+      index: 16
+      value: 0.0
+      description: Shift of source in x-direction (cm)
+    shift_source_y:
+      index: 17
+      value: 0.0
+      description: Shift of source in y-direction (cm)
+    shift_source_z:
+      index: 18
+      value: 0.0
+      description: Shift of source in z-direction (cm)
+    photon_direction:
+      index: 19
+      value: 3
+      description: Photon direction code (see manual for details)
+    emitted_photons_per_decay:
+      index: 24
+      value: 0.879
+      description: Number of photons emitted per decay
+    source_activity:
+      index: 25
+      value: 1.0
+      description: Source activity in MBq
+    number_photon_histories:
+      index: 26
+      value: 1.0
+      description: Number of photon histories to simulate (10^6 typical minimum)
+    matrix_size_source_map_i:
+      index: 79
+      value: 32.0
+      description: Matrix size for source map (i-direction) - 128x128 standard
+    matrix_size_source_map_j:
+      index: 82
+      value: 0.0
+      description: Matrix size for source map (j-direction) - 128x128 standard
+  phantom:
+    phantom_half_length:
+      index: 5
+      value: 8.32
+      description: Phantom half-length in cm
+    phantom_half_width:
+      index: 6
+      value: 11.0
+      description: Phantom half-width in cm
+    phantom_half_height:
+      index: 7
+      value: 23.5
+      description: Phantom half-height in cm
+    phantom_type:
+      index: 14
+      value: 4.0
+      description: Phantom type code
+    pixel_size_density_images:
+      index: 31
+      value: 0.1
+      description: Pixel size for density images (cm)
+    orientation_density_images:
+      index: 32
+      value: 0.0
+      description: Orientation of density images
+    first_image_density_images:
+      index: 33
+      value: 1.0
+      description: First image number for density images
+    number_density_images:
+      index: 34
+      value: 32.0
+      description: Number of density images
+    density_limit_border:
+      index: 35
+      value: 0.01
+      description: Density limit at border
+    shift_density_images_y:
+      index: 36
+      value: 0.0
+      description: Shift of density images in y-direction (cm)
+    shift_density_images_z:
+      index: 37
+      value: 0.0
+      description: Shift of density images in z-direction (cm)
+    shift_density_images_x:
+      index: 39
+      value: 0.0
+      description: Shift of density images in x-direction (cm)
+    density_threshold_soft_bone:
+      index: 40
+      value: 0.0
+      description: Density threshold for soft bone
+    code_definitions_zubal_phantom:
+      index: 45
+      value: 1.0
+      description: Code definitions for Zubal phantom
+    matrix_size_density_map_i:
+      index: 78
+      value: 32.0
+      description: Matrix size for density map (i-direction)
+    matrix_size_density_map_j:
+      index: 81
+      value: 0.0
+      description: Matrix size for density map (j-direction)
+  detector_crystal:
+    crystal_half_length_radius:
+      index: 8
+      value: 21.25
+      description: Crystal half-length/radius in cm (circular detectors use radius)
+    crystal_thickness:
+      index: 9
+      value: 0.95
+      description: 'Crystal thickness in cm (NaI(Tl) typical: 0.95cm)'
+    crystal_half_width:
+      index: 10
+      value: 27.0
+      description: Crystal half-width in cm (for rectangular crystals)
+    backscatter_thickness:
+      index: 11
+      value: 5.0
+      description: Backscatter thickness in cm (for backscatter material)
+    height_to_detector_surface:
+      index: 12
+      value: 25.0
+      description: Height from collimator to detector surface (cm)
+    cover_thickness:
+      index: 13
+      value: 0.1
+      description: Cover thickness in cm (typically Al or Be window)
+    energy_resolution:
+      index: 22
+      value: 9.2
+      description: Energy resolution FWHM (%) at reference energy (9-12% typical at
+        140keV)
+    intrinsic_resolution:
+      index: 23
+      value: 0.32
+      description: Intrinsic spatial resolution FWHM (cm) (3-4mm typical)
+    voltage:
+      index: 91
+      value: 0.0
+      description: Applied voltage (V) for semiconductor detectors
+    mobility_life_electrons:
+      index: 92
+      value: 0.0
+      description: Mobility-life product for electrons (semiconductor detectors)
+    mobility_life_holes:
+      index: 93
+      value: 0.0
+      description: Mobility-life product for holes (semiconductor detectors)
+    contact_pad_size:
+      index: 94
+      value: 0.0
+      description: Contact pad size (cm) for pixelated detectors
+    anode_element_pitch:
+      index: 95
+      value: 0.0
+      description: Anode element pitch (cm) for pixelated detectors
+    exponential_decay_constant_tau:
+      index: 96
+      value: 0.0
+      description: Exponential decay constant tau for charge collection
+    components_hecht_formula:
+      index: 97
+      value: 0.0
+      description: Components for Hecht formula (charge collection efficiency)
+    energy_resolution_model:
+      index: 98
+      value: 0.0
+      description: Energy resolution model code (check SIMIND manual for options)
+    cloud_mobility:
+      index: 99
+      value: 0.0
+      description: Cloud mobility parameter for charge collection
+    detector_array_size_i:
+      index: 100
+      value: 0.0
+      description: Detector array size (i-direction) for pixelated systems
+    detector_array_size_j:
+      index: 101
+      value: 0.0
+      description: Detector array size (j-direction) for pixelated systems
+  collimator:
+    hole_size_x:
+      index: 46
+      value: 0.25
+      description: 'Collimator hole diameter (cm)'
+    hole_size_y:
+      index: 47
+      value: 0.25
+      description: Collimator hole diameter (cm) - should match hole_size_x for round
+        holes
+    distance_between_holes_x:
+      index: 48
+      value: 0.12
+      description: 'Distance between hole centers (cm)'
+    distance_between_holes_y:
+      index: 49
+      value: 0.12
+      description: Distance between hole centers (cm)'
+    shift_center_hole_x:
+      index: 50
+      value: 0.13
+      description: Shift of center hole in x-direction (cm) for alignment
+    shift_center_hole_y:
+      index: 51
+      value: 0.13
+      description: Shift of center hole in y-direction (cm) for alignment
+    collimator_thickness:
+      index: 52
+      value: 3.5
+      description: 'Collimator thickness (cm)'
+    collimator_routine:
+      index: 53
+      value: 1
+      description: Collimator routine code (1= analytical, 2 = septal penetration)
+    hole_shape:
+      index: 54
+      value: 3.0
+      description: Hole shape code (3=hexagonal, 4=rectangular)
+    distance_collimator_detector:
+      index: 56
+      value: 0.0
+      description: Distance from collimator face to detector surface (cm)
+    random_collimator_movement:
+      index: 59
+      value: 0.0
+      description: Random collimator movement parameter (for manufacturing variations)
+  energy_analysis:
+    upper_window_threshold:
+      index: 20
+      value: 225
+      description: Upper energy window threshold (keV)
+    lower_window_threshold:
+      index: 21
+      value: 75
+      description: Lower energy window threshold (keV)
+    kev_per_channel:
+      index: 27
+      value: 4
+      description: keV per channel for energy spectrum binning
+    energy_spectra_channels:
+      index: 80
+      value: 128.0
+      description: Number of energy spectra channels (512 typical)
+    cutoff_energy_terminate_photon_history:
+      index: 83
+      value: 0.0
+      description: Cutoff energy to terminate photon history (keV)
+  spect_imaging:
+    pixel_size_simulated_image:
+      index: 28
+      value: 0.44
+      description: Pixel size for simulated images (cm) - affects resolution vs FOV
+    spect_no_projections:
+      index: 29
+      value: 6.0
+      description: Number of SPECT projections (60, 120, 180 typical)
+    spect_rotation:
+      index: 30
+      value: 0.0
+      description: "SPECT rotation parameter - controls direction and extent"
+    spect_starting_angle:
+      index: 41
+      value: 0.0
+      description: "SPECT starting angle (degrees)"
+    spect_orbital_rotation_fraction:
+      index: 42
+      value: 1.0
+      description: SPECT orbital rotation fraction (1.0 = full orbit)
+    camera_offset_x:
+      index: 43
+      value: 0.0
+      description: Camera offset in x-direction (cm) from rotation center
+    camera_offset_y:
+      index: 44
+      value: 0.0
+      description: Camera offset in y-direction (cm) from rotation center
+    matrix_size_image_i:
+      index: 76
+      value: 32.0
+      description: Matrix size for images (i-direction) - 128x128 standard
+    matrix_size_image_j:
+      index: 77
+      value: 32.0
+      description: Matrix size for images (j-direction) - 128x128 standard
+  simulation_control:
+    step_size_photon_path_simulation:
+      index: 38
+      value: 0.1
+      description: Step size for photon path simulation (cm) - smaller = more accurate
+    type:
+      index: 55
+      value: 0.0
+      description: General type parameter - check SIMIND manual for current meaning
+    scoring_routine:
+      index: 84
+      value: 1
+      description: Scoring routine code - affects output data collection
+    csv_file_content:
+      index: 85
+      value: 0.0
+      description: CSV file content parameter - for custom data output
+  unused_parameters:
+    unused_parameter_1:
+      index: 57
+      value: 0.0
+      description: Unused parameter 1 - reserved for future use
+    unused_parameter_2:
+      index: 58
+      value: 0.0
+      description: Unused parameter 2 - reserved for future use
+    unused_parameter_3:
+      index: 60
+      value: 0.0
+      description: Unused parameter 3 - reserved for future use
+simulation_flags:
+  write_results_to_screen:
+    index: 1
+    enabled: true
+  write_images_to_files:
+    index: 2
+    enabled: false
+  write_pulse_height_distribution_to_file:
+    index: 3
+    enabled: true
+  include_collimator:
+    index: 4
+    enabled: true
+  simulate_spect_study:
+    index: 5
+    enabled: true
+  include_characteristic_xray_emissions:
+    index: 6
+    enabled: true
+  include_backscattering_material:
+    index: 7
+    enabled: true
+  use_random_seed_value:
+    index: 8
+    enabled: true
+  currently_not_in_use:
+    index: 9
+    enabled: false
+  include_interactions_in_cover:
+    index: 10
+    enabled: true
+  include_interactions_in_phantom:
+    index: 11
+    enabled: true
+  include_energy_resolution_in_crystal:
+    index: 12
+    enabled: true
+  include_forced_interactions_in_crystal:
+    index: 13
+    enabled: true
+  write_interfile_header_files:
+    index: 14
+    enabled: false
+  save_aligned_phantom_images:
+    index: 15
+    enabled: false
+text_variables:
+  1: ma-megp
+  2: none
+  3: none
+  4: none
+  5: none
+  6: none
+  7: none
+  8: none
+data_files:
+  phantom_soft_tissue:
+    index: 1
+    filepath: h2o
+  phantom_bone:
+    index: 2
+    filepath: bone
+  cover_material:
+    index: 3
+    filepath: al
+  crystal_material:
+    index: 4
+    filepath: nai
+  image_file_phantom:
+    index: 5
+    filepath: cyl_un1
+  image_file_source:
+    index: 6
+    filepath: vox_brn
+  backscatter_material:
+    index: 7
+    filepath: pmt
+  energy_resolution_file:
+    index: 8
+    filepath: none
+
+  

@@ -164,7 +164,8 @@ Thumbs.db
 *.win
 *.ict
 *.hct
-*.s*
+# SIMIND subset files (e.g. .s01, .s02, ...), but keep shell scripts trackable.
+*.s[0-9]*
 tmp*
 temp*
 
@@ -172,6 +173,8 @@ temp*
 output/
 results/
 simulations/act_Linux_x86_64.tar.gz
+simind/
+smc_*_current.tar.gz
 node_modules/
 package-lock.json
 package.json

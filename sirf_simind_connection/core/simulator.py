@@ -21,26 +21,26 @@ from sirf_simind_connection.converters.simind_to_stir import SimindToStirConvert
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
 
 from .backend_adapter import BackendInputAdapter
-from .components import (  # Exceptions; Data classes; Managers and processors;
-    # Constants
+from .components import (
     SIMIND_VOXEL_UNIT_CONVERSION,
     AcquisitionManager,
-    DataFileManager,
     EnergyWindow,
     GeometryManager,
     ImageGeometry,
     ImageValidator,
-    OrbitFileManager,
-    OutputError,
-    OutputProcessor,
-    PenetrateOutputType,
-    RotationDirection,
     RotationParameters,
-    ScoringRoutine,
     SimindExecutor,
-    ValidationError,
 )
 from .config import RuntimeSwitches, SimulationConfig
+from .file_managers import DataFileManager, OrbitFileManager
+from .output_processor import OutputProcessor
+from .types import (
+    OutputError,
+    PenetrateOutputType,
+    RotationDirection,
+    ScoringRoutine,
+    ValidationError,
+)
 
 
 class SimindSimulator:
@@ -51,10 +51,11 @@ class SimindSimulator:
 
     def __init__(
         self,
-        config_source: Union[str, SimulationConfig],
+        config_source: Union[str, os.PathLike[str], SimulationConfig],
         output_dir: str,
         output_prefix: str = "output",
         photon_multiplier: int = 1,
+        quantization_scale: float = 1.0,
         scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
     ):
         """
@@ -66,6 +67,7 @@ class SimindSimulator:
             output_dir: Directory for simulation outputs
             output_prefix: Prefix for output files
             photon_multiplier: Photon multiplier for NN runtime switch
+            quantization_scale: Source quantization scale relative to MAX_SOURCE
             scoring_routine: Scoring routine to use (SCATTWIN or PENETRATE)
         """
         self.logger = logging.getLogger(__name__)
@@ -97,7 +99,9 @@ class SimindSimulator:
         self.acquisition_manager = AcquisitionManager(
             self.config, self.runtime_switches
         )
-        self.file_manager = DataFileManager(self.output_dir)
+        self.file_manager = DataFileManager(
+            self.output_dir, quantization_scale=quantization_scale
+        )
         self.orbit_manager = OrbitFileManager(self.output_dir)
         self.executor = SimindExecutor()
         self.output_processor = OutputProcessor(self.converter, self.output_dir)
@@ -151,7 +155,7 @@ class SimindSimulator:
         return self.backend_adapter.get_preferred_backend()
 
     def _initialize_config(
-        self, config_source: Union[str, SimulationConfig]
+        self, config_source: Union[str, os.PathLike[str], SimulationConfig]
     ) -> tuple[SimulationConfig, Optional[Path]]:
         """
         Initialize configuration from various source types.
@@ -164,7 +168,7 @@ class SimindSimulator:
             self.logger.info("Using provided SimulationConfig object")
             return config_source, None
 
-        elif isinstance(config_source, str):
+        elif isinstance(config_source, (str, os.PathLike)):
             config_path = Path(config_source).resolve()
 
             if not config_path.exists():

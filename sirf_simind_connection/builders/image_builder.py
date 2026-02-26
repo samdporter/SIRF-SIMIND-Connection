@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 
@@ -21,7 +21,15 @@ class STIRSPECTImageDataBuilder:
     via constructor parameters or using the update_header method.
     """
 
-    def __init__(self, header_overrides=None):
+    def __init__(
+        self,
+        header_overrides=None,
+        backend: Optional[Literal["sirf", "stir"]] = None,
+    ):
+        if backend is not None and backend not in {"sirf", "stir"}:
+            raise ValueError("backend must be one of: 'sirf', 'stir', or None")
+        self.backend = backend
+
         # Define default header keys.
         self.header = {
             "!INTERFILE": "",
@@ -109,7 +117,7 @@ class STIRSPECTImageDataBuilder:
             if cleanup:
                 header_path.unlink(missing_ok=True)
                 raw_path.unlink(missing_ok=True)
-            return image_data
+            return self._unwrap_native(image_data)
 
         if output_path is None:
             with temporary_directory() as tmp_dir:
@@ -117,11 +125,35 @@ class STIRSPECTImageDataBuilder:
 
         return _write(Path(output_path), cleanup=False)
 
-    @staticmethod
-    def _load_image(header_path: str):
-        """Load an image using whichever backend is available."""
+    def _load_image(self, header_path: str):
+        """Load an image with optional explicit backend selection."""
         if BACKEND_AVAILABLE and BACKENDS.factories.create_image_data is not None:
+            if (
+                self.backend is not None
+                and BACKENDS.detection.set_backend is not None
+                and BACKENDS.detection.get_backend is not None
+            ):
+                previous_backend = None
+                try:
+                    previous_backend = BACKENDS.detection.get_backend()
+                except Exception:
+                    previous_backend = None
+                BACKENDS.detection.set_backend(self.backend)
+                try:
+                    return BACKENDS.factories.create_image_data(header_path)
+                finally:
+                    if previous_backend is not None and previous_backend != self.backend:
+                        try:
+                            BACKENDS.detection.set_backend(previous_backend)
+                        except Exception:
+                            pass
+
             return BACKENDS.factories.create_image_data(header_path)
+
+        if self.backend == "stir":
+            raise ImportError(
+                "Requested STIR backend for image loading, but backend wrappers are unavailable."
+            )
 
         if SIRF_AVAILABLE:
             return ImageData(header_path)
@@ -129,6 +161,12 @@ class STIRSPECTImageDataBuilder:
         raise ImportError(
             "Unable to load image data: neither SIRF nor STIR Python backends are available."
         )
+
+    @staticmethod
+    def _unwrap_native(obj):
+        """Return native backend object when a wrapper is provided."""
+        native = getattr(obj, "native_object", None)
+        return native if native is not None else obj
 
     @staticmethod
     def create_spect_uniform_image_from_sinogram(sinogram, origin=None):

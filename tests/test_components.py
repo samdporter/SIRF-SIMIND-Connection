@@ -7,14 +7,16 @@ from sirf_simind_connection.core.components import (
     EnergyWindow,
     ImageGeometry,
     ImageValidator,
-    OrbitFileManager,
-    PenetrateOutputType,
     RotationDirection,
     RotationParameters,
+)
+from sirf_simind_connection.core.file_managers import OrbitFileManager
+from sirf_simind_connection.core.types import SIMIND_VOXEL_UNIT_CONVERSION
+from sirf_simind_connection.core.types import (
+    PenetrateOutputType,
     ScoringRoutine,
     ValidationError,
 )
-from sirf_simind_connection.core.types import SIMIND_VOXEL_UNIT_CONVERSION
 
 
 @pytest.mark.unit

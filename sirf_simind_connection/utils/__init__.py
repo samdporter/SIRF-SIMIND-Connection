@@ -9,7 +9,13 @@ import importlib
 
 # Lazy imports to avoid SIRF dependencies in CI
 def __getattr__(name):
-    if name in ("io_utils", "simind_utils", "stir_utils", "sirf_stir_utils"):
+    if name in (
+        "interfile_numpy",
+        "io_utils",
+        "simind_utils",
+        "stir_utils",
+        "sirf_stir_utils",
+    ):
         return importlib.import_module(f".{name}", __name__)
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
@@ -103,6 +109,7 @@ def to_projdata_in_memory(proj_data):
 
 __all__ = [
     "get_array",
+    "interfile_numpy",
     "to_projdata_in_memory",
     "io_utils",
     "simind_utils",

@@ -16,6 +16,10 @@ def pytest_configure(config):
         "markers", "requires_simind: marks tests that require SIMIND to be installed"
     )
     config.addinivalue_line(
+        "markers",
+        "requires_pytomography: marks tests that require PyTomography to be installed",
+    )
+    config.addinivalue_line(
         "markers", "requires_cil: marks tests that require CIL to be installed"
     )
     config.addinivalue_line(
@@ -57,6 +61,14 @@ def pytest_collection_modifyitems(config, items):
     except ImportError:
         cil_available = False
 
+    # Check if PyTomography is available
+    try:
+        import pytomography  # noqa: F401
+
+        pytomography_available = True
+    except ImportError:
+        pytomography_available = False
+
     # Check if SETR is available
     try:
         import setr  # noqa: F401
@@ -81,6 +93,7 @@ def pytest_collection_modifyitems(config, items):
     skip_sirf = pytest.mark.skip(reason="SIRF not available")
     skip_stir = pytest.mark.skip(reason="STIR Python not available")
     skip_cil = pytest.mark.skip(reason="CIL not available")
+    skip_pytomography = pytest.mark.skip(reason="PyTomography not available")
     skip_setr = pytest.mark.skip(reason="SETR not available")
     skip_simind = pytest.mark.skip(reason="SIMIND not available")
     skip_ci = pytest.mark.skip(reason="Skipped in CI environment")
@@ -97,6 +110,13 @@ def pytest_collection_modifyitems(config, items):
         # Skip CIL-dependent tests if CIL not available
         if "requires_cil" in item.keywords and not cil_available:
             item.add_marker(skip_cil)
+
+        # Skip PyTomography-dependent tests if PyTomography not available
+        if (
+            "requires_pytomography" in item.keywords
+            and not pytomography_available
+        ):
+            item.add_marker(skip_pytomography)
 
         # Skip SETR-dependent tests if SETR not available
         if "requires_setr" in item.keywords and not setr_available:

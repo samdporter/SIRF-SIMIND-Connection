@@ -9,6 +9,7 @@ SIRF-SIMIND-Connection Documentation
    installation
    usage
    backends
+   geometry
    examples
    api
    testing

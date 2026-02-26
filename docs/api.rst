@@ -24,15 +24,28 @@ Simulator and Configuration
    :undoc-members:
    :show-inheritance:
 
-Projector and Coordinator
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Connectors and Adaptors
+~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: sirf_simind_connection.core.projector
+.. automodule:: sirf_simind_connection.connectors
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.core.coordinator
+Core Runtime Modules
+~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: sirf_simind_connection.core.backend_adapter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: sirf_simind_connection.core.file_managers
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: sirf_simind_connection.core.output_processor
    :members:
    :undoc-members:
    :show-inheritance:
@@ -90,10 +103,7 @@ STIR and SIMIND Utilities
    :undoc-members:
    :show-inheritance:
 
-CIL Partitioner
-~~~~~~~~~~~~~~~
-
-.. automodule:: sirf_simind_connection.utils.cil_partitioner
+.. automodule:: sirf_simind_connection.utils.interfile_numpy
    :members:
    :undoc-members:
    :show-inheritance:

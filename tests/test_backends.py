@@ -8,6 +8,9 @@ between SIRF and STIR Python backends.
 import pytest
 
 
+pytestmark = pytest.mark.unit
+
+
 def test_backend_detection():
     """Test that backend auto-detection works."""
     from sirf_simind_connection.backends import get_backend, reset_backend

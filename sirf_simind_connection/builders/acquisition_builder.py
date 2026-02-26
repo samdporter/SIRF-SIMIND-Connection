@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 import pydicom
@@ -31,7 +31,15 @@ class STIRSPECTAcquisitionDataBuilder:
     overridden via constructor parameters or by using the `update_header` method.
     """
 
-    def __init__(self, header_overrides=None):
+    def __init__(
+        self,
+        header_overrides=None,
+        backend: Optional[Literal["sirf", "stir"]] = None,
+    ):
+        if backend is not None and backend not in {"sirf", "stir"}:
+            raise ValueError("backend must be one of: 'sirf', 'stir', or None")
+        self.backend = backend
+
         # Define default header for all keys
         self.header = {
             "!INTERFILE": "",
@@ -80,7 +88,7 @@ class STIRSPECTAcquisitionDataBuilder:
         """
 
         # Create a zeros array for acquisition data.
-        # Dimensions follow the order: [segments, axial, projections, tangential]
+        # Dimensions follow the order: [ToF (not used), axial, projections, tangential]
         matrix_size_1 = int(self.header.get("!matrix size [1]", 128))
         matrix_size_2 = int(self.header.get("!matrix size [2]", 128))
         num_projections = int(self.header.get("!number of projections", 1))
@@ -104,26 +112,67 @@ class STIRSPECTAcquisitionDataBuilder:
 
             self.pixel_array.tofile(raw_file_path)
 
-            if BACKEND_AVAILABLE:
-                acqdata = create_acquisition_data(str(header_path))
-            else:
-                acqdata = AcquisitionData(str(header_path))
+            acqdata = self._load_acquisition(str(header_path))
 
             flipped = np.flip(self.pixel_array, axis=-1)
-            acqdata = acqdata.clone().fill(flipped)
+            acqdata = acqdata.clone()
+            acqdata.fill(flipped)
             acqdata.write(str(header_path))
 
             if cleanup:
                 header_path.unlink(missing_ok=True)
                 raw_file_path.unlink(missing_ok=True)
 
-            return acqdata
+            return self._unwrap_native(acqdata)
 
         if output_path is None:
             with temporary_directory() as tmp_dir:
                 return _write(Path(tmp_dir) / "spect_acq", cleanup=False)
 
         return _write(Path(output_path), cleanup=False)
+
+    def _load_acquisition(self, header_path: str):
+        """Load acquisition data with optional explicit backend selection."""
+        if BACKEND_AVAILABLE and create_acquisition_data is not None:
+            if (
+                self.backend is not None
+                and BACKENDS.detection.set_backend is not None
+                and BACKENDS.detection.get_backend is not None
+            ):
+                previous_backend = None
+                try:
+                    previous_backend = BACKENDS.detection.get_backend()
+                except Exception:
+                    previous_backend = None
+                BACKENDS.detection.set_backend(self.backend)
+                try:
+                    return create_acquisition_data(header_path)
+                finally:
+                    if previous_backend is not None and previous_backend != self.backend:
+                        try:
+                            BACKENDS.detection.set_backend(previous_backend)
+                        except Exception:
+                            pass
+            return create_acquisition_data(header_path)
+
+        if self.backend == "stir":
+            raise ImportError(
+                "Requested STIR backend for acquisition loading, but backend wrappers "
+                "are unavailable."
+            )
+
+        if SIRF_AVAILABLE:
+            return AcquisitionData(header_path)
+
+        raise ImportError(
+            "Unable to load acquisition data: neither SIRF nor STIR Python backends are available."
+        )
+
+    @staticmethod
+    def _unwrap_native(obj):
+        """Return native backend object when a wrapper is provided."""
+        native = getattr(obj, "native_object", None)
+        return native if native is not None else obj
 
     def build_multi_energy(self, output_path_base="temp", multiple_data_files=True):
         """

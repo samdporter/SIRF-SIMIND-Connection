@@ -3,7 +3,7 @@
 [![Tests](https://github.com/samdporter/SIRF-SIMIND-Connection/workflows/Tests/badge.svg)](https://github.com/samdporter/SIRF-SIMIND-Connection/actions)
 [![Documentation Status](https://readthedocs.org/projects/sirf-simind-connection/badge/?version=latest)](https://sirf-simind-connection.readthedocs.io/en/latest/?badge=latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 
 A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
 
@@ -14,9 +14,10 @@ A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
 
 ## Key Features
 - **Dual Backend Support** - Works with both SIRF and STIR Python
+- **Connector/Adaptor API** - Python Connector plus STIR/SIRF/PyTomography adaptors
 - SIRF integrated Monte Carlo SPECT Simulation using SIMIND
 - Dual Scoring Routines (SCATTWIN/PENETRATE)
-- DICOM to STIR Conversion
+- DICOM-driven adaptor examples (STIR/SIRF/PyTomography)
 - **Advanced Schneider2000 Density Conversion** - Clinically validated HU-to-density mapping with 44 tissue segments
 
 ## Installation
@@ -52,7 +53,7 @@ cd STIR
 SIRF is required for:
 - Coordinator/Projector functionality
 - CIL integration
-- OSEM reconstruction (examples 07-08)
+- SIRF-native OSEM reconstruction (example 07B)
 
 Install from source:
 ```bash
@@ -62,6 +63,36 @@ cd SIRF
 ```
 
 **Note**: SIRF includes STIR, so you don't need to install STIR separately if using SIRF.
+
+### SIMIND Requirement
+
+SIMIND is **not included** in this repository and must be installed separately.
+
+Use the official SIMIND resources:
+
+- SIMIND site (Medical Radiation Physics, Lund University): https://www.msf.lu.se/en/research/simind-monte-carlo-program
+- SIMIND manual/docs: https://www.msf.lu.se/en/research/simind-monte-carlo-program/manual
+
+For quick local use in this repository, place your local SIMIND installation under:
+
+```text
+./simind
+```
+
+and make sure the executable is available at:
+
+```text
+./simind/simind
+```
+
+and ensure SIMIND data files are available under:
+
+```text
+./simind/smc_dir/
+```
+
+Docker scripts are configured to use this repo-local layout and automatically
+wire SIMIND paths when the binary exists at `./simind/simind`.
 
 ## Quick Start
 ```python
@@ -97,6 +128,60 @@ import numpy as np
 # Convert HU image to densities using Schneider2000 model
 hu_image = np.array([[-1000, 0, 500], [800, 1200, 2000]])
 density_map = hu_to_density_schneider(hu_image)  # 44-segment clinical model
+```
+
+### Pure Python Connector (NumPy Outputs)
+
+```python
+from sirf_simind_connection import RuntimeOperator, SimindPythonConnector
+from sirf_simind_connection.configs import get
+
+connector = SimindPythonConnector(
+    config_source=get("AnyScan.yaml"),
+    output_dir="output/python_connector",
+    output_prefix="case01",
+    quantization_scale=1.0,
+)
+
+outputs = connector.run(RuntimeOperator(switches={"NN": 1, "RR": 12345}))
+total = outputs["tot_w1"]
+print(total.projection.shape)
+print(total.header_path)
+```
+
+For minimal toy runs with smaller projection/image settings, use
+`get("Example.yaml")`.
+
+`quantization_scale` controls source integer quantization before writing SIMIND
+`.smi` files:
+
+- `1.0`: uses full internal source integer range (best numeric precision)
+- `< 1.0`: reduces integer scale for faster toy runs but increases rounding error
+
+SIMIND treats source maps as integer weights; absolute activity/time scaling is
+controlled separately by simulation settings.
+
+## Docker Environments
+
+Dedicated container definitions are provided in [`docker/`](docker/):
+
+- `docker/stir/Dockerfile`
+- `docker/sirf/Dockerfile`
+- `docker/pytomography/Dockerfile`
+
+Use Docker Compose:
+
+```bash
+docker compose -f docker/compose.yaml build stir
+docker compose -f docker/compose.yaml run --rm stir
+```
+
+Run per-backend validation and separated examples:
+
+```bash
+bash scripts/run_container_validation.sh
+bash scripts/run_container_validation.sh --with-simind
+bash scripts/run_container_examples.sh
 ```
 
 ## Contributing

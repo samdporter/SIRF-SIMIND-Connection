@@ -60,7 +60,6 @@ ensure_smc_dir() {
 }
 
 # Parse arguments
-DICOM_FILE=""
 BACKEND=""
 
 # Parse command-line options
@@ -75,29 +74,21 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -h|--help)
-            echo "Usage: $0 [DICOM_FILE] [--backend sirf|stir]"
+            echo "Usage: $0 [--backend sirf|stir]"
             echo ""
             echo "Options:"
-            echo "  DICOM_FILE          Optional DICOM file for example 02"
             echo "  --backend BACKEND   Force a specific backend (sirf or stir)"
             echo "  -h, --help          Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0                          # Run with auto-detected backend"
             echo "  $0 --backend stir           # Force STIR Python backend"
-            echo "  $0 patient.dcm              # Run example 02 with a DICOM file"
-            echo "  $0 patient.dcm --backend sirf  # Run example 02 with a DICOM file using SIRF"
             exit 0
             ;;
         *)
-            # Assume it's a DICOM file if it doesn't start with --
-            if [[ ! "$1" =~ ^-- ]]; then
-                DICOM_FILE="$1"
-            else
-                echo -e "${RED}Error: Unknown option '$1'${NC}"
-                echo "Use --help for usage information"
-                exit 1
-            fi
+            echo -e "${RED}Error: Unknown option '$1'${NC}"
+            echo "Use --help for usage information"
+            exit 1
             shift
             ;;
     esac
@@ -126,7 +117,7 @@ ERROR_LOGS=()
 # Examples to run
 EXAMPLES=(
     "01_basic_simulation.py"
-    "02_dicom_conversion.py"
+    "02_runtime_switch_comparison.py"
     "03_multi_window.py"
     "04_custom_config.py"
     "05_scattwin_vs_penetrate_comparison.py"
@@ -151,16 +142,6 @@ run_example() {
 
     # Build command with optional backend argument
     local cmd="python3 $example"
-
-    # Special handling for DICOM example (02)
-    if [[ "$example" == "02_dicom_conversion.py" ]]; then
-        if [[ -z "$DICOM_FILE" ]]; then
-            echo -e "${YELLOW}⚠ SKIPPED: No DICOM file provided (use: ./run_all_examples.sh <dicom_file>)${NC}"
-            SKIPPED+=("$example")
-            return 0
-        fi
-        cmd="$cmd $DICOM_FILE"
-    fi
 
     # Add backend argument if specified
     if [[ -n "$BACKEND" ]]; then
@@ -198,11 +179,6 @@ if [[ -n "$BACKEND" ]]; then
     echo "Backend: $BACKEND (forced)"
 else
     echo "Backend: auto-detect"
-fi
-if [[ -n "$DICOM_FILE" ]]; then
-    echo "DICOM file: $DICOM_FILE"
-else
-    echo "Note: Example 02 will be skipped unless a DICOM file is supplied"
 fi
 echo ""
 

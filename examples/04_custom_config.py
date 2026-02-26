@@ -10,7 +10,12 @@ import argparse
 from pathlib import Path
 
 from sirf_simind_connection import SimulationConfig, configs
-from sirf_simind_connection.backends import get_backend, set_backend
+
+try:
+    from sirf_simind_connection.backends import get_backend, set_backend
+except ImportError:  # backend libraries intentionally absent in core container
+    get_backend = None
+    set_backend = None
 
 
 TEMPLATE_PATH = configs.get("input.smc")  # Path to a template configuration file
@@ -157,7 +162,7 @@ def demonstrate_new_api_usage():
     print(
         """
     from sirf_simind_connection import SimindSimulator
-    from sirf_simind_connection.core.components import ScoringRoutine
+    from sirf_simind_connection.core import ScoringRoutine
 
     # Option 1: Use the config object directly
     simulator = SimindSimulator(
@@ -214,13 +219,24 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Set backend if specified
+    # Set backend if specified and backend layer is available.
     if args.backend:
-        set_backend(args.backend)
+        if set_backend is None:
+            print(
+                f"Backend '{args.backend}' requested, but backend libraries are not installed."
+            )
+        else:
+            set_backend(args.backend)
 
-    # Print which backend is being used
+    # Print backend status (core config workflow does not require one).
     print(f"\n{'=' * 60}")
-    print(f"Using backend: {get_backend().upper()}")
+    if get_backend is None:
+        print("Using backend: NONE (core configuration mode)")
+    else:
+        try:
+            print(f"Using backend: {get_backend().upper()}")
+        except ImportError:
+            print("Using backend: NONE (backend libraries unavailable)")
     print(f"{'=' * 60}\n")
 
     main()

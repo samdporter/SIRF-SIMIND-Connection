@@ -35,10 +35,10 @@ EXAMPLES = [
         "estimated_time": "1 minute",
     },
     {
-        "name": "02_dicom_conversion.py",
-        "description": "DICOM to STIR conversion (requires DICOM file input)",
-        "module": None,  # Special handling - can't import due to numeric prefix
-        "estimated_time": "skipped",
+        "name": "02_runtime_switch_comparison.py",
+        "description": "Runtime-switch comparison using pure Python connector",
+        "module": "examples.02_runtime_switch_comparison",
+        "estimated_time": "1 minute",
     },
     {
         "name": "03_multi_window.py",
@@ -84,7 +84,7 @@ def check_dependencies():
     """Check if required packages are available."""
     print("\nChecking dependencies...")
 
-    required_modules = ["sirf_simind_connection", "matplotlib", "numpy", "pathlib"]
+    required_modules = ["sirf_simind_connection", "matplotlib", "numpy"]
 
     missing = []
     for module in required_modules:
@@ -104,86 +104,8 @@ def check_dependencies():
     return True
 
 
-def run_example_01():
-    """Run basic simulation example."""
-    try:
-        from examples import basic_simulation_01
-
-        print("Running basic simulation...")
-        basic_simulation_01.main()
-        return True, "Completed successfully"
-    except Exception as e:
-        return False, f"Error: {e}"
-
-
-def run_example_02():
-    """Run DICOM conversion example (demonstration only)."""
-    print("DICOM conversion example requires a DICOM file as input.")
-    print(
-        "This example shows the conversion workflow but cannot run without DICOM data."
-    )
-    print("To run manually: python examples/02_dicom_conversion.py <dicom_file>")
-
-    # Verify the file exists and basic imports work
-    try:
-        example_file = Path("examples/02_dicom_conversion.py")
-        if not example_file.exists():
-            return False, "Example file not found"
-
-        # Test that the main imports work by running a syntax check
-        result = subprocess.run(
-            [sys.executable, "-m", "py_compile", str(example_file)],
-            capture_output=True,
-            timeout=30,
-        )
-
-        if result.returncode == 0:
-            return True, "Module validated (requires DICOM input to run)"
-        else:
-            return False, f"Syntax validation failed: {result.stderr.decode()}"
-
-    except Exception as e:
-        return False, f"File validation error: {e}"
-
-
-def run_example_03():
-    """Run multi-window simulation example."""
-    try:
-        from examples import multi_window_03
-
-        print("Running multi-window (TEW) simulation...")
-        multi_window_03.main()
-        return True, "Completed successfully"
-    except Exception as e:
-        return False, f"Error: {e}"
-
-
-def run_example_04():
-    """Run custom configuration example."""
-    try:
-        from examples import custom_config_04
-
-        print("Running custom configuration example...")
-        custom_config_04.main()
-        return True, "Completed successfully"
-    except Exception as e:
-        return False, f"Error: {e}"
-
-
-def run_example_05():
-    """Run scoring routine comparison example."""
-    try:
-        from examples import scattwin_vs_penetrate_comparison_05
-
-        print("Running SCATTWIN vs PENETRATE comparison...")
-        scattwin_vs_penetrate_comparison_05.main()
-        return True, "Completed successfully"
-    except Exception as e:
-        return False, f"Error: {e}"
-
-
-def run_example_alternative(example_file):
-    """Alternative method: run example as subprocess."""
+def run_example_subprocess(example_file):
+    """Run an example file as a subprocess."""
     try:
         print(f"Running {example_file} as subprocess...")
         result = subprocess.run(
@@ -221,21 +143,7 @@ def run_single_example(example_info, example_num):
 
     start_time = time.time()
 
-    # Special handling for different examples
-    if name == "01_basic_simulation.py":
-        success, message = run_example_alternative(name)
-    elif name == "02_dicom_conversion.py":
-        success, message = run_example_02()
-    elif name == "03_multi_window.py":
-        success, message = run_example_alternative(name)
-    elif name == "04_custom_config.py":
-        success, message = run_example_alternative(name)
-    elif name == "05_scattwin_vs_penetrate_comparison.py":
-        success, message = run_example_alternative(name)
-    elif name == "06_schneider_density_conversion.py":
-        success, message = run_example_alternative(name)
-    else:
-        success, message = False, "Unknown example"
+    success, message = run_example_subprocess(name)
 
     elapsed_time = time.time() - start_time
 

@@ -1,6 +1,9 @@
 Backend Abstraction Layer
 =========================
 
+For geometry/axis conventions across SIMIND, STIR/SIRF, and PyTomography,
+see :doc:`geometry`.
+
 This module provides a unified interface for working with both **SIRF** and **STIR Python** libraries, allowing users to choose their preferred backend for image reconstruction and simulation tasks.
 
 Overview
@@ -157,9 +160,15 @@ Feature Compatibility
    * - **SimindProjector**
      - ✅ Yes
      - ❌ No
-   * - **OSEM reconstruction (examples 07-08)**
+   * - **OSEM via STIR adaptor (example 07A)**
+     - ❌ No
+     - ✅ Yes
+   * - **OSEM via SIRF adaptor (example 07B)**
      - ✅ Yes
      - ❌ No
+   * - **OSEM via PyTomography adaptor (example 07C)**
+     - ❌ No
+     - ❌ No (requires PyTomography)
 
 Key Differences Between Backends
 ---------------------------------
@@ -258,24 +267,17 @@ Running Examples with Different Backends
 
 .. code-block:: bash
 
-    # Let auto-detection choose (prefers SIRF)
+    # Core Python-connector examples (backend-agnostic NumPy path)
     python examples/01_basic_simulation.py
 
-    # Force STIR Python
-    STIR_BACKEND=1 python examples/01_basic_simulation.py
+    # STIR-native adaptor + STIR OSEM
+    python examples/07A_stir_adaptor_osem.py
 
-Or in code:
+    # SIRF-native adaptor + SIRF OSEM
+    python examples/07B_sirf_adaptor_osem.py
 
-.. code-block:: python
-
-    # examples/01_basic_simulation.py
-    from sirf_simind_connection.backends import set_backend
-    import os
-
-    if os.environ.get('STIR_BACKEND'):
-        set_backend('stir')
-
-    # Rest of example...
+    # PyTomography-native adaptor + PyTomography OSEM
+    python examples/07C_pytomography_adaptor_osem.py
 
 Testing
 -------
@@ -320,15 +322,16 @@ Backend not switching
     set_backend("stir")  # Now it will switch
 
 Feature not available with STIR
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Check the compatibility table above. Some features require SIRF:
 
 - CIL integration
 - Coordinator architecture
-- Advanced reconstruction algorithms (OSEM, OSL)
+- SimindProjector/coordinator workflows
 
-For these features, use SIRF backend:
+STIR-native OSEM is supported via ``examples/07A_stir_adaptor_osem.py``.
+For SIRF-only features, use SIRF backend:
 
 .. code-block:: python
 

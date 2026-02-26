@@ -41,6 +41,18 @@ class DummyAcquisitionData:
         return copy
 
 
+class DummyWrappedAcquisition(DummyAcquisitionData):
+    """Wrapper-like stub exposing a native_object attribute."""
+
+    def __init__(self, header_path):
+        super().__init__(header_path)
+        self._native = DummyAcquisitionData(header_path)
+
+    @property
+    def native_object(self):
+        return self._native
+
+
 @pytest.fixture
 def fake_create_acquisition(monkeypatch):
     """Patch create_acquisition_data to avoid SIRF/STIR dependency."""
@@ -105,3 +117,36 @@ def test_build_multi_energy_splits_windows(tmp_path, fake_create_acquisition):
     for idx, stub in enumerate(outputs, start=1):
         assert stub.fill_data.shape == (1, 4, 2, 2)
         assert stub.write_calls == [str(tmp_path / f"multi_ew{idx}.hs")]
+
+
+@pytest.mark.unit
+def test_build_with_explicit_backend_restores_global_backend(monkeypatch, tmp_path):
+    from sirf_simind_connection.builders import acquisition_builder as builder_mod
+
+    wrapped_objects = []
+    set_backend_calls = []
+
+    def _factory(header_path):
+        obj = DummyWrappedAcquisition(header_path)
+        wrapped_objects.append(obj)
+        return obj
+
+    monkeypatch.setattr(builder_mod, "create_acquisition_data", _factory)
+    monkeypatch.setattr(builder_mod.BACKENDS.detection, "get_backend", lambda: "sirf")
+    monkeypatch.setattr(
+        builder_mod.BACKENDS.detection,
+        "set_backend",
+        lambda backend: set_backend_calls.append(backend),
+    )
+
+    builder = STIRSPECTAcquisitionDataBuilder(backend="stir")
+    output = builder.build(output_path=tmp_path / "acq")
+
+    assert set_backend_calls == ["stir", "sirf"]
+    assert output is wrapped_objects[0].native_object
+
+
+@pytest.mark.unit
+def test_acquisition_builder_rejects_invalid_backend():
+    with pytest.raises(ValueError, match="backend must be one of"):
+        STIRSPECTAcquisitionDataBuilder(backend="invalid")  # type: ignore[arg-type]

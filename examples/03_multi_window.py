@@ -1,239 +1,123 @@
 #!/usr/bin/env python
 """
-Multi-Energy Window Simulation Example (Updated)
-
-This example demonstrates how to simulate SPECT with multiple energy windows,
-useful for scatter correction techniques like TEW (Triple Energy Window).
-
-Compatible with both SIRF and STIR Python backends.
+Multi-window simulation (TEW-style) using the pure Python connector.
 """
 
-import argparse
+from __future__ import annotations
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
+from _python_connector_helpers import (
+    add_standard_runtime,
+    build_small_phantom_zyx,
+    configure_voxel_input,
+    projection_view0,
+    require_simind,
+    write_windows,
+)
 
-from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
-from sirf_simind_connection.backends import get_backend, set_backend
-from sirf_simind_connection.core.components import ScoringRoutine
-from sirf_simind_connection.utils import get_array, to_projdata_in_memory
-
-
-def setup_tew_windows():
-    """
-    Set up Triple Energy Window (TEW) for Tc-99m.
-
-    Returns:
-        tuple: (lower_bounds, upper_bounds, scatter_orders)
-    """
-    # Main photopeak window: 140 keV ± 10% (126-154 keV)
-    # Lower scatter window: 120-126 keV
-    # Upper scatter window: 154-160 keV
-
-    lower_bounds = [120, 126, 154]  # keV
-    upper_bounds = [126, 154, 160]  # keV
-    scatter_orders = [0, 0, 0]  # Include high-order scatter
-
-    return lower_bounds, upper_bounds, scatter_orders
+from sirf_simind_connection import SimindPythonConnector, configs
 
 
-def setup_dew_windows():
-    """
-    Set up Dual Energy Window (DEW) for I-123.
+def main() -> None:
+    require_simind()
 
-    Returns:
-        tuple: (lower_bounds, upper_bounds, scatter_orders)
-    """
-    # I-123 has primary emission at 159 keV
-    # Main window: 159 keV ± 10% (143-175 keV)
-    # Scatter window: 120-143 keV
-
-    lower_bounds = [120, 143]  # keV
-    upper_bounds = [143, 175]  # keV
-    scatter_orders = [10, 10]
-
-    return lower_bounds, upper_bounds, scatter_orders
-
-
-def calculate_tew_correction(outputs, window_widths):
-    """
-    Calculate TEW scatter correction.
-
-    Args:
-        outputs: Dictionary of simulation outputs
-        window_widths: List of energy window widths in keV
-
-    Returns:
-        Corrected photopeak data
-    """
-    # TEW assumes linear interpolation of scatter under photopeak
-    # Convert to ProjDataInMemory for arithmetic operations (STIR compatibility)
-    lower_scatter = to_projdata_in_memory(outputs["tot_w1"])
-    photopeak_total = to_projdata_in_memory(outputs["tot_w2"])
-    upper_scatter = to_projdata_in_memory(outputs["tot_w3"])
-
-    # Scatter estimate under photopeak
-    scatter_estimate = lower_scatter * (
-        window_widths[1] / (2 * window_widths[0])
-    ) + upper_scatter * (window_widths[1] / (2 * window_widths[2]))
-
-    # Corrected photopeak - ensure non-negative
-    corrected = photopeak_total - scatter_estimate
-
-    # Apply maximum(0) operation - works for both SIRF and STIR
-    if hasattr(corrected, "maximum"):
-        corrected = corrected.maximum(0)
-    else:
-        # For STIR: use numpy to apply max operation and copy back
-        import numpy as np
-
-        try:
-            arr = get_array(corrected)
-            arr_clipped = np.maximum(arr, 0)
-            # Create new ProjDataInMemory and fill with clipped values
-            corrected_clipped = to_projdata_in_memory(corrected)
-            corrected_clipped.fill(arr_clipped)
-            corrected = corrected_clipped
-        except ImportError:
-            # Fallback: just return without clipping
-            pass
-
-    return corrected, scatter_estimate
-
-
-def main():
-    """Run multi-window simulation."""
     output_dir = Path("output/multi_window")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Creating phantom...")
-    phantom = utils.stir_utils.create_simple_phantom()
-    mu_map = utils.stir_utils.create_attenuation_map(phantom)
-
-    # Save phantom
-    phantom.write(str(output_dir / "phantom.hv"))
-
-    # Choose window configuration
-    print("\nSetting up Triple Energy Window (TEW) for Tc-99m...")
-    lower_bounds, upper_bounds, scatter_orders = setup_tew_windows()
-    window_widths = [upper - lower for lower, upper in zip(lower_bounds, upper_bounds)]
-
-    print("Energy windows:")
-    for i, (lower, upper) in enumerate(zip(lower_bounds, upper_bounds)):
-        print(f"  Window {i + 1}: {lower}-{upper} keV (width: {upper - lower} keV)")
-
-    # Configure simulator using new API
-    print("\nConfiguring SIMIND simulator...")
-    config = SimulationConfig(configs.get("input.smc"))
-    config.import_yaml(configs.get("AnyScan.yaml"))
-
-    simulator = SimindSimulator(
-        config_source=config,
+    connector = SimindPythonConnector(
+        config_source=configs.get("Example.yaml"),
         output_dir=output_dir,
-        output_prefix="tew_sim",
-        photon_multiplier=1,
-        scoring_routine=ScoringRoutine.SCATTWIN,
+        output_prefix="tew_case01",
+        quantization_scale=0.05,
     )
 
-    # Set inputs using new methods
-    simulator.set_source(phantom)
-    simulator.set_mu_map(mu_map)
-
-    # Set multiple energy windows
-    simulator.set_energy_windows(lower_bounds, upper_bounds, scatter_orders)
-
-    # Set Tc-99m parameters
-    simulator.add_config_value(1, 140.0)  # Photon energy
-
-    print("Running simulation...")
-    simulator.run_simulation()
-
-    print("Retrieving results...")
-    outputs = simulator.get_outputs()
-
-    # Print results for each window
-    print("\nRaw window counts:")
-    for key, data in outputs.items():
-        print(f"  {key}: {data.sum():.0f} counts")
-
-    # Apply TEW correction
-    print("\nApplying TEW scatter correction...")
-    corrected, scatter_estimate = calculate_tew_correction(outputs, window_widths)
-
-    # Save results
-    total_counts = outputs["tot_w2"]
-    total_counts.write(str(output_dir / "photopeak_total.hs"))
-    scatter_estimate.write(str(output_dir / "scatter_estimate.hs"))
-    corrected.write(str(output_dir / "photopeak_corrected.hs"))
-    scatter_counts = outputs["sca_w2"]
-    scatter_counts.write(str(output_dir / "scatter_counts.hs"))
-    # Convert to ProjDataInMemory for arithmetic (STIR compatibility)
-    true_counts = to_projdata_in_memory(total_counts) - to_projdata_in_memory(
-        scatter_counts
+    source, mu_map = build_small_phantom_zyx()
+    configure_voxel_input(
+        connector,
+        source,
+        mu_map,
+        voxel_size_mm=4.0,
+        scoring_routine=1,
     )
-    true_counts.write(str(output_dir / "true_counts.hs"))
 
-    # Calculate scatter fractions
-    print("\nScatter analysis:")
-    print(
-        f"  True scatter fraction: {scatter_counts.sum() / outputs['tot_w2'].sum():.2%}"
+    # Lu-177 TEW around the 208 keV peak:
+    # lower scatter 166-187, photopeak 187-229, upper scatter 229-250 keV.
+    lowers = [166.0, 187.0, 229.0]
+    uppers = [187.0, 229.0, 250.0]
+    orders = [0, 0, 0]
+    write_windows(connector, lowers, uppers, orders)
+    connector.add_config_value(1, 208.0)
+    add_standard_runtime(
+        connector, photon_multiplier=1, seed=12345, nuclide="lu177"
     )
-    print(f"  TEW estimated scatter: {scatter_estimate.sum():.0f}")
-    print(f"  TEW corrected counts: {corrected.sum():.0f}")
 
-    # view input images and resultant projections
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
-    axim0 = ax[0].imshow(get_array(phantom)[32, :, :], cmap="viridis")
-    ax[0].set_title("Phantom (Axial Slice)")
-    axim1 = ax[1].imshow(get_array(mu_map)[32, :, :], cmap="gray")
-    ax[1].set_title("Attenuation Map (Axial Slice)")
-    plt.colorbar(axim0, ax=ax[0])
-    plt.colorbar(axim1, ax=ax[1])
+    outputs = connector.run()
+
+    lower_scatter = outputs["tot_w1"].projection
+    photopeak = outputs["tot_w2"].projection
+    upper_scatter = outputs["tot_w3"].projection
+
+    width1 = uppers[0] - lowers[0]
+    width2 = uppers[1] - lowers[1]
+    width3 = uppers[2] - lowers[2]
+    scatter_estimate = lower_scatter * (width2 / (2.0 * width1)) + upper_scatter * (
+        width2 / (2.0 * width3)
+    )
+    corrected = np.clip(photopeak - scatter_estimate, a_min=0.0, a_max=None)
+
+    np.save(output_dir / "tew_lower_window.npy", lower_scatter)
+    np.save(output_dir / "tew_photopeak.npy", photopeak)
+    np.save(output_dir / "tew_upper_window.npy", upper_scatter)
+    np.save(output_dir / "tew_scatter_estimate.npy", scatter_estimate)
+    np.save(output_dir / "tew_corrected.npy", corrected)
+
+    source_slice = source[source.shape[0] // 2, :, :]
+    photopeak_view0 = projection_view0(photopeak)
+    scatter_view0 = projection_view0(scatter_estimate)
+    corrected_view0 = projection_view0(corrected)
+    lower_view0 = projection_view0(lower_scatter)
+    proj_vmin = float(
+        min(
+            photopeak_view0.min(),
+            scatter_view0.min(),
+            corrected_view0.min(),
+            lower_view0.min(),
+        )
+    )
+    proj_vmax = float(
+        max(
+            photopeak_view0.max(),
+            scatter_view0.max(),
+            corrected_view0.max(),
+            lower_view0.max(),
+        )
+    )
+
+    fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+    axes[0].imshow(source_slice, cmap="viridis")
+    axes[0].set_title("Input source")
+    axes[1].imshow(photopeak_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+    axes[1].set_title("Photopeak (view 0)")
+    axes[2].imshow(scatter_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+    axes[2].set_title("TEW scatter est.")
+    axes[3].imshow(corrected_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+    axes[3].set_title("TEW corrected")
+    for ax in axes:
+        ax.axis("off")
     plt.tight_layout()
-    plt.savefig(output_dir / "phantom_and_attenuation.png")
+    plot_path = output_dir / "multi_window_summary.png"
+    fig.savefig(plot_path, dpi=140)
+    plt.close(fig)
 
-    fig, ax = plt.subplots(1, 5, figsize=(18, 6))
-    axim0 = ax[0].imshow(get_array(scatter_counts)[0, :, 60, :], cmap="hot")
-    ax[0].set_title("Scatter Counts (Projection)")
-    axim1 = ax[1].imshow(get_array(scatter_estimate)[0, :, 60, :], cmap="hot")
-    ax[1].set_title("TEW Scatter Estimate (Projection)")
-    axim2 = ax[2].imshow(get_array(true_counts)[0, :, 60, :], cmap="hot")
-    ax[2].set_title("True Counts (Projection)")
-    axim3 = ax[3].imshow(get_array(corrected)[0, :, 60, :], cmap="hot")
-    ax[3].set_title("TEW Corrected Counts (Projection)")
-    axim4 = ax[4].imshow(get_array(total_counts)[0, :, 60, :], cmap="hot")
-    ax[4].set_title("Total Counts (Projection)")
-    plt.colorbar(axim0, ax=ax[0])
-    plt.colorbar(axim1, ax=ax[1])
-    plt.colorbar(axim2, ax=ax[2])
-    plt.colorbar(axim3, ax=ax[3])
-    plt.colorbar(axim4, ax=ax[4])
-    plt.tight_layout()
-    plt.savefig(output_dir / "projection_results.png")
-
-    print(f"\nResults saved to: {output_dir}")
+    print(f"Output directory: {output_dir}")
+    print(f"Photopeak counts: {float(photopeak.sum()):.3f}")
+    print(f"TEW scatter estimate counts: {float(scatter_estimate.sum()):.3f}")
+    print(f"TEW corrected counts: {float(corrected.sum()):.3f}")
+    print(f"Summary plot: {plot_path}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run multi-energy window SIMIND simulation",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--backend",
-        type=str,
-        choices=["sirf", "stir"],
-        help="Force a specific backend (sirf or stir). If not specified, auto-detection is used.",
-    )
-    args = parser.parse_args()
-
-    # Set backend if specified
-    if args.backend:
-        set_backend(args.backend)
-
-    # Print which backend is being used
-    print(f"\n{'=' * 60}")
-    print(f"Using backend: {get_backend().upper()}")
-    print(f"{'=' * 60}\n")
-
     main()

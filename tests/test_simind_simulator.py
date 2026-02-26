@@ -4,7 +4,7 @@ import pytest
 
 from sirf_simind_connection import SimindSimulator, SimulationConfig
 from sirf_simind_connection.configs import get
-from sirf_simind_connection.core.components import ScoringRoutine
+from sirf_simind_connection.core.types import ScoringRoutine
 from sirf_simind_connection.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,

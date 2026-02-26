@@ -1,138 +1,95 @@
 #!/usr/bin/env python
 """
-Basic SIMIND Simulation Example
+Basic pure Python connector simulation.
 
-This example demonstrates how to run a basic SPECT Monte Carlo simulation
-using SIRF-SIMIND-Connection with the new API.
-
-Compatible with both SIRF and STIR Python backends.
+This example runs SIMIND with voxelized NumPy inputs and reads projections
+back as NumPy arrays via ``SimindPythonConnector``.
 """
 
-import argparse
+from __future__ import annotations
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
+from _python_connector_helpers import (
+    add_standard_runtime,
+    build_small_phantom_zyx,
+    configure_voxel_input,
+    projection_view0,
+    require_simind,
+    write_windows,
+)
 
-from sirf_simind_connection import SimindSimulator, SimulationConfig, configs, utils
-from sirf_simind_connection.backends import get_backend, set_backend
-from sirf_simind_connection.core.components import ScoringRoutine
-from sirf_simind_connection.utils import get_array
+from sirf_simind_connection import SimindPythonConnector, configs
 
 
-# Create output directory
-output_dir = Path("output/basic_simulation")
-output_dir.mkdir(parents=True, exist_ok=True)
+def main() -> None:
+    require_simind()
 
+    output_dir = Path("output/basic_simulation")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-def main():
-    """Run the basic simulation."""
-    print("Creating phantom and attenuation map...")
-    phantom = utils.stir_utils.create_simple_phantom()
-    mu_map = utils.stir_utils.create_attenuation_map(phantom)
-
-    # Save phantom for visualization
-    phantom.write(str(output_dir / "phantom.hv"))
-    mu_map.write(str(output_dir / "mu_map.hv"))
-
-    print("Setting up SIMIND simulator using new API...")
-
-    # Load and configure the simulation config
-    config = SimulationConfig(configs.get("input.smc"))
-    config.import_yaml(configs.get("AnyScan.yaml"))
-
-    # Method 1: Using the new constructor directly
-    simulator = SimindSimulator(
-        config_source=config,
+    connector = SimindPythonConnector(
+        config_source=configs.get("Example.yaml"),
         output_dir=output_dir,
-        output_prefix="basic_sim",
-        photon_multiplier=1,
-        scoring_routine=ScoringRoutine.SCATTWIN,
+        output_prefix="basic_case01",
+        quantization_scale=0.05,
     )
 
-    # Set the inputs using new methods
-    simulator.set_source(phantom)
-    simulator.set_mu_map(mu_map)
-
-    # Set energy windows for Tc-99m (140 keV ± 10%)
-    simulator.set_energy_windows(
-        lower_bounds=[126],  # 140 - 14 keV
-        upper_bounds=[154],  # 140 + 14 keV
-        scatter_orders=[0],  # Include scatter
+    source, mu_map = build_small_phantom_zyx()
+    source_path, density_path = configure_voxel_input(
+        connector,
+        source,
+        mu_map,
+        voxel_size_mm=4.0,
+        scoring_routine=1,
+    )
+    write_windows(connector, [126.0], [154.0], [0])
+    add_standard_runtime(
+        connector, photon_multiplier=1, seed=12345, nuclide="tc99m"
     )
 
-    # Set photon energy for Tc-99m
-    simulator.add_config_value(1, 140.0)  # 140 keV
+    outputs = connector.run()
+    total = outputs["tot_w1"].projection
+    scatter = outputs.get("sca_w1", outputs["tot_w1"]).projection
+    primary = np.clip(total - scatter, a_min=0.0, a_max=None)
 
-    print("Running simulation (this may take a few minutes)...")
-    simulator.run_simulation()
+    np.save(output_dir / "total.npy", total)
+    np.save(output_dir / "scatter.npy", scatter)
+    np.save(output_dir / "primary.npy", primary)
 
-    print("Retrieving results...")
-    # Get the output sinograms using new API
-    total_counts = simulator.get_total_output(window=1)
-    scatter_counts = simulator.get_scatter_output(window=1)
-    primary_counts = total_counts - scatter_counts
+    source_slice = source[source.shape[0] // 2, :, :]
+    total_view0 = projection_view0(total)
+    scatter_view0 = projection_view0(scatter)
+    primary_view0 = projection_view0(primary)
+    proj_vmin = float(min(total_view0.min(), scatter_view0.min(), primary_view0.min()))
+    proj_vmax = float(max(total_view0.max(), scatter_view0.max(), primary_view0.max()))
 
-    # Save results
-    total_counts.write(str(output_dir / "total_sinogram.hs"))
-    scatter_counts.write(str(output_dir / "scatter_sinogram.hs"))
-    primary_counts.write(str(output_dir / "primary_sinogram.hs"))
-
-    # Print statistics
-    print("\nSimulation Results:")
-    print(f"Total counts: {total_counts.sum():.0f}")
-    print(f"Scatter counts: {scatter_counts.sum():.0f}")
-    print(f"Primary counts: {primary_counts.sum():.0f}")
-    print(f"Scatter fraction: {scatter_counts.sum() / total_counts.sum():.2%}")
-
-    print(f"\nResults saved to: {output_dir}")
-
-    # Create visualizations
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
-    axim0 = ax[0].imshow(get_array(phantom)[32, :, :], cmap="viridis")
-    ax[0].set_title("Phantom (Axial Slice)")
-    axim1 = ax[1].imshow(get_array(mu_map)[32, :, :], cmap="gray")
-    ax[1].set_title("Attenuation Map (Axial Slice)")
-    plt.colorbar(axim0, ax=ax[0])
-    plt.colorbar(axim1, ax=ax[1])
+    fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+    axes[0].imshow(source_slice, cmap="viridis")
+    axes[0].set_title("Input source")
+    axes[1].imshow(total_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+    axes[1].set_title("Total (view 0)")
+    axes[2].imshow(scatter_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+    axes[2].set_title("Scatter (view 0)")
+    axes[3].imshow(primary_view0, cmap="magma", vmin=proj_vmin, vmax=proj_vmax)
+    axes[3].set_title("Primary (view 0)")
+    for ax in axes:
+        ax.axis("off")
     plt.tight_layout()
-    plt.savefig(output_dir / "phantom_and_attenuation.png")
+    plot_path = output_dir / "basic_simulation_summary.png"
+    fig.savefig(plot_path, dpi=140)
+    plt.close(fig)
 
-    fig, ax = plt.subplots(1, 3, figsize=(18, 6))
-    axim0 = ax[0].imshow(get_array(total_counts)[0, :, 32, :], cmap="hot")
-    ax[0].set_title("Total Counts (Projection)")
-    axim1 = ax[1].imshow(get_array(scatter_counts)[0, :, 32, :], cmap="hot")
-    ax[1].set_title("Scatter Counts (Projection)")
-    axim2 = ax[2].imshow(get_array(primary_counts)[0, :, 32, :], cmap="hot")
-    ax[2].set_title("Primary Counts (Projection)")
-    plt.colorbar(axim0, ax=ax[0])
-    plt.colorbar(axim1, ax=ax[1])
-    plt.colorbar(axim2, ax=ax[2])
-    plt.tight_layout()
-    plt.savefig(output_dir / "projection_results.png")
-
-    print("Visualization plots saved!")
+    print(f"Output directory: {output_dir}")
+    print(f"Source file: {source_path}")
+    print(f"Density file: {density_path}")
+    print(f"Total counts: {float(total.sum()):.3f}")
+    print(f"Scatter counts: {float(scatter.sum()):.3f}")
+    print(f"Primary counts: {float(primary.sum()):.3f}")
+    print(f"Summary plot: {plot_path}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run basic SIMIND simulation",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--backend",
-        type=str,
-        choices=["sirf", "stir"],
-        help="Force a specific backend (sirf or stir). If not specified, auto-detection is used.",
-    )
-    args = parser.parse_args()
-
-    # Set backend if specified
-    if args.backend:
-        set_backend(args.backend)
-
-    # Print which backend is being used
-    print(f"\n{'=' * 60}")
-    print(f"Using backend: {get_backend().upper()}")
-    print(f"{'=' * 60}\n")
-
     main()

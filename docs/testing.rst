@@ -3,7 +3,7 @@
 Testing
 =======
 
-This document explains the testing strategy for SIRF-SIMIND-Connection, which handles the challenge of testing code that depends on external dependencies (SIRF and SIMIND) that may not be available in CI environments.
+This document explains the testing strategy for SIRF-SIMIND-Connection, which handles the challenge of testing code that depends on optional external dependencies (SIRF, STIR, SIMIND, and PyTomography) that may not be available in every environment.
 
 Test Organization
 -----------------
@@ -15,7 +15,9 @@ Tests are organized using pytest markers to indicate their dependencies:
 
 * ``@pytest.mark.unit`` - Pure unit tests with no external dependencies (CI-friendly)
 * ``@pytest.mark.requires_sirf`` - Tests that require SIRF to be installed
+* ``@pytest.mark.requires_stir`` - Tests that require STIR Python to be installed
 * ``@pytest.mark.requires_simind`` - Tests that require SIMIND command-line tool
+* ``@pytest.mark.requires_pytomography`` - Tests that require PyTomography to be installed
 * ``@pytest.mark.integration`` - Integration tests (may be slow)
 * ``@pytest.mark.ci_skip`` - Tests to skip in CI environments
 
@@ -25,6 +27,8 @@ Automatic Dependency Detection
 The test suite automatically detects available dependencies:
 
 * **SIRF detection**: Attempts to ``import sirf``
+* **STIR detection**: Attempts to ``import stir`` and ``import stirextra``
+* **PyTomography detection**: Attempts to ``import pytomography``
 * **SIMIND detection**: Checks if ``simind`` command is available
 * **CI detection**: Checks ``CI`` or ``GITHUB_ACTIONS`` environment variables
 
@@ -58,7 +62,57 @@ The GitHub Actions workflow runs only CI-friendly tests:
 .. code-block:: bash
 
     # CI command (no SIRF/SIMIND dependencies)
-    pytest -m "not requires_sirf and not requires_simind and not ci_skip"
+    pytest -m "not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not ci_skip"
+
+Docker Backend Isolation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use the dedicated backend containers to validate connector separation and run one
+example per backend in isolated environments:
+
+.. code-block:: bash
+
+    bash scripts/run_container_validation.sh
+    bash scripts/run_container_examples.sh
+
+Run only selected groups:
+
+.. code-block:: bash
+
+    bash scripts/run_container_validation.sh --only-core
+    bash scripts/run_container_validation.sh --only-pytomography
+    bash scripts/run_container_examples.sh --only-osem
+
+Override target architecture (or let scripts auto-detect from SIMIND binary):
+
+.. code-block:: bash
+
+    bash scripts/run_container_examples.sh --only-core --docker-platform linux/amd64
+    bash scripts/run_container_validation.sh --with-simind --docker-platform linux/amd64
+
+To include SIMIND-dependent integration/example checks in the validation run:
+
+.. code-block:: bash
+
+    bash scripts/run_container_validation.sh --with-simind
+
+The container scripts check for a repo-local SIMIND executable at
+``./simind/simind`` before running SIMIND-dependent checks. If missing, they
+skip those checks by default. Use ``--require-simind`` to fail fast instead.
+``input.smc`` remains packaged in ``sirf_simind_connection/configs`` and is not
+part of the SIMIND runtime availability check.
+
+SIMIND itself is not bundled with this repository; install it separately from
+the official SIMIND site and manual:
+
+* https://www.msf.lu.se/en/research/simind-monte-carlo-program
+* https://www.msf.lu.se/en/research/simind-monte-carlo-program/manual
+
+The container suite includes ``tests/test_container_library_isolation.py``,
+which asserts that each container can import only its target backend library.
+When SIMIND mode is enabled, it also runs geometry-isolation diagnostics:
+``tests/test_geometry_isolation_forward_projection.py`` and
+``tests/test_osem_geometry_diagnostics.py``.
 
 Alternative CI Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -122,7 +176,7 @@ pytest-ci.ini (CI Environment)
 * Optimized for GitHub Actions environment
 
 tests/conftest.py
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 * Configures pytest markers
 * Implements automatic dependency detection and test skipping
@@ -152,6 +206,11 @@ When adding new tests, use appropriate markers:
     def test_simind_execution():
         """Test that calls SIMIND command."""
         # ... test code that runs simind
+
+    @pytest.mark.requires_pytomography
+    def test_pytomography_path():
+        """Test that uses PyTomography APIs."""
+        # ... test code that imports pytomography
 
 This ensures your tests will be properly categorized and run in the appropriate environments.
 
