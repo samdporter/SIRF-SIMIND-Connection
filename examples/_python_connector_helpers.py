@@ -71,7 +71,9 @@ def configure_voxel_input(
 
     source_max = float(source.max())
     if source_max > 0:
-        source_scaled = source / source_max * (MAX_SOURCE * float(connector.quantization_scale))
+        source_scaled = (
+            source / source_max * (MAX_SOURCE * float(connector.quantization_scale))
+        )
     else:
         source_scaled = np.zeros_like(source)
     source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
@@ -86,7 +88,9 @@ def configure_voxel_input(
         density = attenuation_to_density(mu_map, photon_energy) * 1000.0
     else:
         density = np.zeros_like(mu_map)
-    density_u16 = np.clip(np.round(density), 0, np.iinfo(np.uint16).max).astype(np.uint16)
+    density_u16 = np.clip(np.round(density), 0, np.iinfo(np.uint16).max).astype(
+        np.uint16
+    )
 
     dns_prefix = f"{connector.output_prefix}_dns"
     density_path = connector.output_dir / f"{dns_prefix}.dmi"

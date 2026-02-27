@@ -148,7 +148,10 @@ class STIRSPECTAcquisitionDataBuilder:
                 try:
                     return create_acquisition_data(header_path)
                 finally:
-                    if previous_backend is not None and previous_backend != self.backend:
+                    if (
+                        previous_backend is not None
+                        and previous_backend != self.backend
+                    ):
                         try:
                             BACKENDS.detection.set_backend(previous_backend)
                         except Exception:

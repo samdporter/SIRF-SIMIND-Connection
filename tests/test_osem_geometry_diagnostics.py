@@ -316,9 +316,7 @@ def test_osem_projection_header_matches_source_sampling(backend: str) -> None:
     assert math.isclose(proj_vy, source_geom["vy"], rel_tol=0.0, abs_tol=1e-3)
 
     # Rotation metadata should always be present in projection headers used for OSEM.
-    _header_value(
-        projection_header, "!direction of rotation", "direction of rotation"
-    )
+    _header_value(projection_header, "!direction of rotation", "direction of rotation")
     _header_value(projection_header, "start angle", "!start angle")
     projections = int(float(_header_value(projection_header, "!number of projections")))
     assert projections > 0
@@ -328,9 +326,7 @@ def test_osem_projection_header_matches_source_sampling(backend: str) -> None:
 @pytest.mark.ci_skip
 @pytest.mark.requires_pytomography
 def test_pytomography_osem_reconstruction_not_axis_collapsed() -> None:
-    recon_path = (
-        ROOT / "output" / "pytomography_adaptor_osem" / "pytomo_osem_recon.npy"
-    )
+    recon_path = ROOT / "output" / "pytomography_adaptor_osem" / "pytomo_osem_recon.npy"
     _require_output_files(
         [recon_path],
         hint=(

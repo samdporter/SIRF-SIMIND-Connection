@@ -50,9 +50,7 @@ def main() -> None:
     orders = [0, 0, 0]
     write_windows(connector, lowers, uppers, orders)
     connector.add_config_value(1, 208.0)
-    add_standard_runtime(
-        connector, photon_multiplier=1, seed=12345, nuclide="lu177"
-    )
+    add_standard_runtime(connector, photon_multiplier=1, seed=12345, nuclide="lu177")
 
     outputs = connector.run()
 

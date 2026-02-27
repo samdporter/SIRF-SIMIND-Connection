@@ -112,10 +112,7 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_cil)
 
         # Skip PyTomography-dependent tests if PyTomography not available
-        if (
-            "requires_pytomography" in item.keywords
-            and not pytomography_available
-        ):
+        if "requires_pytomography" in item.keywords and not pytomography_available:
             item.add_marker(skip_pytomography)
 
         # Skip SETR-dependent tests if SETR not available

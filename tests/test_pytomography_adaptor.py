@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+
 torch = pytest.importorskip("torch")
 
 import sirf_simind_connection.connectors.pytomography_adaptor as pytomo_mod
@@ -53,7 +54,9 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
     assert "tot_w1" in outputs
     assert tuple(outputs["tot_w1"].shape) == (1, 8, 5, 8)
     assert torch.equal(outputs["tot_w1"], torch.from_numpy(projection))
-    assert connector.get_output_header_path("tot_w1") == fake_result.header_path.resolve()
+    assert (
+        connector.get_output_header_path("tot_w1") == fake_result.header_path.resolve()
+    )
 
 
 @pytest.mark.unit
@@ -149,7 +152,9 @@ def test_pytomography_adaptor_uses_mu_map_in_pytomography_axes(
 
     monkeypatch.setattr(pytomo_mod, "pytomo_simind", DummySimind)
     monkeypatch.setattr(pytomo_mod, "SPECTSystemMatrix", DummySystemMatrix)
-    monkeypatch.setattr(pytomo_mod, "SPECTAttenuationTransform", DummyAttenuationTransform)
+    monkeypatch.setattr(
+        pytomo_mod, "SPECTAttenuationTransform", DummyAttenuationTransform
+    )
     monkeypatch.setattr(pytomo_mod, "SPECTPSFTransform", None)
 
     system_matrix = connector.build_system_matrix(

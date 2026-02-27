@@ -397,7 +397,9 @@ def main() -> None:
     scatt_dir.mkdir(parents=True, exist_ok=True)
     pen_dir.mkdir(parents=True, exist_ok=True)
 
-    scatt_outputs = _run_case(scatt_dir, "scatt_case01", source, mu_map, scoring_routine=1)
+    scatt_outputs = _run_case(
+        scatt_dir, "scatt_case01", source, mu_map, scoring_routine=1
+    )
     pen_outputs = _run_case(pen_dir, "pen_case01", source, mu_map, scoring_routine=4)
 
     scatt_total = scatt_outputs.get("tot_w1", scatt_outputs[sorted(scatt_outputs)[0]])

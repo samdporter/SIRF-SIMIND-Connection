@@ -226,7 +226,9 @@ class SimindPythonConnector(BaseConnector):
 
     def _is_penetrate_routine(self) -> bool:
         try:
-            scoring_routine = int(round(float(self.config.get_value("scoring_routine"))))
+            scoring_routine = int(
+                round(float(self.config.get_value("scoring_routine")))
+            )
         except Exception:
             return False
         return scoring_routine == ScoringRoutine.PENETRATE.value

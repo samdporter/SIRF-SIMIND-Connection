@@ -11,8 +11,8 @@ from sirf_simind_connection.core.components import (
     RotationParameters,
 )
 from sirf_simind_connection.core.file_managers import OrbitFileManager
-from sirf_simind_connection.core.types import SIMIND_VOXEL_UNIT_CONVERSION
 from sirf_simind_connection.core.types import (
+    SIMIND_VOXEL_UNIT_CONVERSION,
     PenetrateOutputType,
     ScoringRoutine,
     ValidationError,

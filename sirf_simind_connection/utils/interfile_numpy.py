@@ -166,7 +166,9 @@ def load_interfile_array(header_path: HeaderInput) -> InterfileArray:
     # [leading_axis, axis2, axis1]. If headers only declare matrix sizes [1],[2],
     # recover the leading axis from projection count fields or payload length.
     if len(shape) == 2:
-        leading_count = _infer_leading_axis_count(metadata, expected_elements, flat.size)
+        leading_count = _infer_leading_axis_count(
+            metadata, expected_elements, flat.size
+        )
         if leading_count is not None:
             shape = (leading_count, *shape)
             expected_elements = int(np.prod(shape))

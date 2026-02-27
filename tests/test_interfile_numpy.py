@@ -116,7 +116,9 @@ def test_load_interfile_array_prefers_header_projection_count(tmp_path: Path):
 
 
 @pytest.mark.unit
-def test_load_interfile_array_infers_leading_axis_when_header_omits_count(tmp_path: Path):
+def test_load_interfile_array_infers_leading_axis_when_header_omits_count(
+    tmp_path: Path,
+):
     data = np.arange(3 * 3 * 4, dtype=np.float32).reshape(3, 3, 4)
     data_path = tmp_path / "projection.a00"
     header_path = tmp_path / "projection.hs"

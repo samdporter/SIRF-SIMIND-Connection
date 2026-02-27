@@ -46,9 +46,7 @@ def main() -> None:
         scoring_routine=1,
     )
     write_windows(connector, [126.0], [154.0], [0])
-    add_standard_runtime(
-        connector, photon_multiplier=1, seed=12345, nuclide="tc99m"
-    )
+    add_standard_runtime(connector, photon_multiplier=1, seed=12345, nuclide="tc99m")
 
     outputs = connector.run()
     total = outputs["tot_w1"].projection

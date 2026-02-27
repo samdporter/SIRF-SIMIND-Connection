@@ -57,6 +57,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Create a STIR projection object from DICOM"
     )
-    parser.add_argument("dicom_file", type=str, help="Path to SPECT projection DICOM (.dcm)")
+    parser.add_argument(
+        "dicom_file", type=str, help="Path to SPECT projection DICOM (.dcm)"
+    )
     args = parser.parse_args()
     main(args.dicom_file)

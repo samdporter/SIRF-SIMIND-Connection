@@ -12,9 +12,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-from sirf_simind_connection import SimindPythonConnector, configs
-
 from _python_connector_helpers import (
     add_standard_runtime,
     build_small_phantom_zyx,
@@ -23,6 +20,8 @@ from _python_connector_helpers import (
     require_simind,
     write_windows,
 )
+
+from sirf_simind_connection import SimindPythonConnector, configs
 
 
 def _run_case(

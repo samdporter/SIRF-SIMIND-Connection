@@ -11,6 +11,7 @@ from pathlib import Path
 
 from sirf_simind_connection import SimulationConfig, configs
 
+
 try:
     from sirf_simind_connection.backends import get_backend, set_backend
 except ImportError:  # backend libraries intentionally absent in core container

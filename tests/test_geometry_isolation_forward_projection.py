@@ -328,7 +328,9 @@ def test_enlargement_is_model_mismatch_not_grid_scaling(case_backend: str) -> No
     recon_ideal = _run_osem_reconstruction(source, ideal_proj)
 
     source_mid = _load_array(source)[_load_array(source).shape[0] // 2]
-    measured_mid = _load_array(recon_measured)[_load_array(recon_measured).shape[0] // 2]
+    measured_mid = _load_array(recon_measured)[
+        _load_array(recon_measured).shape[0] // 2
+    ]
     ideal_mid = _load_array(recon_ideal)[_load_array(recon_ideal).shape[0] // 2]
 
     source_r = _equivalent_radius(source_mid)

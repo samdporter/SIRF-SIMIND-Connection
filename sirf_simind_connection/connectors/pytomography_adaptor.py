@@ -38,8 +38,10 @@ except ImportError:  # pragma: no cover - optional dependency
 try:  # pragma: no cover - optional dependency
     from pytomography.io.SPECT import simind as pytomo_simind
     from pytomography.projectors.SPECT import SPECTSystemMatrix
-    from pytomography.transforms.SPECT import SPECTAttenuationTransform
-    from pytomography.transforms.SPECT import SPECTPSFTransform
+    from pytomography.transforms.SPECT import (
+        SPECTAttenuationTransform,
+        SPECTPSFTransform,
+    )
 except ImportError:  # pragma: no cover - optional dependency
     pytomo_simind = None  # type: ignore[assignment]
     SPECTSystemMatrix = None  # type: ignore[assignment]
@@ -85,7 +87,9 @@ class PyTomographySimindAdaptor(BaseConnector):
 
         self._source: Optional[torch.Tensor] = None
         self._mu_map: Optional[torch.Tensor] = None
-        self._energy_windows: Optional[tuple[list[float], list[float], list[int]]] = None
+        self._energy_windows: Optional[tuple[list[float], list[float], list[int]]] = (
+            None
+        )
         self._outputs: Optional[dict[str, torch.Tensor]] = None
         self._output_metadata: Optional[dict[str, Mapping[str, str]]] = None
         self._output_header_paths: Optional[dict[str, Path]] = None
@@ -219,9 +223,7 @@ class PyTomographySimindAdaptor(BaseConnector):
         self, key: str = "tot_w1", use_psf: bool = True, use_attenuation: bool = True
     ) -> Any:
         if pytomo_simind is None or SPECTSystemMatrix is None:
-            raise ImportError(
-                "pytomography is required for build_system_matrix()."
-            )
+            raise ImportError("pytomography is required for build_system_matrix().")
         header_path = self.get_output_header_path(key)
         object_meta, proj_meta = pytomo_simind.get_metadata(str(header_path))
 
@@ -231,7 +233,9 @@ class PyTomographySimindAdaptor(BaseConnector):
                 if self._mu_map is not None:
                     attenuation_map = self._mu_map.to(dtype=torch.float32).contiguous()
                 else:
-                    attenuation_map = pytomo_simind.get_attenuation_map(str(header_path))
+                    attenuation_map = pytomo_simind.get_attenuation_map(
+                        str(header_path)
+                    )
                 obj2obj_transforms.append(
                     SPECTAttenuationTransform(attenuation_map=attenuation_map)
                 )
@@ -343,7 +347,9 @@ class PyTomographySimindAdaptor(BaseConnector):
         source_max = float(source_np.max())
         if source_max > 0:
             source_np = (
-                source_np / source_max * (MAX_SOURCE * float(self.python_connector.quantization_scale))
+                source_np
+                / source_max
+                * (MAX_SOURCE * float(self.python_connector.quantization_scale))
             )
         source_u16 = np.clip(np.round(source_np), 0, MAX_SOURCE).astype(np.uint16)
 
@@ -369,7 +375,10 @@ class PyTomographySimindAdaptor(BaseConnector):
         cfg.set_data_file(5, dns_prefix)
 
     def _write_window_file(
-        self, lower_bounds: list[float], upper_bounds: list[float], scatter_orders: list[int]
+        self,
+        lower_bounds: list[float],
+        upper_bounds: list[float],
+        scatter_orders: list[int],
     ) -> None:
         window_path = str(self.output_dir / self.output_prefix)
         create_window_file(lower_bounds, upper_bounds, scatter_orders, window_path)

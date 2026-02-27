@@ -68,6 +68,5 @@ def test_all_tests_have_dependency_or_category_marker() -> None:
 
     assert not missing, (
         "Every test must have a dependency/category marker via function decorator "
-        "or module-level pytestmark. Missing:\n- "
-        + "\n- ".join(missing)
+        "or module-level pytestmark. Missing:\n- " + "\n- ".join(missing)
     )
