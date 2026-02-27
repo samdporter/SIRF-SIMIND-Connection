@@ -155,14 +155,16 @@ class STIRSPECTImageDataBuilder:
 
         if self.backend == "stir":
             raise ImportError(
-                "Requested STIR backend for image loading, but backend wrappers are unavailable."
+                "Requested STIR backend for image loading, "
+                "but backend wrappers are unavailable."
             )
 
         if SIRF_AVAILABLE:
             return ImageData(header_path)
 
         raise ImportError(
-            "Unable to load image data: neither SIRF nor STIR Python backends are available."
+            "Unable to load image data: neither SIRF nor STIR Python "
+            "backends are available."
         )
 
     @staticmethod

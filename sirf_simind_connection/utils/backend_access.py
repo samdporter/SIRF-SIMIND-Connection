@@ -22,9 +22,11 @@ def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
 
     Returns:
         Tuple of (BACKEND_AVAILABLE, interfaces_dict) where interfaces_dict contains:
-        - 'factories': Backend factory functions (create_acquisition_data, create_image_data)
+        - 'factories': Backend factory functions
+          (create_acquisition_data, create_image_data)
         - 'types': Interface type hints (AcquisitionDataInterface, ImageDataInterface)
-        - 'wrappers': Wrapping utilities (ensure_acquisition_interface, ensure_image_interface, etc.)
+        - 'wrappers': Wrapping utilities
+          (ensure_acquisition_interface, ensure_image_interface, etc.)
         - 'detection': Backend detection functions (detect_*_backend, get/set_backend)
 
     Example:

@@ -12,7 +12,10 @@ import numpy as np
 
 
 class ImageDataInterface(ABC):
-    """Abstract interface for image data objects (ImageData or FloatVoxelsOnCartesianGrid)."""
+    """Abstract interface for image data objects.
+
+    Includes SIRF ``ImageData`` and STIR ``FloatVoxelsOnCartesianGrid`` types.
+    """
 
     @classmethod
     @abstractmethod
@@ -123,7 +126,11 @@ class ImageDataInterface(ABC):
     @property
     @abstractmethod
     def native_object(self):
-        """Get the underlying native object (ImageData or FloatVoxelsOnCartesianGrid)."""
+        """Get the underlying native object.
+
+        Returns either SIRF ``ImageData`` or STIR
+        ``FloatVoxelsOnCartesianGrid``.
+        """
         pass
 
     # Arithmetic operations

@@ -3,15 +3,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-
-torch = pytest.importorskip("torch")
-
 import sirf_simind_connection.connectors.pytomography_adaptor as pytomo_mod
 from sirf_simind_connection.configs import get
 from sirf_simind_connection.connectors.python_connector import ProjectionResult
 from sirf_simind_connection.connectors.pytomography_adaptor import (
     PyTomographySimindAdaptor,
 )
+
+
+torch = pytest.importorskip("torch")
 
 
 pytestmark = pytest.mark.requires_pytomography

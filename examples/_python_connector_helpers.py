@@ -14,7 +14,8 @@ from sirf_simind_connection.utils.simind_utils import create_window_file
 def require_simind() -> None:
     if shutil.which("simind") is None:
         raise RuntimeError(
-            "SIMIND executable not found in PATH. Install SIMIND before running this example."
+            "SIMIND executable not found in PATH. "
+            "Install SIMIND before running this example."
         )
 
 

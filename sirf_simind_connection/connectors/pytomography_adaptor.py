@@ -293,7 +293,8 @@ class PyTomographySimindAdaptor(BaseConnector):
             raise TypeError(f"{name} must be a torch.Tensor")
         if value.ndim != 3:
             raise ValueError(
-                f"{name} must be a 3D tensor with shape (x, y, z); got {tuple(value.shape)}"
+                f"{name} must be a 3D tensor with shape (x, y, z); "
+                f"got {tuple(value.shape)}"
             )
         return value.detach().cpu().to(dtype=torch.float32).contiguous()
 
@@ -327,7 +328,8 @@ class PyTomographySimindAdaptor(BaseConnector):
         """Convert SIMIND image order ``(z, y, x)`` to PyTomography ``(x, y, z)``."""
         if value.ndim != 3:
             raise ValueError(
-                f"Expected 3D tensor for axis conversion, got shape {tuple(value.shape)}"
+                "Expected 3D tensor for axis conversion, "
+                f"got shape {tuple(value.shape)}"
             )
         return value.permute(2, 1, 0).contiguous().to(dtype=torch.float32)
 
@@ -336,7 +338,8 @@ class PyTomographySimindAdaptor(BaseConnector):
         """Convert PyTomography object order ``(x, y, z)`` to SIMIND ``(z, y, x)``."""
         if value.ndim != 3:
             raise ValueError(
-                f"Expected 3D tensor for axis conversion, got shape {tuple(value.shape)}"
+                "Expected 3D tensor for axis conversion, "
+                f"got shape {tuple(value.shape)}"
             )
         return value.permute(2, 1, 0).contiguous().to(dtype=torch.float32)
 

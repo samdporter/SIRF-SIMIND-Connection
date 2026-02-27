@@ -202,7 +202,8 @@ def _load_npy_float(path: Path) -> tuple[list[float], tuple[int, ...]]:
     expected_bytes = count * item_size
     if len(payload) != expected_bytes:
         raise AssertionError(
-            f"Unexpected payload size in {path}: expected {expected_bytes}, got {len(payload)}"
+            f"Unexpected payload size in {path}: expected {expected_bytes}, "
+            f"got {len(payload)}"
         )
 
     fmt = "<f" if item_size == 4 else "<d"

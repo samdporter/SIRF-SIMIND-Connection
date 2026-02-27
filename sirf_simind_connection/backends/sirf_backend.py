@@ -11,10 +11,10 @@ import numpy as np
 
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 
+from .base import AcquisitionDataInterface, ImageDataInterface
+
 
 ImageData, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
-
-from .base import AcquisitionDataInterface, ImageDataInterface
 
 
 class SirfImageData(ImageDataInterface):
@@ -230,7 +230,8 @@ class SirfAcquisitionData(AcquisitionDataInterface):
             Tuple[float, float]: (lower_threshold, upper_threshold) in keV
 
         Raises:
-            NotImplementedError: SIRF backend does not currently support accessing energy window bounds
+            NotImplementedError: SIRF backend does not currently support
+                accessing energy window bounds.
         """
         raise NotImplementedError(
             "SIRF backend does not currently support accessing energy window bounds. "

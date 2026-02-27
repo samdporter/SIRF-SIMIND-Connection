@@ -17,6 +17,7 @@ Usage:
     set_backend("stir")  # Force STIR Python
 """
 
+import importlib
 import logging
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
@@ -141,14 +142,14 @@ def get_backend() -> str:
 
     # Auto-detect
     try:
-        import sirf.STIR
+        importlib.import_module("sirf.STIR")
 
         _backend = "sirf"
         logger.info("Auto-detected SIRF backend")
     except ImportError:
         try:
-            import stir
-            import stirextra
+            importlib.import_module("stir")
+            importlib.import_module("stirextra")
 
             _backend = "stir"
             logger.info("Auto-detected STIR Python backend")
@@ -182,13 +183,13 @@ def set_backend(backend: Literal["sirf", "stir"]) -> None:
     # Verify the backend is available
     if backend == "sirf":
         try:
-            import sirf.STIR
+            importlib.import_module("sirf.STIR")
         except ImportError:
             raise ImportError("SIRF is not available")
     elif backend == "stir":
         try:
-            import stir
-            import stirextra
+            importlib.import_module("stir")
+            importlib.import_module("stirextra")
         except ImportError:
             raise ImportError("STIR Python is not available")
 
@@ -355,7 +356,8 @@ def create_acquisition_data(
         if filepath_or_object is None:
             raise NotImplementedError(
                 "Creating empty STIR ProjData requires exam_info and proj_data_info. "
-                "Please provide a filepath or use StirAcquisitionData.create_empty() directly."
+                "Please provide a filepath or use "
+                "StirAcquisitionData.create_empty() directly."
             )
         elif isinstance(filepath_or_object, str):
             return StirAcquisitionData.read_from_file(filepath_or_object)

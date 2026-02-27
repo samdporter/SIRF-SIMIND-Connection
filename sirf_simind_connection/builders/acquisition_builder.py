@@ -7,16 +7,14 @@ from typing import Literal, Optional
 import numpy as np
 import pydicom
 
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+
 # Conditional import for SIRF types
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
+from sirf_simind_connection.utils.io_utils import temporary_directory
 
 
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
-
-# Import backend factory using centralized access
-from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-from sirf_simind_connection.utils.io_utils import temporary_directory
-
 
 # Unpack interfaces needed by builder
 create_acquisition_data = BACKENDS.factories.create_acquisition_data
@@ -168,7 +166,8 @@ class STIRSPECTAcquisitionDataBuilder:
             return AcquisitionData(header_path)
 
         raise ImportError(
-            "Unable to load acquisition data: neither SIRF nor STIR Python backends are available."
+            "Unable to load acquisition data: neither SIRF nor STIR Python "
+            "backends are available."
         )
 
     @staticmethod

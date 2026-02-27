@@ -23,7 +23,7 @@ AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
 
 
 class BackendInputAdapter:
-    """Handles backend detection, wrapping, and consistency enforcement for simulator inputs.
+    """Handle backend detection and wrapping for simulator inputs.
 
     This adapter eliminates duplicate backend handling logic across set_source,
     set_mu_map, and set_template_sinogram by providing a single place to:

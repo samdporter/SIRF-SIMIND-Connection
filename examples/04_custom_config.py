@@ -216,7 +216,10 @@ if __name__ == "__main__":
         "--backend",
         type=str,
         choices=["sirf", "stir"],
-        help="Force a specific backend (sirf or stir). If not specified, auto-detection is used.",
+        help=(
+            "Force a specific backend (sirf or stir). "
+            "If not specified, auto-detection is used."
+        ),
     )
     args = parser.parse_args()
 
@@ -224,7 +227,8 @@ if __name__ == "__main__":
     if args.backend:
         if set_backend is None:
             print(
-                f"Backend '{args.backend}' requested, but backend libraries are not installed."
+                f"Backend '{args.backend}' requested, "
+                "but backend libraries are not installed."
             )
         else:
             set_backend(args.backend)

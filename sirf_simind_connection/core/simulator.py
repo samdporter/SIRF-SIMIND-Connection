@@ -9,15 +9,10 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
+from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
+
 # Import backend factory and interfaces using centralized access
 from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-
-
-to_native_acquisition = BACKENDS.wrappers.to_native_acquisition
-AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
-ImageDataInterface = BACKENDS.types.ImageDataInterface
-
-from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.utils.stir_utils import extract_attributes_from_stir
 
 from .backend_adapter import BackendInputAdapter
@@ -41,6 +36,11 @@ from .types import (
     ScoringRoutine,
     ValidationError,
 )
+
+
+to_native_acquisition = BACKENDS.wrappers.to_native_acquisition
+AcquisitionDataInterface = BACKENDS.types.AcquisitionDataInterface
+ImageDataInterface = BACKENDS.types.ImageDataInterface
 
 
 class SimindSimulator:
@@ -583,10 +583,15 @@ class SimindSimulator:
                     self.orbit_radii, self.output_prefix, center_of_rotation
                 )
             else:
+                orbit_radii_label = (
+                    "empty"
+                    if not self.orbit_radii
+                    else f"{len(self.orbit_radii)} values"
+                )
                 self.logger.warning(
                     "Skipping orbit file creation: "
                     f"non_circular_orbit={self.non_circular_orbit}, "
-                    f"orbit_radii={'empty' if not self.orbit_radii else f'{len(self.orbit_radii)} values'}"
+                    f"orbit_radii={orbit_radii_label}"
                 )
 
             # Execute simulation

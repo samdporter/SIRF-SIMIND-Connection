@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sirf_simind_connection.core.types import PenetrateOutputType
+from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 from sirf_simind_connection.utils.import_helpers import get_sirf_types
 from sirf_simind_connection.utils.interfile_parser import (
     InterfileHeader,
@@ -14,10 +15,6 @@ from sirf_simind_connection.utils.interfile_parser import (
 
 # Conditional import for SIRF to avoid CI dependencies
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()
-
-# Import backend factory and interfaces using centralized access
-from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-
 
 # Unpack interfaces needed by converter
 create_acquisition_data = BACKENDS.factories.create_acquisition_data
@@ -746,7 +743,8 @@ class SimindToStirConverter:
             ratio = output_radius / template_radius
             if 1 / tolerance_factor <= ratio <= tolerance_factor:
                 self.logger.debug(
-                    f"Radius validation passed: template={template_radius}, output={output_radius}"
+                    "Radius validation passed: "
+                    f"template={template_radius}, output={output_radius}"
                 )
                 return True
 

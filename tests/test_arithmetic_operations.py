@@ -77,7 +77,8 @@ def test_negation(acquisition_template):
 def test_complex_expression(acquisition_template):
     """Test the complex expression from 03_multi_window.py example."""
     # This is the operation that originally failed:
-    # scatter_estimate = lower_scatter * (window_widths[1] / (2 * window_widths[0])) + upper_scatter * (window_widths[1] / (2 * window_widths[2]))
+    # scatter_estimate = lower_scatter * (window_widths[1] / (2 * window_widths[0]))
+    #                    + upper_scatter * (window_widths[1] / (2 * window_widths[2]))
 
     window_widths = [6, 28, 6]  # keV
     lower_scatter = acquisition_template.clone()

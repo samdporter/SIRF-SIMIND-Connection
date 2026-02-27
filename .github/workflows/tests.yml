@@ -28,7 +28,7 @@ jobs:
           ruff format --check .
       - name: Run CI-friendly tests
         run: |
-          python -m pytest tests/ -v -m "not requires_sirf and not requires_simind and not ci_skip" --cov=sirf_simind_connection --cov-report=xml
+          python -m pytest tests/ -v -m "not integration and not requires_sirf and not requires_stir and not requires_simind and not requires_pytomography and not requires_cil and not requires_setr and not ci_skip" --cov=sirf_simind_connection --cov-report=xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:

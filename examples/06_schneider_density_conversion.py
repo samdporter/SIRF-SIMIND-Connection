@@ -303,14 +303,20 @@ if __name__ == "__main__":
         "--backend",
         type=str,
         choices=["sirf", "stir"],
-        help="Force a specific backend (sirf or stir). Note: This example doesn't use backends but the argument is provided for consistency.",
+        help=(
+            "Force a specific backend (sirf or stir). "
+            "Note: This example doesn't use backends, but the argument is "
+            "provided for consistency."
+        ),
     )
     args = parser.parse_args()
 
-    # Note: This example doesn't actually use the backend, but we accept the argument for consistency
+    # This example does not use backend implementations directly, but accepts
+    # the argument for consistency with the rest of the examples.
     if args.backend:
         print(
-            f"Note: Backend argument '{args.backend}' specified but not used in this example."
+            f"Note: Backend argument '{args.backend}' "
+            "specified but not used in this example."
         )
 
     main()
