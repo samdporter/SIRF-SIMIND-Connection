@@ -1,7 +1,5 @@
 """
 SIRF ⇄ SIMIND connector/adaptor API.
-
->>> from sirf_simind_connection import SimindSimulator
 """
 
 import importlib
@@ -28,14 +26,13 @@ def __getattr__(name: str) -> Any:
         mod = importlib.import_module(f".{name}", __name__)
         globals()[name] = mod
         return mod
-    elif name in {"SimindSimulator", "SimulationConfig"}:
+    elif name in {"SimulationConfig"}:
         core = importlib.import_module(".core", __name__)
         obj = getattr(core, name)
         globals()[name] = obj
         return obj
     elif name in {
         "BaseConnector",
-        "NativeBackendConnector",
         "NumpyConnector",
         "PyTomographySimindAdaptor",
         "ProjectionResult",
@@ -53,7 +50,6 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "BaseConnector",
-    "NativeBackendConnector",
     "NumpyConnector",
     "ProjectionResult",
     "PyTomographySimindAdaptor",
@@ -61,7 +57,6 @@ __all__ = [
     "SirfSimindAdaptor",
     "SimindPythonConnector",
     "SimulationConfig",
-    "SimindSimulator",
     "StirSimindAdaptor",
     "builders",
     "configs",

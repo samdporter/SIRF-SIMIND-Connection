@@ -15,11 +15,18 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 
 from sirf_simind_connection.connectors.base import BaseConnector
+from sirf_simind_connection.converters.attenuation import attenuation_to_density
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
-from sirf_simind_connection.core.components import SimindExecutor
 from sirf_simind_connection.core.config import RuntimeSwitches, SimulationConfig
-from sirf_simind_connection.core.types import PenetrateOutputType, ScoringRoutine
+from sirf_simind_connection.core.executor import SimindExecutor
+from sirf_simind_connection.core.types import (
+    MAX_SOURCE,
+    SIMIND_VOXEL_UNIT_CONVERSION,
+    PenetrateOutputType,
+    ScoringRoutine,
+)
 from sirf_simind_connection.utils.interfile_numpy import load_interfile_array
+from sirf_simind_connection.utils.simind_utils import create_window_file
 
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
@@ -94,6 +101,109 @@ class SimindPythonConnector(BaseConnector):
     def add_config_value(self, index: int, value: Any) -> None:
         """Set a SIMIND config value."""
         self.config.set_value(index, value)
+
+    def configure_voxel_phantom(
+        self,
+        source: np.ndarray,
+        mu_map: np.ndarray,
+        voxel_size_mm: float = 4.0,
+        scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+    ) -> tuple[Path, Path]:
+        """
+        Configure voxel geometry and write source/density input files.
+
+        Returns:
+            Tuple of (source_file_path, density_file_path).
+        """
+        source_array = np.asarray(source, dtype=np.float32)
+        mu_map_array = np.asarray(mu_map, dtype=np.float32)
+
+        if source_array.ndim != 3 or mu_map_array.ndim != 3:
+            raise ValueError("source and mu_map must both be 3D arrays")
+        if source_array.shape != mu_map_array.shape:
+            raise ValueError("source and mu_map must have identical shapes")
+
+        vox_cm = float(voxel_size_mm) / SIMIND_VOXEL_UNIT_CONVERSION
+        if vox_cm <= 0:
+            raise ValueError("voxel_size_mm must be > 0")
+
+        routine = (
+            ScoringRoutine(scoring_routine)
+            if isinstance(scoring_routine, int)
+            else scoring_routine
+        )
+        dim_z, dim_y, dim_x = (int(v) for v in source_array.shape)
+
+        cfg = self.config
+        cfg.set_flag(5, True)
+        cfg.set_value(15, -1)
+        cfg.set_value(14, -1)
+        cfg.set_flag(14, True)
+        cfg.set_value(84, routine.value)
+
+        # Source geometry
+        cfg.set_value(2, dim_z * vox_cm / 2.0)
+        cfg.set_value(3, dim_x * vox_cm / 2.0)
+        cfg.set_value(4, dim_y * vox_cm / 2.0)
+        cfg.set_value(28, vox_cm)
+        cfg.set_value(76, dim_x)
+        cfg.set_value(77, dim_y)
+
+        # Density geometry
+        cfg.set_value(5, dim_z * vox_cm / 2.0)
+        cfg.set_value(6, dim_x * vox_cm / 2.0)
+        cfg.set_value(7, dim_y * vox_cm / 2.0)
+        cfg.set_value(31, vox_cm)
+        cfg.set_value(33, 1)
+        cfg.set_value(34, dim_z)
+        cfg.set_value(78, dim_x)
+        cfg.set_value(79, dim_y)
+
+        self.runtime_switches.set_switch("PX", vox_cm)
+
+        source_max = float(source_array.max())
+        if source_max > 0:
+            source_scaled = (
+                source_array / source_max * (MAX_SOURCE * self.quantization_scale)
+            )
+        else:
+            source_scaled = np.zeros_like(source_array)
+        source_u16 = np.clip(np.round(source_scaled), 0, MAX_SOURCE).astype(np.uint16)
+
+        src_prefix = f"{self.output_prefix}_src"
+        source_path = self.output_dir / f"{src_prefix}.smi"
+        source_u16.tofile(source_path)
+        cfg.set_data_file(6, src_prefix)
+
+        if cfg.get_flag(11):
+            photon_energy = float(cfg.get_value("photon_energy"))
+            density = attenuation_to_density(mu_map_array, photon_energy) * 1000.0
+        else:
+            density = np.zeros_like(mu_map_array)
+
+        density_u16 = np.clip(np.round(density), 0, np.iinfo(np.uint16).max).astype(
+            np.uint16
+        )
+        dns_prefix = f"{self.output_prefix}_dns"
+        density_path = self.output_dir / f"{dns_prefix}.dmi"
+        density_u16.tofile(density_path)
+        cfg.set_data_file(5, dns_prefix)
+
+        return source_path, density_path
+
+    def set_energy_windows(
+        self,
+        lower_bounds: Union[float, list[float]],
+        upper_bounds: Union[float, list[float]],
+        scatter_orders: Union[int, list[int]],
+    ) -> None:
+        """Write a SIMIND window file for this connector run."""
+        create_window_file(
+            lower_bounds,
+            upper_bounds,
+            scatter_orders,
+            output_filename=str(self.output_dir / self.output_prefix),
+        )
 
     def run(
         self, runtime_operator: Optional[RuntimeOperator] = None

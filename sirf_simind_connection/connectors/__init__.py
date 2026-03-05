@@ -1,8 +1,6 @@
-"""
-Connector/adaptor APIs layered over the SIMIND execution core.
-"""
+"""Connector/adaptor APIs."""
 
-from .base import BaseConnector, NativeBackendConnector
+from .base import BaseConnector
 from .python_connector import (
     NumpyConnector,
     ProjectionResult,
@@ -16,7 +14,6 @@ from .stir_adaptor import StirSimindAdaptor
 
 __all__ = [
     "BaseConnector",
-    "NativeBackendConnector",
     "NumpyConnector",
     "PyTomographySimindAdaptor",
     "ProjectionResult",

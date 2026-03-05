@@ -213,3 +213,67 @@ def test_python_connector_penetrate_uses_bxx_component_headers(
     result = outputs["all_interactions"]
     assert result.data_path == (tmp_path / "case01.b01").resolve()
     assert result.projection.shape == (2, 3, 4)
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_writes_input_files(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    source = np.zeros((4, 5, 6), dtype=np.float32)
+    source[1:3, 2:4, 2:5] = 1.0
+    mu_map = np.full_like(source, 0.15, dtype=np.float32)
+
+    source_path, density_path = connector.configure_voxel_phantom(
+        source=source,
+        mu_map=mu_map,
+        voxel_size_mm=4.0,
+        scoring_routine=1,
+    )
+
+    assert source_path.exists()
+    assert density_path.exists()
+    assert source_path.name == "case01_src.smi"
+    assert density_path.name == "case01_dns.dmi"
+    assert connector.runtime_switches.switches["PX"] == pytest.approx(0.4)
+
+    source_u16 = np.fromfile(source_path, dtype=np.uint16)
+    density_u16 = np.fromfile(density_path, dtype=np.uint16)
+    assert source_u16.size == source.size
+    assert density_u16.size == mu_map.size
+    assert source_u16.max() > 0
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_rejects_shape_mismatch(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    source = np.zeros((4, 5, 6), dtype=np.float32)
+    mu_map = np.zeros((4, 5, 7), dtype=np.float32)
+    with pytest.raises(ValueError, match="identical shapes"):
+        connector.configure_voxel_phantom(source=source, mu_map=mu_map)
+
+
+@pytest.mark.unit
+def test_python_connector_set_energy_windows_writes_window_file(tmp_path: Path):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+
+    connector.set_energy_windows([126.0], [154.0], [0])
+    window_file = tmp_path / "case01.win"
+    assert window_file.exists()
+
+    lines = [line.strip() for line in window_file.read_text().splitlines() if line]
+    assert lines[0] == "126.0,154.0,0"

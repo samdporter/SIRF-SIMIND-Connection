@@ -1,42 +1,8 @@
-"""
-Numerical core: configuration parsing and simulator.
-"""
+"""Core primitives for connector-first workflows."""
+
+from .config import SimulationConfig
+from .types import ScoringRoutine
 
 
-# Lazy imports to avoid SIRF dependencies in CI
-def __getattr__(name):
-    if name == "ScoringRoutine":
-        from .types import ScoringRoutine
+__all__ = ["ScoringRoutine", "SimulationConfig"]
 
-        return ScoringRoutine
-    elif name == "SimulationConfig":
-        from .config import SimulationConfig
-
-        return SimulationConfig
-    elif name == "SimindSimulator":
-        from .simulator import SimindSimulator
-
-        return SimindSimulator
-    elif name == "create_penetrate_simulator":
-        from .simulator import create_penetrate_simulator
-
-        return create_penetrate_simulator
-    elif name == "create_scattwin_simulator":
-        from .simulator import create_scattwin_simulator
-
-        return create_scattwin_simulator
-    elif name == "create_simulator_from_template":
-        from .simulator import create_simulator_from_template
-
-        return create_simulator_from_template
-    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
-
-
-__all__ = [
-    "SimulationConfig",
-    "SimindSimulator",
-    "create_simulator_from_template",
-    "create_penetrate_simulator",
-    "create_scattwin_simulator",
-    "ScoringRoutine",
-]
