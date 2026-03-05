@@ -36,12 +36,16 @@ def _build_small_tensors() -> tuple[torch.Tensor, torch.Tensor]:
     return torch.from_numpy(source), torch.from_numpy(mu_map)
 
 
-def _projection_plane(projection_array: np.ndarray) -> np.ndarray:
+def _projection_plane(projection_array: np.ndarray, view_index: int = 0) -> np.ndarray:
     if projection_array.ndim == 4:
-        return projection_array[0, 0, :, :]
+        # Fallback path shape from raw SIMIND conversion:
+        # [tof, axial, view, tangential] -> display [axial, tangential]
+        return projection_array[0, :, view_index, :]
     if projection_array.ndim == 3:
-        return projection_array[0, :, :]
-    return projection_array
+        # PyTomography projection tensors are [view, radial, axial].
+        # Transpose for display so rows are axial and columns are radial.
+        return projection_array[view_index, :, :].T
+    return projection_array.T if projection_array.ndim == 2 else projection_array
 
 
 def _save_summary_plot(
@@ -54,9 +58,11 @@ def _save_summary_plot(
     proj_arr = projection_tensor.detach().cpu().numpy()
     recon_arr = reconstruction.detach().cpu().numpy()
 
-    source_slice = source_arr[:, :, source_arr.shape[2] // 2]
+    # PyTomography object tensors are (x, y, z); transpose for display so
+    # imshow columns follow x and rows follow y (matching STIR/SIRF summaries).
+    source_slice = source_arr[:, :, source_arr.shape[2] // 2].T
     proj_slice = _projection_plane(proj_arr)
-    recon_slice = recon_arr[:, :, recon_arr.shape[2] // 2]
+    recon_slice = recon_arr[:, :, recon_arr.shape[2] // 2].T
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     axes[0].imshow(source_slice, cmap="viridis")
