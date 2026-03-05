@@ -276,7 +276,7 @@ parameters:
       description: Pixel size for simulated images (cm) - affects resolution vs FOV
     spect_no_projections:
       index: 29
-      value: 6.0
+      value: 24.0
       description: Number of SPECT projections (60, 120, 180 typical)
     spect_rotation:
       index: 30
