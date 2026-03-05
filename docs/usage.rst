@@ -3,8 +3,8 @@
 Usage Guide
 ===========
 
-Connector-First Quick Start
----------------------------
+Quick Start
+-----------
 
 Use ``SimindPythonConnector`` when you want direct Python control of SIMIND
 inputs/outputs without any reconstruction-package dependency.
