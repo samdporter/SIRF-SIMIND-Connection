@@ -14,7 +14,13 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from pytomography.io.SPECT import simind as pytomo_simind
 from pytomography import algorithms, likelihoods
+from pytomography.projectors.SPECT import SPECTSystemMatrix
+from pytomography.transforms.SPECT import (
+    SPECTAttenuationTransform,
+    SPECTPSFTransform,
+)
 
 from sirf_simind_connection import PyTomographySimindAdaptor, configs
 
@@ -78,6 +84,38 @@ def _save_summary_plot(
     plt.close(fig)
 
 
+def _build_system_matrix(
+    projection_header: Path,
+    attenuation_map_xyz: torch.Tensor,
+) -> SPECTSystemMatrix:
+    object_meta, proj_meta = pytomo_simind.get_metadata(str(projection_header))
+
+    obj2obj_transforms = []
+    try:
+        obj2obj_transforms.append(
+            SPECTAttenuationTransform(
+                attenuation_map=attenuation_map_xyz.to(
+                    dtype=torch.float32
+                ).contiguous()
+            )
+        )
+    except Exception:
+        pass
+
+    try:
+        psf_meta = pytomo_simind.get_psfmeta_from_header(str(projection_header))
+        obj2obj_transforms.append(SPECTPSFTransform(psf_meta=psf_meta))
+    except Exception:
+        pass
+
+    return SPECTSystemMatrix(
+        obj2obj_transforms=obj2obj_transforms,
+        proj2proj_transforms=[],
+        object_meta=object_meta,
+        proj_meta=proj_meta,
+    )
+
+
 def main() -> None:
     if shutil.which("simind") is None:
         raise RuntimeError(
@@ -117,12 +155,11 @@ def main() -> None:
             f"got {tuple(projection_tensor.shape)}"
         )
 
-    system_matrix = adaptor.build_system_matrix(
-        key="tot_w1",
-        use_psf=True,
-        use_attenuation=True,
-    )
     total_h00_path = adaptor.get_output_header_path("tot_w1")
+    system_matrix = _build_system_matrix(
+        projection_header=total_h00_path,
+        attenuation_map_xyz=mu_tensor,
+    )
     likelihood = likelihoods.PoissonLogLikelihood(
         system_matrix=system_matrix,
         projections=projection_tensor,

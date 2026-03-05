@@ -3,7 +3,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import sirf_simind_connection.connectors.pytomography_adaptor as pytomo_mod
 from sirf_simind_connection.configs import get
 from sirf_simind_connection.connectors.python_connector import ProjectionResult
 from sirf_simind_connection.connectors.pytomography_adaptor import (
@@ -60,111 +59,15 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
 
 
 @pytest.mark.unit
-def test_pytomography_adaptor_system_matrix_helpers(tmp_path: Path, monkeypatch):
+def test_pytomography_adaptor_avoids_wrapping_pytomography_methods(tmp_path: Path):
     connector = PyTomographySimindAdaptor(
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
     )
 
-    h00_path = tmp_path / "case01_tot_w1.h00"
-    h00_path.write_text("!INTERFILE :=\n")
-    connector._output_header_paths = {"tot_w1": h00_path}
-
-    class DummySimind:
-        @staticmethod
-        def get_metadata(path):
-            assert path == str(h00_path)
-            return ("obj_meta", "proj_meta")
-
-        @staticmethod
-        def get_psfmeta_from_header(path):
-            assert path == str(h00_path)
-            return "psf_meta"
-
-    class DummyPSFTransform:
-        def __init__(self, psf_meta):
-            self.psf_meta = psf_meta
-
-    class DummySystemMatrix:
-        def __init__(
-            self, obj2obj_transforms, proj2proj_transforms, object_meta, proj_meta
-        ):
-            self.obj2obj_transforms = obj2obj_transforms
-            self.proj2proj_transforms = proj2proj_transforms
-            self.object_meta = object_meta
-            self.proj_meta = proj_meta
-
-    monkeypatch.setattr(pytomo_mod, "pytomo_simind", DummySimind)
-    monkeypatch.setattr(pytomo_mod, "SPECTPSFTransform", DummyPSFTransform)
-    monkeypatch.setattr(pytomo_mod, "SPECTSystemMatrix", DummySystemMatrix)
-
-    object_meta, proj_meta = connector.get_pytomography_metadata("tot_w1")
-    assert object_meta == "obj_meta"
-    assert proj_meta == "proj_meta"
-
-    system_matrix = connector.build_system_matrix("tot_w1", use_psf=True)
-    assert isinstance(system_matrix, DummySystemMatrix)
-    assert system_matrix.object_meta == "obj_meta"
-    assert system_matrix.proj_meta == "proj_meta"
-    assert system_matrix.proj2proj_transforms == []
-    assert len(system_matrix.obj2obj_transforms) == 1
-    assert system_matrix.obj2obj_transforms[0].psf_meta == "psf_meta"
-
-
-@pytest.mark.unit
-def test_pytomography_adaptor_uses_mu_map_in_pytomography_axes(
-    tmp_path: Path, monkeypatch
-):
-    connector = PyTomographySimindAdaptor(
-        config_source=get("AnyScan.yaml"),
-        output_dir=tmp_path,
-        output_prefix="case01",
-    )
-
-    source = torch.zeros((2, 3, 4), dtype=torch.float32)
-    mu_map = torch.arange(2 * 3 * 4, dtype=torch.float32).reshape(2, 3, 4)
-    connector.set_source(source)
-    connector.set_mu_map(mu_map)
-
-    h00_path = tmp_path / "case01_tot_w1.h00"
-    h00_path.write_text("!INTERFILE :=\n")
-    connector._output_header_paths = {"tot_w1": h00_path}
-
-    class DummySimind:
-        @staticmethod
-        def get_metadata(path):
-            assert path == str(h00_path)
-            return ("obj_meta", "proj_meta")
-
-    class DummyAttenuationTransform:
-        def __init__(self, attenuation_map):
-            self.attenuation_map = attenuation_map
-
-    class DummySystemMatrix:
-        def __init__(
-            self, obj2obj_transforms, proj2proj_transforms, object_meta, proj_meta
-        ):
-            self.obj2obj_transforms = obj2obj_transforms
-            self.proj2proj_transforms = proj2proj_transforms
-            self.object_meta = object_meta
-            self.proj_meta = proj_meta
-
-    monkeypatch.setattr(pytomo_mod, "pytomo_simind", DummySimind)
-    monkeypatch.setattr(pytomo_mod, "SPECTSystemMatrix", DummySystemMatrix)
-    monkeypatch.setattr(
-        pytomo_mod, "SPECTAttenuationTransform", DummyAttenuationTransform
-    )
-    monkeypatch.setattr(pytomo_mod, "SPECTPSFTransform", None)
-
-    system_matrix = connector.build_system_matrix(
-        "tot_w1", use_psf=False, use_attenuation=True
-    )
-
-    assert len(system_matrix.obj2obj_transforms) == 1
-    attenuation_map = system_matrix.obj2obj_transforms[0].attenuation_map
-    assert tuple(attenuation_map.shape) == tuple(mu_map.shape)
-    assert torch.equal(attenuation_map, mu_map.contiguous())
+    assert not hasattr(connector, "build_system_matrix")
+    assert not hasattr(connector, "get_pytomography_metadata")
 
 
 @pytest.mark.unit
