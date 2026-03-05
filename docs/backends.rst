@@ -1,7 +1,7 @@
 Backend and Adaptor Dependencies
 ================================
 
-This project is connector-first: SIMIND execution is handled by
+The package uses connector-first execution: SIMIND execution is handled by
 ``SimindPythonConnector`` and adaptor classes layer package-specific object
 conversion on top.
 

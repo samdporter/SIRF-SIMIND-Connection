@@ -31,8 +31,8 @@ Install the Python Package
 SIMIND Requirement (External Dependency)
 ----------------------------------------
 
-SIMIND is **not** distributed in this repository (or on PyPI) and must be
-installed separately by the user.
+SIMIND is **not** distributed with this package (or on PyPI) and must be
+installed separately.
 
 Use the official SIMIND resources for installation and manual/reference
 documentation:
@@ -45,7 +45,7 @@ documentation:
 Recommended Local Layout
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-For this repository's scripts and Docker setup, place SIMIND under:
+For the package scripts and Docker setup, place SIMIND under:
 
 .. code-block:: text
 
@@ -78,9 +78,9 @@ the SIMIND data directory:
 Docker Behavior
 ~~~~~~~~~~~~~~~
 
-The Docker Compose services and container helper scripts are configured for the
-repo-local SIMIND layout above. They automatically wire SIMIND paths inside the
-containers when ``./simind/simind`` is present.
+The Docker Compose services and container helper scripts use the local SIMIND
+layout above. They automatically wire SIMIND paths inside the containers when
+``./simind/simind`` is present.
 
 Quick Verification
 ------------------

@@ -2,7 +2,7 @@ Geometry Considerations
 =======================
 
 This page summarizes the geometry conventions used across SIMIND, STIR/SIRF,
-and PyTomography in this repository.
+and PyTomography in this package.
 
 At-a-Glance Axis Conventions
 ----------------------------
@@ -43,7 +43,7 @@ The OSEM examples intentionally pin key simulation parameters so geometry checks
 are reproducible:
 
 - ``NN=1`` (runtime switch) for faster, deterministic iteration.
-- ``config[29]=30`` for projection count.
+- ``config[29]=24`` for projection count.
 - ``config[53]=0`` to keep collimator modeling geometric-only in these tests.
 - ``config[19]=2`` to keep a consistent mapping used by current examples.
 

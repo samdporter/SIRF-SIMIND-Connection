@@ -3,11 +3,11 @@
 Introduction
 ============
 
-SIRF-SIMIND-Connection is a connector-first Python toolkit for SIMIND SPECT workflows.
+SIRF-SIMIND-Connection is a Python toolkit for SIMIND SPECT workflows.
 
-The repository has two explicit goals:
+For users, the package provides two core capabilities:
 
-1. Connect SIMIND to Python with a small, direct API.
+1. Run SIMIND from Python through a small, direct API.
 2. Adapt SIMIND outputs to well-used Python reconstruction packages.
 
 In practice this means:

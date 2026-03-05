@@ -5,24 +5,24 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 
-A connector-first Python toolkit for running SIMIND from Python and adapting
-SIMIND outputs to common reconstruction ecosystems (STIR, SIRF, PyTomography).
+A Python toolkit that lets you run SIMIND from Python and use the outputs in
+common reconstruction ecosystems (STIR, SIRF, PyTomography).
 
 ## Quick Links
 - [Full Documentation](https://SIRF-SIMIND-Connection.readthedocs.io/)
 - [Installation](https://SIRF-SIMIND-Connection.readthedocs.io/en/latest/installation.html)
 - [Backend Support](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) - adaptor dependency matrix
 
-## Project Goal
-1. Connect SIMIND to Python with a minimal, explicit API.
-2. Adapt SIMIND data to widely used Python reconstruction packages.
+## What This Package Does
+1. Runs SIMIND from Python with a minimal, explicit API.
+2. Adapts SIMIND data for widely used Python reconstruction packages.
 
 ## Key Features
 - **Connector-first API** - `SimindPythonConnector` for direct SIMIND execution from Python
 - **Package Adaptors** - STIR/SIRF/PyTomography adaptors for reconstruction workflows
 - **No reconstruction reimplementation** - Reconstruction stays inside target packages
 - **Dual scoring support** - SCATTWIN and PENETRATE
-- **DICOM builders kept** - DICOM-driven setup utilities remain available
+- **DICOM builders** - DICOM-driven setup utilities for scanner/input preparation
 - **Advanced Schneider2000 density conversion** - 44-segment HU-to-density mapping
 
 ## Installation
@@ -80,14 +80,14 @@ pip install pytomography
 
 ### SIMIND Requirement
 
-SIMIND is **not included** in this repository and must be installed separately.
+SIMIND is **not included** with this package and must be installed separately.
 
 Use the official SIMIND resources:
 
 - SIMIND site (Medical Radiation Physics, Lund University): https://www.msf.lu.se/en/research/simind-monte-carlo-program
 - SIMIND manual/docs: https://www.msf.lu.se/en/research/simind-monte-carlo-program/manual
 
-For quick local use in this repository, place your local SIMIND installation under:
+For local use with this package's scripts, place your SIMIND installation under:
 
 ```text
 ./simind
@@ -105,8 +105,8 @@ and ensure SIMIND data files are available under:
 ./simind/smc_dir/
 ```
 
-Docker scripts are configured to use this repo-local layout and automatically
-wire SIMIND paths when the binary exists at `./simind/simind`.
+The Docker helper scripts use this layout and automatically wire SIMIND paths
+when the binary exists at `./simind/simind`.
 
 ## Quick Start
 ```python
