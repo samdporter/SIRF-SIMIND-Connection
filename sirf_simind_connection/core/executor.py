@@ -60,6 +60,8 @@ class SimindExecutor:
         validated_command = [self._validate_cli_token(part) for part in command]
         self.logger.info("Running SIMIND: %s", " ".join(validated_command))
         try:
+            # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
+            # Tokens are validated above and executed with shell=False.
             subprocess.run(validated_command, check=True, shell=False)
         except OSError as exc:
             raise SimulationError(f"Unable to execute SIMIND command: {exc}") from exc
