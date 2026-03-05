@@ -36,6 +36,33 @@ class _ImageWithGridSpacing:
         return self._spacing
 
 
+class _NonIterableFloat3Coordinate:
+    def __init__(self, x: float, y: float, z: float) -> None:
+        self._x = x
+        self._y = y
+        self._z = z
+
+    def x(self) -> float:
+        return self._x
+
+    def y(self) -> float:
+        return self._y
+
+    def z(self) -> float:
+        return self._z
+
+
+class _ImageWithNonIterableGridSpacing:
+    def __init__(
+        self, array: np.ndarray, spacing: _NonIterableFloat3Coordinate
+    ) -> None:
+        self.array = array
+        self._spacing = spacing
+
+    def get_grid_spacing(self) -> _NonIterableFloat3Coordinate:
+        return self._spacing
+
+
 class _ImageWithoutSpacing:
     def __init__(self, array: np.ndarray) -> None:
         self.array = array
@@ -183,6 +210,14 @@ def test_stir_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> No
         6.0
     )
 
+    float3_spacing_image = _ImageWithNonIterableGridSpacing(
+        np.zeros((2, 3, 4), dtype=np.float32),
+        _NonIterableFloat3Coordinate(1.0, 2.0, 7.0),
+    )
+    assert StirSimindAdaptor._extract_voxel_size_mm(
+        float3_spacing_image
+    ) == pytest.approx(7.0)
+
     with pytest.raises(ValueError, match="voxel_sizes\\(\\) or get_grid_spacing\\(\\)"):
         StirSimindAdaptor._extract_voxel_size_mm(
             _ImageWithoutSpacing(np.zeros((1, 1, 1)))
@@ -322,6 +357,14 @@ def test_sirf_adaptor_extracts_voxel_size_from_supported_spacing_sources() -> No
     assert SirfSimindAdaptor._extract_voxel_size_mm(spacing_3d_image) == pytest.approx(
         6.0
     )
+
+    float3_spacing_image = _ImageWithNonIterableGridSpacing(
+        np.zeros((2, 3, 4), dtype=np.float32),
+        _NonIterableFloat3Coordinate(1.0, 2.0, 7.0),
+    )
+    assert SirfSimindAdaptor._extract_voxel_size_mm(
+        float3_spacing_image
+    ) == pytest.approx(7.0)
 
     with pytest.raises(ValueError, match="voxel_sizes\\(\\) or get_grid_spacing\\(\\)"):
         SirfSimindAdaptor._extract_voxel_size_mm(
