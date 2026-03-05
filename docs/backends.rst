@@ -1,9 +1,8 @@
 Backend and Adaptor Dependencies
 ================================
 
-The package uses connector-first execution: SIMIND execution is handled by
-``SimindPythonConnector`` and adaptor classes layer package-specific object
-conversion on top.
+Use ``SimindPythonConnector`` for direct SIMIND execution from Python. Use an
+adaptor when you want outputs returned as native STIR/SIRF/PyTomography types.
 
 Dependency Matrix
 -----------------

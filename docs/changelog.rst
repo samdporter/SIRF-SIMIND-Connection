@@ -62,8 +62,8 @@ Changed
   through ``SimindPythonConnector`` and return native backend projection types.
 - ``PyTomographySimindAdaptor`` remains focused on SIMIND I/O adaptation and
   tensor conversion only.
-- README and docs pages were rewritten to user-facing, connector-first
-  guidance.
+- README and docs pages were rewritten with user-facing guidance for connector
+  and adaptor workflows.
 
 Fixed
 ~~~~~

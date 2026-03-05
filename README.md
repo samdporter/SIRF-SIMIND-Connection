@@ -31,7 +31,7 @@ install a licensed SIMIND installation.
 ## Key Features
 - **Connector-first API** - `SimindPythonConnector` for direct SIMIND execution from Python
 - **Package Adaptors** - STIR/SIRF/PyTomography adaptors for reconstruction workflows
-- **No reconstruction reimplementation** - Reconstruction stays inside target packages
+- **Native reconstruction workflows** - Use STIR/SIRF/PyTomography reconstruction tools with generated SIMIND data
 - **Dual scoring support** - SCATTWIN and PENETRATE
 - **DICOM builders** - DICOM-driven setup utilities for scanner/input preparation
 - **Advanced Schneider2000 density conversion** - 44-segment HU-to-density mapping

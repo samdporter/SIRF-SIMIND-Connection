@@ -23,8 +23,7 @@ In practice this means:
 - ``SirfSimindAdaptor`` bridges SIMIND outputs into SIRF-native objects.
 - ``PyTomographySimindAdaptor`` bridges SIMIND outputs into torch/PyTomography workflows.
 
-Reconstruction algorithms are intentionally left to the target packages
-(STIR, SIRF, PyTomography). The adaptor layer handles data conversion and
-I/O boundaries, not reconstruction-method wrappers.
+After generating projections with this package, run reconstruction directly in
+STIR, SIRF, or PyTomography using each package's native reconstruction tools.
 
 For axis and geometry conventions across these ecosystems, see :doc:`geometry`.
