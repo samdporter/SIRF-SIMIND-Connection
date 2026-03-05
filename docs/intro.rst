@@ -3,12 +3,28 @@
 Introduction
 ============
 
-Welcome to the SIRF-SIMIND-Connection documentation!
+py-smc is a Python toolkit for SIMIND SPECT workflows.
 
-This package provides a seamless integration between the SIRF (Synergistic Image Reconstruction Framework) and the SIMIND Monte Carlo simulator for advanced SPECT imaging applications.
+Disclaimer
+----------
 
-Key Features:
-- **Monte Carlo Simulations**: Allows detailed SPECT analysis.
-- **Flexible Configuration**: Use YAML to easily configure simulations.
-- **Extensive Use Cases**: Suitable for both clinical and research purposes.
+This project is independent and is **not affiliated with, endorsed by, or
+maintained by** the SIMIND project or Lund University.
 
+For users, the package provides two core capabilities:
+
+1. Run SIMIND from Python through a small, direct API.
+2. Adapt SIMIND outputs to well-used Python reconstruction packages.
+
+In practice this means:
+
+- ``SimindPythonConnector`` runs SIMIND and returns NumPy-first outputs.
+- ``StirSimindAdaptor`` bridges SIMIND outputs into STIR-native objects.
+- ``SirfSimindAdaptor`` bridges SIMIND outputs into SIRF-native objects.
+- ``PyTomographySimindAdaptor`` bridges SIMIND outputs into torch/PyTomography workflows.
+
+Reconstruction algorithms are intentionally left to the target packages
+(STIR, SIRF, PyTomography). The adaptor layer handles data conversion and
+I/O boundaries, not reconstruction-method wrappers.
+
+For axis and geometry conventions across these ecosystems, see :doc:`geometry`.

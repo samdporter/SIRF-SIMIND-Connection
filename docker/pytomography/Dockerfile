@@ -17,7 +17,7 @@ ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${SIRF_INSTALL_PATH}/bin:${PATH}
 
 WORKDIR /workspace
 
-COPY . /workspace
+COPY --chown=1000:100 . /workspace
 
 RUN python -m pip install --upgrade pip \
     && pip install --index-url https://download.pytorch.org/whl/cpu torch \

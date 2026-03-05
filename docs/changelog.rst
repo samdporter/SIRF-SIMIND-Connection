@@ -10,6 +10,71 @@ The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`
 Unreleased
 ----------
 
+Changed
+~~~~~~~
+
+- Updated user-facing branding to ``py-smc`` and added explicit non-affiliation
+  and external-SIMIND-install disclaimers in README/docs.
+
+[0.5.0] - 2026-03-05
+--------------------
+
+**Breaking Changes**
+~~~~~~~~~~~~~~~~~~~~
+
+**Connector-first public API**
+  The legacy simulator-oriented surface has been removed in favor of
+  connector/adaptor entry points:
+
+  - Removed ``SimindSimulator`` from top-level exports.
+  - Removed ``NativeBackendConnector`` from connector exports.
+  - Removed legacy core runtime modules
+    (``core.simulator``, ``core.backend_adapter``, ``core.components``,
+    ``core.file_managers``, ``core.output_processor``).
+
+**PyTomography adaptor boundary tightening**
+  ``PyTomographySimindAdaptor`` no longer wraps reconstruction-package helper
+  methods:
+
+  - Removed ``build_system_matrix()``
+  - Removed ``get_pytomography_metadata()``
+
+  System-matrix creation is now performed directly with PyTomography APIs in
+  user code/examples.
+
+Added
+~~~~~
+
+- ``core.executor.SimindExecutor`` as a minimal subprocess runner for SIMIND.
+- Expanded unit coverage for connector/adaptor behavior:
+  - native STIR/SIRF adaptor validation and forwarding behavior
+  - PyTomography adaptor connector wiring and axis-order forwarding
+  - additional ``configure_voxel_phantom`` edge cases in Python connector tests
+- Geometry documentation note for STIR/SIRF voxel-size extraction fallback
+  behavior.
+
+Changed
+~~~~~~~
+
+- ``SimindPythonConnector`` is now the central execution path for adaptor
+  workflows.
+- ``StirSimindAdaptor`` and ``SirfSimindAdaptor`` now delegate SIMIND setup/run
+  through ``SimindPythonConnector`` and return native backend projection types.
+- ``PyTomographySimindAdaptor`` remains focused on SIMIND I/O adaptation and
+  tensor conversion only.
+- README and docs pages were rewritten to user-facing, connector-first
+  guidance.
+
+Fixed
+~~~~~
+
+- STIR/SIRF voxel-size extraction fallback now supports both 4-element and
+  3-element ``get_grid_spacing()`` outputs, plus non-iterable coordinate
+  objects (for example, STIR ``Float3BasicCoordinate``) for z-spacing
+  extraction.
+- ``SimindExecutor`` command invocation hardened with explicit token validation
+  and ``shell=False`` execution.
+
 [0.4.0] - 2026-02-26
 --------------------
 

@@ -103,11 +103,13 @@ def _run_sirf_osem(
     return initial
 
 
-def _projection_plane(projection_array: np.ndarray) -> np.ndarray:
+def _projection_plane(projection_array: np.ndarray, view_index: int = 0) -> np.ndarray:
     if projection_array.ndim == 4:
-        return projection_array[0, :, 0, :]
+        # [tof, axial, view, tangential]
+        return projection_array[0, :, view_index, :]
     if projection_array.ndim == 3:
-        return projection_array[0, :, :]
+        # [axial, view, tangential] when tof axis is squeezed
+        return projection_array[:, view_index, :]
     return projection_array
 
 

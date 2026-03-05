@@ -3,12 +3,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import sirf_simind_connection.connectors.pytomography_adaptor as pytomo_mod
 from sirf_simind_connection.configs import get
-from sirf_simind_connection.connectors.python_connector import ProjectionResult
+from sirf_simind_connection.connectors.python_connector import (
+    ProjectionResult,
+    RuntimeOperator,
+)
 from sirf_simind_connection.connectors.pytomography_adaptor import (
     PyTomographySimindAdaptor,
 )
+from sirf_simind_connection.core.types import ScoringRoutine
 
 
 torch = pytest.importorskip("torch")
@@ -60,111 +63,120 @@ def test_pytomography_adaptor_preserves_projection_shape(tmp_path: Path, monkeyp
 
 
 @pytest.mark.unit
-def test_pytomography_adaptor_system_matrix_helpers(tmp_path: Path, monkeypatch):
+def test_pytomography_adaptor_avoids_wrapping_pytomography_methods(tmp_path: Path):
     connector = PyTomographySimindAdaptor(
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
     )
 
-    h00_path = tmp_path / "case01_tot_w1.h00"
-    h00_path.write_text("!INTERFILE :=\n")
-    connector._output_header_paths = {"tot_w1": h00_path}
-
-    class DummySimind:
-        @staticmethod
-        def get_metadata(path):
-            assert path == str(h00_path)
-            return ("obj_meta", "proj_meta")
-
-        @staticmethod
-        def get_psfmeta_from_header(path):
-            assert path == str(h00_path)
-            return "psf_meta"
-
-    class DummyPSFTransform:
-        def __init__(self, psf_meta):
-            self.psf_meta = psf_meta
-
-    class DummySystemMatrix:
-        def __init__(
-            self, obj2obj_transforms, proj2proj_transforms, object_meta, proj_meta
-        ):
-            self.obj2obj_transforms = obj2obj_transforms
-            self.proj2proj_transforms = proj2proj_transforms
-            self.object_meta = object_meta
-            self.proj_meta = proj_meta
-
-    monkeypatch.setattr(pytomo_mod, "pytomo_simind", DummySimind)
-    monkeypatch.setattr(pytomo_mod, "SPECTPSFTransform", DummyPSFTransform)
-    monkeypatch.setattr(pytomo_mod, "SPECTSystemMatrix", DummySystemMatrix)
-
-    object_meta, proj_meta = connector.get_pytomography_metadata("tot_w1")
-    assert object_meta == "obj_meta"
-    assert proj_meta == "proj_meta"
-
-    system_matrix = connector.build_system_matrix("tot_w1", use_psf=True)
-    assert isinstance(system_matrix, DummySystemMatrix)
-    assert system_matrix.object_meta == "obj_meta"
-    assert system_matrix.proj_meta == "proj_meta"
-    assert system_matrix.proj2proj_transforms == []
-    assert len(system_matrix.obj2obj_transforms) == 1
-    assert system_matrix.obj2obj_transforms[0].psf_meta == "psf_meta"
+    assert not hasattr(connector, "build_system_matrix")
+    assert not hasattr(connector, "get_pytomography_metadata")
 
 
 @pytest.mark.unit
-def test_pytomography_adaptor_uses_mu_map_in_pytomography_axes(
+def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
     tmp_path: Path, monkeypatch
 ):
     connector = PyTomographySimindAdaptor(
         config_source=get("AnyScan.yaml"),
         output_dir=tmp_path,
         output_prefix="case01",
+        voxel_size_mm=3.5,
+        scoring_routine=ScoringRoutine.PENETRATE,
     )
 
-    source = torch.zeros((2, 3, 4), dtype=torch.float32)
-    mu_map = torch.arange(2 * 3 * 4, dtype=torch.float32).reshape(2, 3, 4)
-    connector.set_source(source)
-    connector.set_mu_map(mu_map)
+    source_xyz = torch.arange(2 * 3 * 4, dtype=torch.float32).reshape(2, 3, 4)
+    mu_xyz = torch.arange(2 * 3 * 4, dtype=torch.float32).reshape(2, 3, 4) / 10.0
+    connector.set_source(source_xyz)
+    connector.set_mu_map(mu_xyz)
+    connector.set_energy_windows([75.0, 120.0], [85.0, 140.0], [0, 1])
 
-    h00_path = tmp_path / "case01_tot_w1.h00"
-    h00_path.write_text("!INTERFILE :=\n")
-    connector._output_header_paths = {"tot_w1": h00_path}
+    captured: dict[str, object] = {}
 
-    class DummySimind:
-        @staticmethod
-        def get_metadata(path):
-            assert path == str(h00_path)
-            return ("obj_meta", "proj_meta")
+    def fake_configure_voxel_phantom(
+        source,
+        mu_map,
+        voxel_size_mm,
+        scoring_routine,
+    ):
+        captured["source"] = np.asarray(source)
+        captured["mu_map"] = np.asarray(mu_map)
+        captured["voxel_size_mm"] = voxel_size_mm
+        captured["scoring_routine"] = scoring_routine
+        return (tmp_path / "case01_src.smi", tmp_path / "case01_dns.dmi")
 
-    class DummyAttenuationTransform:
-        def __init__(self, attenuation_map):
-            self.attenuation_map = attenuation_map
+    def fake_set_energy_windows(lower_bounds, upper_bounds, scatter_orders):
+        captured["windows"] = (
+            list(lower_bounds),
+            list(upper_bounds),
+            list(scatter_orders),
+        )
 
-    class DummySystemMatrix:
-        def __init__(
-            self, obj2obj_transforms, proj2proj_transforms, object_meta, proj_meta
-        ):
-            self.obj2obj_transforms = obj2obj_transforms
-            self.proj2proj_transforms = proj2proj_transforms
-            self.object_meta = object_meta
-            self.proj_meta = proj_meta
+    projection = np.arange(1 * 8 * 5 * 8, dtype=np.float32).reshape(1, 8, 5, 8)
+    raw_outputs = {
+        "tot_w1": ProjectionResult(
+            projection=projection,
+            header_path=tmp_path / "case01_tot_w1.hs",
+            data_path=tmp_path / "case01_tot_w1.a00",
+            metadata={"component": "tot_w1"},
+        ),
+        "sca_w1": ProjectionResult(
+            projection=projection + 1.0,
+            header_path=tmp_path / "case01_sca_w1.hs",
+            data_path=tmp_path / "case01_sca_w1.a00",
+            metadata={"component": "sca_w1"},
+        ),
+        "pri_w1": ProjectionResult(
+            projection=projection + 2.0,
+            header_path=tmp_path / "case01_pri_w1.hs",
+            data_path=tmp_path / "case01_pri_w1.a00",
+            metadata={"component": "pri_w1"},
+        ),
+        "air_w1": ProjectionResult(
+            projection=projection + 3.0,
+            header_path=tmp_path / "case01_air_w1.hs",
+            data_path=tmp_path / "case01_air_w1.a00",
+            metadata={"component": "air_w1"},
+        ),
+    }
 
-    monkeypatch.setattr(pytomo_mod, "pytomo_simind", DummySimind)
-    monkeypatch.setattr(pytomo_mod, "SPECTSystemMatrix", DummySystemMatrix)
+    def fake_run(runtime_operator=None):
+        captured["runtime_operator"] = runtime_operator
+        return raw_outputs
+
     monkeypatch.setattr(
-        pytomo_mod, "SPECTAttenuationTransform", DummyAttenuationTransform
+        connector.python_connector,
+        "configure_voxel_phantom",
+        fake_configure_voxel_phantom,
     )
-    monkeypatch.setattr(pytomo_mod, "SPECTPSFTransform", None)
-
-    system_matrix = connector.build_system_matrix(
-        "tot_w1", use_psf=False, use_attenuation=True
+    monkeypatch.setattr(
+        connector.python_connector,
+        "set_energy_windows",
+        fake_set_energy_windows,
+    )
+    monkeypatch.setattr(
+        connector.python_connector,
+        "run",
+        fake_run,
     )
 
-    assert len(system_matrix.obj2obj_transforms) == 1
-    attenuation_map = system_matrix.obj2obj_transforms[0].attenuation_map
-    assert tuple(attenuation_map.shape) == tuple(mu_map.shape)
-    assert torch.equal(attenuation_map, mu_map.contiguous())
+    runtime_operator = RuntimeOperator(switches={"RR": 12345})
+    outputs = connector.run(runtime_operator=runtime_operator)
+
+    expected_source_zyx = source_xyz.permute(2, 1, 0).numpy()
+    expected_mu_zyx = mu_xyz.permute(2, 1, 0).numpy()
+    assert np.array_equal(captured["source"], expected_source_zyx)
+    assert np.array_equal(captured["mu_map"], expected_mu_zyx)
+    assert captured["voxel_size_mm"] == pytest.approx(3.5)
+    assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
+    assert captured["windows"] == ([75.0, 120.0], [85.0, 140.0], [0, 1])
+    assert captured["runtime_operator"] is runtime_operator
+
+    assert torch.equal(connector.get_total_output(window=1), outputs["tot_w1"])
+    assert torch.equal(connector.get_scatter_output(window=1), outputs["sca_w1"])
+    assert torch.equal(connector.get_primary_output(window=1), outputs["pri_w1"])
+    assert torch.equal(connector.get_air_output(window=1), outputs["air_w1"])
 
 
 @pytest.mark.unit

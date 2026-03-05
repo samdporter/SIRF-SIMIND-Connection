@@ -3,7 +3,10 @@
 Testing
 =======
 
-This document explains the testing strategy for SIRF-SIMIND-Connection, which handles the challenge of testing code that depends on optional external dependencies (SIRF, STIR, SIMIND, and PyTomography) that may not be available in every environment.
+This document explains the testing strategy for py-smc, which handles the
+challenge of testing code that depends on optional external dependencies (SIRF,
+STIR, SIMIND, and PyTomography) that may not be available in every
+environment.
 
 Test Organization
 -----------------
@@ -102,7 +105,7 @@ skip those checks by default. Use ``--require-simind`` to fail fast instead.
 ``input.smc`` remains packaged in ``sirf_simind_connection/configs`` and is not
 part of the SIMIND runtime availability check.
 
-SIMIND itself is not bundled with this repository; install it separately from
+SIMIND itself is not bundled with this package; install it separately from
 the official SIMIND site and manual:
 
 * https://www.msf.lu.se/en/research/simind-monte-carlo-program

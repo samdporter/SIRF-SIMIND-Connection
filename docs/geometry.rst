@@ -2,7 +2,7 @@ Geometry Considerations
 =======================
 
 This page summarizes the geometry conventions used across SIMIND, STIR/SIRF,
-and PyTomography in this repository.
+and PyTomography in this package.
 
 At-a-Glance Axis Conventions
 ----------------------------
@@ -35,6 +35,10 @@ Units
 - STIR/SIRF image geometry is typically expressed in **mm**.
 - Connectors handle conversion internally via voxel-size settings (for example,
   runtime switch ``PX`` is set in cm for SIMIND).
+- STIR/SIRF adaptor voxel size extraction expects z-spacing in mm. It uses
+  ``voxel_sizes()[2]`` when available, and falls back to ``get_grid_spacing()``
+  using the last spatial element (index 3 for 4-element spacing, index 2 for
+  3-element spacing).
 
 Example Configuration Guardrails
 --------------------------------
@@ -43,7 +47,7 @@ The OSEM examples intentionally pin key simulation parameters so geometry checks
 are reproducible:
 
 - ``NN=1`` (runtime switch) for faster, deterministic iteration.
-- ``config[29]=30`` for projection count.
+- ``config[29]=24`` for projection count.
 - ``config[53]=0`` to keep collimator modeling geometric-only in these tests.
 - ``config[19]=2`` to keep a consistent mapping used by current examples.
 

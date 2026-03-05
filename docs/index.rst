@@ -1,5 +1,5 @@
-SIRF-SIMIND-Connection Documentation
-====================================
+py-smc Documentation
+====================
 
 .. toctree::
    :maxdepth: 2

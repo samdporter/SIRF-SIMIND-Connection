@@ -1,36 +1,64 @@
-# SIRF-SIMIND-Connection
+# py-smc
+
+Python SIMIND Monte Carlo Connector.
 
 [![Tests](https://github.com/samdporter/SIRF-SIMIND-Connection/workflows/Tests/badge.svg)](https://github.com/samdporter/SIRF-SIMIND-Connection/actions)
 [![Documentation Status](https://readthedocs.org/projects/sirf-simind-connection/badge/?version=latest)](https://sirf-simind-connection.readthedocs.io/en/latest/?badge=latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 
-A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
+A Python toolkit that lets you run SIMIND from Python and use the outputs in
+common reconstruction ecosystems (STIR, SIRF, PyTomography).
+
+## Disclaimer
+
+This project is an independent Python connector toolkit and is **not
+affiliated with, endorsed by, or maintained by** the SIMIND project or Lund
+University.
+
+SIMIND is **not distributed** with this package. You must separately obtain and
+install a licensed SIMIND installation.
 
 ## Quick Links
-- [Full Documentation](https://SIRF-SIMIND-Connection.readthedocs.io/)
-- [Installation](https://SIRF-SIMIND-Connection.readthedocs.io/en/latest/installation.html)
-- [Backend Support](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) - SIRF and STIR Python compatibility
+- [Full Documentation](https://sirf-simind-connection.readthedocs.io/)
+- [Installation](https://sirf-simind-connection.readthedocs.io/en/latest/installation.html)
+- [Backend Support](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) - adaptor dependency matrix
+
+## What This Package Does
+1. Runs SIMIND from Python with a minimal, explicit API.
+2. Adapts SIMIND data for widely used Python reconstruction packages.
 
 ## Key Features
-- **Dual Backend Support** - Works with both SIRF and STIR Python
-- **Connector/Adaptor API** - Python Connector plus STIR/SIRF/PyTomography adaptors
-- SIRF integrated Monte Carlo SPECT Simulation using SIMIND
-- Dual Scoring Routines (SCATTWIN/PENETRATE)
-- DICOM-driven adaptor examples (STIR/SIRF/PyTomography)
-- **Advanced Schneider2000 Density Conversion** - Clinically validated HU-to-density mapping with 44 tissue segments
+- **Connector-first API** - `SimindPythonConnector` for direct SIMIND execution from Python
+- **Package Adaptors** - STIR/SIRF/PyTomography adaptors for reconstruction workflows
+- **No reconstruction reimplementation** - Reconstruction stays inside target packages
+- **Dual scoring support** - SCATTWIN and PENETRATE
+- **DICOM builders** - DICOM-driven setup utilities for scanner/input preparation
+- **Advanced Schneider2000 density conversion** - 44-segment HU-to-density mapping
 
 ## Installation
 
 ### Basic Installation
 
 ```bash
-pip install sirf-simind-connection
+pip install py-smc
 ```
 
-### Backend Requirements
+Import path remains:
 
-SIRF-SIMIND-Connection requires either **SIRF** or **STIR Python** as a backend. The backend is auto-detected at runtime, with SIRF preferred if both are available. See the [backend guide](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) for details.
+```python
+import sirf_simind_connection
+```
+
+### Adaptor Dependencies
+
+`SimindPythonConnector` works without SIRF/STIR/PyTomography.
+
+Install optional packages only for the adaptor paths you need:
+
+- **STIR Python** for `StirSimindAdaptor` workflows (example 07A)
+- **SIRF** for `SirfSimindAdaptor` workflows (example 07B)
+- **PyTomography** for `PyTomographySimindAdaptor` workflows (example 07C)
 
 #### Option 1: STIR Python (Recommended for basic usage)
 
@@ -48,12 +76,7 @@ cd STIR
 # Follow build instructions in the repository
 ```
 
-#### Option 2: SIRF (Required for advanced features)
-
-SIRF is required for:
-- Coordinator/Projector functionality
-- CIL integration
-- SIRF-native OSEM reconstruction (example 07B)
+#### Option 2: SIRF
 
 Install from source:
 ```bash
@@ -62,18 +85,26 @@ cd SIRF
 # Follow build instructions in the repository
 ```
 
-**Note**: SIRF includes STIR, so you don't need to install STIR separately if using SIRF.
+**Note**: SIRF includes STIR, so a separate STIR install is usually unnecessary.
+
+#### Option 3: PyTomography
+
+Install PyTomography for the PyTomography adaptor workflow:
+
+```bash
+pip install pytomography
+```
 
 ### SIMIND Requirement
 
-SIMIND is **not included** in this repository and must be installed separately.
+SIMIND is **not included** with this package and must be installed separately.
 
 Use the official SIMIND resources:
 
 - SIMIND site (Medical Radiation Physics, Lund University): https://www.msf.lu.se/en/research/simind-monte-carlo-program
 - SIMIND manual/docs: https://www.msf.lu.se/en/research/simind-monte-carlo-program/manual
 
-For quick local use in this repository, place your local SIMIND installation under:
+For local use with this package's scripts, place your SIMIND installation under:
 
 ```text
 ./simind
@@ -91,32 +122,41 @@ and ensure SIMIND data files are available under:
 ./simind/smc_dir/
 ```
 
-Docker scripts are configured to use this repo-local layout and automatically
-wire SIMIND paths when the binary exists at `./simind/simind`.
+The Docker helper scripts use this layout and automatically wire SIMIND paths
+when the binary exists at `./simind/simind`.
 
 ## Quick Start
 ```python
-from sirf_simind_connection import SimindSimulator, SimulationConfig
+import numpy as np
+from sirf_simind_connection import SimindPythonConnector
 from sirf_simind_connection.configs import get
-from sirf_simind_connection.utils.stir_utils import create_simple_phantom, create_attenuation_map
 
-# Create phantom and attenuation map
-phantom = create_simple_phantom()
-mu_map = create_attenuation_map(phantom)
+source = np.zeros((32, 32, 32), dtype=np.float32)  # z, y, x
+source[12:20, 12:20, 12:20] = 1.0
+mu_map = np.zeros_like(source)
+mu_map[source > 0] = 0.15
 
-# Load pre-configured scanner settings
-config = SimulationConfig(get("AnyScan.yaml"))
-simulator = SimindSimulator(config, output_dir='output')
+connector = SimindPythonConnector(
+    config_source=get("Example.yaml"),
+    output_dir="output/basic",
+    output_prefix="case01",
+    quantization_scale=0.05,
+)
 
-# Set inputs and run
-simulator.set_source(phantom)
-simulator.set_mu_map(mu_map)
-simulator.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
-simulator.run_simulation()
+connector.configure_voxel_phantom(
+    source=source,
+    mu_map=mu_map,
+    voxel_size_mm=4.0,
+)
+connector.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
+connector.add_runtime_switch("FI", "tc99m")
+connector.add_runtime_switch("CC", "ma-lehr")
+connector.add_runtime_switch("NN", 1)
+connector.add_runtime_switch("RR", 12345)
 
-# Access results as native SIRF/STIR objects when needed
-native_outputs = simulator.get_outputs(native=True)
-sirf_tot = simulator.get_total_output(native=True)
+outputs = connector.run()
+total = outputs["tot_w1"].projection
+print(total.shape)
 ```
 
 ### Advanced Density Conversion

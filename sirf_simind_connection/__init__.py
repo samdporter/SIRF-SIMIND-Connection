@@ -1,7 +1,5 @@
 """
-SIRF ⇄ SIMIND connector/adaptor API.
-
->>> from sirf_simind_connection import SimindSimulator
+py-smc connector/adaptor API.
 """
 
 import importlib
@@ -9,10 +7,14 @@ from importlib import metadata as _meta
 from typing import Any
 
 
-try:  # installed (pip/poetry)
-    __version__ = _meta.version(__name__)
-except _meta.PackageNotFoundError:  # editable / source checkout
-    __version__ = "0.4.0"
+for _dist_name in ("py-smc", "sirf-simind-connection", __name__):
+    try:  # installed (pip/poetry)
+        __version__ = _meta.version(_dist_name)
+        break
+    except _meta.PackageNotFoundError:
+        continue
+else:  # editable / source checkout
+    __version__ = "0.5.0"
 
 
 def __getattr__(name: str) -> Any:
@@ -28,14 +30,13 @@ def __getattr__(name: str) -> Any:
         mod = importlib.import_module(f".{name}", __name__)
         globals()[name] = mod
         return mod
-    elif name in {"SimindSimulator", "SimulationConfig"}:
+    elif name in {"SimulationConfig"}:
         core = importlib.import_module(".core", __name__)
         obj = getattr(core, name)
         globals()[name] = obj
         return obj
     elif name in {
         "BaseConnector",
-        "NativeBackendConnector",
         "NumpyConnector",
         "PyTomographySimindAdaptor",
         "ProjectionResult",
@@ -53,7 +54,6 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "BaseConnector",
-    "NativeBackendConnector",
     "NumpyConnector",
     "ProjectionResult",
     "PyTomographySimindAdaptor",
@@ -61,7 +61,6 @@ __all__ = [
     "SirfSimindAdaptor",
     "SimindPythonConnector",
     "SimulationConfig",
-    "SimindSimulator",
     "StirSimindAdaptor",
     "builders",
     "configs",

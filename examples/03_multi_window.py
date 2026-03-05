@@ -12,10 +12,8 @@ import numpy as np
 from _python_connector_helpers import (
     add_standard_runtime,
     build_small_phantom_zyx,
-    configure_voxel_input,
     projection_view0,
     require_simind,
-    write_windows,
 )
 
 from sirf_simind_connection import SimindPythonConnector, configs
@@ -35,20 +33,21 @@ def main() -> None:
     )
 
     source, mu_map = build_small_phantom_zyx()
-    configure_voxel_input(
-        connector,
-        source,
-        mu_map,
+    connector.configure_voxel_phantom(
+        source=source,
+        mu_map=mu_map,
         voxel_size_mm=4.0,
         scoring_routine=1,
     )
+    connector.add_config_value(19, 2)
+    connector.add_config_value(53, 0)
 
     # Lu-177 TEW around the 208 keV peak:
     # lower scatter 166-187, photopeak 187-229, upper scatter 229-250 keV.
     lowers = [166.0, 187.0, 229.0]
     uppers = [187.0, 229.0, 250.0]
     orders = [0, 0, 0]
-    write_windows(connector, lowers, uppers, orders)
+    connector.set_energy_windows(lowers, uppers, orders)
     connector.add_config_value(1, 208.0)
     add_standard_runtime(connector, photon_multiplier=1, seed=12345, nuclide="lu177")
 

@@ -15,6 +15,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from pytomography import algorithms, likelihoods
+from pytomography.io.SPECT import simind as pytomo_simind
+from pytomography.projectors.SPECT import SPECTSystemMatrix
+from pytomography.transforms.SPECT import (
+    SPECTAttenuationTransform,
+    SPECTPSFTransform,
+)
 
 from sirf_simind_connection import PyTomographySimindAdaptor, configs
 
@@ -36,12 +42,16 @@ def _build_small_tensors() -> tuple[torch.Tensor, torch.Tensor]:
     return torch.from_numpy(source), torch.from_numpy(mu_map)
 
 
-def _projection_plane(projection_array: np.ndarray) -> np.ndarray:
+def _projection_plane(projection_array: np.ndarray, view_index: int = 0) -> np.ndarray:
     if projection_array.ndim == 4:
-        return projection_array[0, 0, :, :]
+        # Fallback path shape from raw SIMIND conversion:
+        # [tof, axial, view, tangential] -> display [axial, tangential]
+        return projection_array[0, :, view_index, :]
     if projection_array.ndim == 3:
-        return projection_array[0, :, :]
-    return projection_array
+        # PyTomography projection tensors are [view, radial, axial].
+        # Transpose for display so rows are axial and columns are radial.
+        return projection_array[view_index, :, :].T
+    return projection_array.T if projection_array.ndim == 2 else projection_array
 
 
 def _save_summary_plot(
@@ -54,9 +64,11 @@ def _save_summary_plot(
     proj_arr = projection_tensor.detach().cpu().numpy()
     recon_arr = reconstruction.detach().cpu().numpy()
 
-    source_slice = source_arr[:, :, source_arr.shape[2] // 2]
+    # PyTomography object tensors are (x, y, z); transpose for display so
+    # imshow columns follow x and rows follow y (matching STIR/SIRF summaries).
+    source_slice = source_arr[:, :, source_arr.shape[2] // 2].T
     proj_slice = _projection_plane(proj_arr)
-    recon_slice = recon_arr[:, :, recon_arr.shape[2] // 2]
+    recon_slice = recon_arr[:, :, recon_arr.shape[2] // 2].T
 
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     axes[0].imshow(source_slice, cmap="viridis")
@@ -70,6 +82,36 @@ def _save_summary_plot(
     plt.tight_layout()
     fig.savefig(output_path, dpi=140)
     plt.close(fig)
+
+
+def _build_system_matrix(
+    projection_header: Path,
+    attenuation_map_xyz: torch.Tensor,
+) -> SPECTSystemMatrix:
+    object_meta, proj_meta = pytomo_simind.get_metadata(str(projection_header))
+
+    obj2obj_transforms = []
+    try:
+        obj2obj_transforms.append(
+            SPECTAttenuationTransform(
+                attenuation_map=attenuation_map_xyz.to(dtype=torch.float32).contiguous()
+            )
+        )
+    except Exception:
+        pass
+
+    try:
+        psf_meta = pytomo_simind.get_psfmeta_from_header(str(projection_header))
+        obj2obj_transforms.append(SPECTPSFTransform(psf_meta=psf_meta))
+    except Exception:
+        pass
+
+    return SPECTSystemMatrix(
+        obj2obj_transforms=obj2obj_transforms,
+        proj2proj_transforms=[],
+        object_meta=object_meta,
+        proj_meta=proj_meta,
+    )
 
 
 def main() -> None:
@@ -111,12 +153,11 @@ def main() -> None:
             f"got {tuple(projection_tensor.shape)}"
         )
 
-    system_matrix = adaptor.build_system_matrix(
-        key="tot_w1",
-        use_psf=True,
-        use_attenuation=True,
-    )
     total_h00_path = adaptor.get_output_header_path("tot_w1")
+    system_matrix = _build_system_matrix(
+        projection_header=total_h00_path,
+        attenuation_map_xyz=mu_tensor,
+    )
     likelihood = likelihoods.PoissonLogLikelihood(
         system_matrix=system_matrix,
         projections=projection_tensor,

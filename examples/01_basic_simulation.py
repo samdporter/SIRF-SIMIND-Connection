@@ -15,10 +15,8 @@ import numpy as np
 from _python_connector_helpers import (
     add_standard_runtime,
     build_small_phantom_zyx,
-    configure_voxel_input,
     projection_view0,
     require_simind,
-    write_windows,
 )
 
 from sirf_simind_connection import SimindPythonConnector, configs
@@ -38,14 +36,16 @@ def main() -> None:
     )
 
     source, mu_map = build_small_phantom_zyx()
-    source_path, density_path = configure_voxel_input(
-        connector,
-        source,
-        mu_map,
+    source_path, density_path = connector.configure_voxel_phantom(
+        source=source,
+        mu_map=mu_map,
         voxel_size_mm=4.0,
         scoring_routine=1,
     )
-    write_windows(connector, [126.0], [154.0], [0])
+    connector.add_config_value(1, 140.0)
+    connector.add_config_value(19, 2)
+    connector.add_config_value(53, 0)
+    connector.set_energy_windows([126.0], [154.0], [0])
     add_standard_runtime(connector, photon_multiplier=1, seed=12345, nuclide="tc99m")
 
     outputs = connector.run()
