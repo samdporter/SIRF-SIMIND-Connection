@@ -5,20 +5,25 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 
-A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
+A connector-first Python toolkit for running SIMIND from Python and adapting
+SIMIND outputs to common reconstruction ecosystems (STIR, SIRF, PyTomography).
 
 ## Quick Links
 - [Full Documentation](https://SIRF-SIMIND-Connection.readthedocs.io/)
 - [Installation](https://SIRF-SIMIND-Connection.readthedocs.io/en/latest/installation.html)
-- [Backend Support](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) - SIRF and STIR Python compatibility
+- [Backend Support](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) - adaptor dependency matrix
+
+## Project Goal
+1. Connect SIMIND to Python with a minimal, explicit API.
+2. Adapt SIMIND data to widely used Python reconstruction packages.
 
 ## Key Features
-- **Dual Backend Support** - Works with both SIRF and STIR Python
-- **Connector/Adaptor API** - Python Connector plus STIR/SIRF/PyTomography adaptors
-- SIRF integrated Monte Carlo SPECT Simulation using SIMIND
-- Dual Scoring Routines (SCATTWIN/PENETRATE)
-- DICOM-driven adaptor examples (STIR/SIRF/PyTomography)
-- **Advanced Schneider2000 Density Conversion** - Clinically validated HU-to-density mapping with 44 tissue segments
+- **Connector-first API** - `SimindPythonConnector` for direct SIMIND execution from Python
+- **Package Adaptors** - STIR/SIRF/PyTomography adaptors for reconstruction workflows
+- **No reconstruction reimplementation** - Reconstruction stays inside target packages
+- **Dual scoring support** - SCATTWIN and PENETRATE
+- **DICOM builders kept** - DICOM-driven setup utilities remain available
+- **Advanced Schneider2000 density conversion** - 44-segment HU-to-density mapping
 
 ## Installation
 
@@ -28,9 +33,15 @@ A Python wrapper for SIRF and SIMIND integration for SPECT imaging.
 pip install sirf-simind-connection
 ```
 
-### Backend Requirements
+### Adaptor Dependencies
 
-SIRF-SIMIND-Connection requires either **SIRF** or **STIR Python** as a backend. The backend is auto-detected at runtime, with SIRF preferred if both are available. See the [backend guide](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) for details.
+`SimindPythonConnector` works without SIRF/STIR/PyTomography.
+
+Install optional packages only for the adaptor paths you need:
+
+- **STIR Python** for `StirSimindAdaptor` workflows (example 07A)
+- **SIRF** for `SirfSimindAdaptor` workflows (example 07B)
+- **PyTomography** for `PyTomographySimindAdaptor` workflows (example 07C)
 
 #### Option 1: STIR Python (Recommended for basic usage)
 
@@ -48,12 +59,7 @@ cd STIR
 # Follow build instructions in the repository
 ```
 
-#### Option 2: SIRF (Required for advanced features)
-
-SIRF is required for:
-- Coordinator/Projector functionality
-- CIL integration
-- SIRF-native OSEM reconstruction (example 07B)
+#### Option 2: SIRF
 
 Install from source:
 ```bash
@@ -62,7 +68,15 @@ cd SIRF
 # Follow build instructions in the repository
 ```
 
-**Note**: SIRF includes STIR, so you don't need to install STIR separately if using SIRF.
+**Note**: SIRF includes STIR, so a separate STIR install is usually unnecessary.
+
+#### Option 3: PyTomography
+
+Install PyTomography for the PyTomography adaptor workflow:
+
+```bash
+pip install pytomography
+```
 
 ### SIMIND Requirement
 

@@ -1,126 +1,148 @@
 .. _usage:
 
 Usage Guide
-============
+===========
 
-Getting Started
-----------------
+Connector-First Quick Start
+---------------------------
 
-A quick example to get started with SIRF-SIMIND-Connection:
+Use ``SimindPythonConnector`` when you want direct Python control of SIMIND
+inputs/outputs without any reconstruction-package dependency.
 
 .. code-block:: python
 
-    from sirf_simind_connection import SimindSimulator, SimulationConfig
+    import numpy as np
+    from sirf_simind_connection import SimindPythonConnector
     from sirf_simind_connection.configs import get
-    from sirf_simind_connection.utils.stir_utils import create_simple_phantom, create_attenuation_map
 
-    # Create phantom and attenuation map
-    phantom = create_simple_phantom()
-    mu_map = create_attenuation_map(phantom)
+    source = np.zeros((32, 32, 32), dtype=np.float32)  # z, y, x
+    source[12:20, 12:20, 12:20] = 1.0
+    mu_map = np.zeros_like(source)
+    mu_map[source > 0] = 0.15
 
-    # Load pre-configured scanner settings
-    config = SimulationConfig(get("AnyScan.yaml"))
-    simulator = SimindSimulator(config, output_dir='output')
+    connector = SimindPythonConnector(
+        config_source=get("Example.yaml"),
+        output_dir="output/basic",
+        output_prefix="case01",
+        quantization_scale=0.05,
+    )
 
-    # Set inputs and run
-    simulator.set_source(phantom)
-    simulator.set_mu_map(mu_map)
-    simulator.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
-    simulator.run_simulation()
+    connector.configure_voxel_phantom(
+        source=source,
+        mu_map=mu_map,
+        voxel_size_mm=4.0,
+    )
+    connector.set_energy_windows([126], [154], [0])
+    connector.add_runtime_switch("FI", "tc99m")
+    connector.add_runtime_switch("CC", "ma-lehr")
+    connector.add_runtime_switch("NN", 1)
+    connector.add_runtime_switch("RR", 12345)
 
-    result = simulator.get_total_output(window=1)
-    print("Simulation completed successfully.")
+    outputs = connector.run()
+    total = outputs["tot_w1"].projection
+    print(total.shape)
+
+Adaptor Workflows
+-----------------
+
+Use adaptors when you want connector-managed SIMIND execution plus native
+objects for a target reconstruction package.
+
+STIR adaptor
+~~~~~~~~~~~~
+
+.. code-block:: python
+
+    from sirf_simind_connection import StirSimindAdaptor
+    from sirf_simind_connection.configs import get
+
+    adaptor = StirSimindAdaptor(
+        config_source=get("Example.yaml"),
+        output_dir="output/stir_adaptor",
+        output_prefix="stir_case01",
+    )
+    adaptor.set_source(stir_source)
+    adaptor.set_mu_map(stir_mu_map)
+    adaptor.set_energy_windows([75], [225], [0])
+    adaptor.add_runtime_switch("FI", "y90_tissue")
+    adaptor.add_runtime_switch("CC", "ma-megp")
+    adaptor.add_runtime_switch("RR", 12345)
+
+    outputs = adaptor.run()
+    stir_total = outputs["tot_w1"]
+
+SIRF adaptor
+~~~~~~~~~~~~
+
+.. code-block:: python
+
+    from sirf_simind_connection import SirfSimindAdaptor
+    from sirf_simind_connection.configs import get
+
+    adaptor = SirfSimindAdaptor(
+        config_source=get("Example.yaml"),
+        output_dir="output/sirf_adaptor",
+        output_prefix="sirf_case01",
+    )
+    adaptor.set_source(sirf_source)
+    adaptor.set_mu_map(sirf_mu_map)
+    adaptor.set_energy_windows([75], [225], [0])
+    adaptor.add_runtime_switch("FI", "y90_tissue")
+    adaptor.add_runtime_switch("CC", "ma-megp")
+    adaptor.add_runtime_switch("RR", 12345)
+
+    outputs = adaptor.run()
+    sirf_total = outputs["tot_w1"]
+
+PyTomography adaptor
+~~~~~~~~~~~~~~~~~~~~
+
+The adaptor returns PyTomography-compatible tensors and output headers.
+Build the system matrix directly with PyTomography APIs.
+
+.. code-block:: python
+
+    import torch
+    from pytomography.io.SPECT import simind as pytomo_simind
+    from pytomography.projectors.SPECT import SPECTSystemMatrix
+
+    from sirf_simind_connection import PyTomographySimindAdaptor
+    from sirf_simind_connection.configs import get
+
+    adaptor = PyTomographySimindAdaptor(
+        config_source=get("Example.yaml"),
+        output_dir="output/pytomo_adaptor",
+        output_prefix="pytomo_case01",
+    )
+    adaptor.set_source(source_tensor_xyz)
+    adaptor.set_mu_map(mu_tensor_xyz)
+    adaptor.set_energy_windows([75], [225], [0])
+    adaptor.add_runtime_switch("FI", "y90_tissue")
+    adaptor.add_runtime_switch("CC", "ma-megp")
+    adaptor.add_runtime_switch("RR", 12345)
+    adaptor.run()
+
+    projections = adaptor.get_total_output(window=1).to(dtype=torch.float32)
+    header = adaptor.get_output_header_path("tot_w1")
+    object_meta, proj_meta = pytomo_simind.get_metadata(str(header))
+
+    system_matrix = SPECTSystemMatrix(
+        obj2obj_transforms=[],
+        proj2proj_transforms=[],
+        object_meta=object_meta,
+        proj_meta=proj_meta,
+    )
 
 Density Conversion
 ------------------
 
-The package provides advanced Hounsfield Unit (HU) to density conversion methods:
-
-Traditional Bilinear Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The package includes HU-to-density conversion utilities, including the
+Schneider2000 model.
 
 .. code-block:: python
 
-    from sirf_simind_connection.converters.attenuation import hu_to_density
     import numpy as np
+    from sirf_simind_connection.converters.attenuation import hu_to_density_schneider
 
-    # Simple 3-point model (air, water, bone)
     hu_image = np.array([[-1000, 0, 500], [800, 1200, 2000]])
-    density_bilinear = hu_to_density(hu_image)
-
-Advanced Schneider2000 Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: python
-
-    from sirf_simind_connection.converters.attenuation import (
-        hu_to_density_schneider,
-        hu_to_density_schneider_piecewise,
-        get_schneider_tissue_info,
-        compare_density_methods
-    )
-
-    # Advanced 44-segment piecewise model
-    density_schneider = hu_to_density_schneider(hu_image)
-    density_piecewise = hu_to_density_schneider_piecewise(hu_image)
-
-    # Lookup tissue information
-    tissue_info = get_schneider_tissue_info(50)  # HU = 50
-    print(f"Tissue: {tissue_info['name']}")
-    print(f"Density: {tissue_info['density_g_cm3']:.3f} g/cm³")
-
-    # Compare methods
-    comparison = compare_density_methods(hu_image)
-    print(f"Mean difference: {comparison['mean_diff_interp']:.3f} g/cm³")
-
-**Key Advantages of Schneider Model:**
-
-- **44 tissue segments** vs 3 points (bilinear)
-- **Clinically validated densities** from Schneider et al. 2000
-- **Better accuracy** especially for lung and bone regions
-- **Metal implant support** - handles dental materials and implants
-- **~0.17-0.19 g/cm³ improved accuracy** over bilinear model
-
-Detailed Use Cases
---------------------
-
-1. **Basic Simulation** - Learn how to set up and run simple simulations.
-2. **Advanced Configuration** - Using custom YAML configurations.
-3. **Density Conversion** - Choose between bilinear and Schneider models for HU-to-density conversion.
-4. **Extensive Output Analysis** - Understand the output from SCATTWIN vs PENETRATE routines.
-
-Pure Python Connector
----------------------
-
-Use the new NumPy-first connector when you want a backend-agnostic SIMIND run:
-
-.. code-block:: python
-
-    from sirf_simind_connection import RuntimeOperator, SimindPythonConnector
-    from sirf_simind_connection.configs import get
-
-    connector = SimindPythonConnector(
-        config_source=get("AnyScan.yaml"),
-        output_dir="output/python_connector",
-        output_prefix="case01",
-        quantization_scale=1.0,
-    )
-
-    outputs = connector.run(
-        RuntimeOperator(
-            switches={"NN": 1, "RR": 12345},
-        )
-    )
-
-    total = outputs["tot_w1"]
-    print(total.projection.shape)
-    print(total.header_path)
-
-``quantization_scale`` controls source integer quantization before writing SIMIND
-``.smi`` files:
-
-- ``1.0`` uses the full internal source integer range (best numeric precision)
-- values below ``1.0`` run faster for toy examples but increase rounding error
-
-SIMIND treats source maps as integer weights; absolute scaling is controlled by
-activity/time simulation settings.
+    density_map = hu_to_density_schneider(hu_image)
