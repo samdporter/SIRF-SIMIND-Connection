@@ -150,14 +150,23 @@ class StirSimindAdaptor(BaseConnector):
             if len(voxel_sizes) >= 3:
                 return float(voxel_sizes[2])
         if hasattr(image, "get_grid_spacing"):
-            spacing = image.get_grid_spacing()
+            spacing = tuple(image.get_grid_spacing())
             try:
-                return float(spacing[3])
+                if len(spacing) >= 4:
+                    # STIR-style spacing can include a leading singleton axis.
+                    return float(spacing[3])
+                if len(spacing) >= 3:
+                    return float(spacing[2])
+                raise ValueError(
+                    "STIR get_grid_spacing() returned fewer than 3 entries."
+                )
             except Exception as exc:  # pragma: no cover - backend-specific
                 raise ValueError(
                     "Unable to read voxel spacing from STIR get_grid_spacing()."
                 ) from exc
-        raise ValueError("STIR source object must expose voxel_sizes().")
+        raise ValueError(
+            "STIR source object must expose voxel_sizes() or get_grid_spacing()."
+        )
 
     def _validate_inputs(self) -> None:
         if self._source is None or self._mu_map is None:

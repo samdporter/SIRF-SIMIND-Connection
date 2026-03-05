@@ -57,8 +57,29 @@ class SimindExecutor:
             if switch_parts:
                 command.append("".join(switch_parts))
 
-        self.logger.info("Running SIMIND: %s", " ".join(command))
+        validated_command = [self._validate_cli_token(part) for part in command]
+        self.logger.info("Running SIMIND: %s", " ".join(validated_command))
         try:
-            subprocess.run(command, check=True)
+            subprocess.run(validated_command, check=True, shell=False)
+        except OSError as exc:
+            raise SimulationError(f"Unable to execute SIMIND command: {exc}") from exc
         except subprocess.CalledProcessError as exc:
             raise SimulationError(f"SIMIND execution failed: {exc}") from exc
+
+    @staticmethod
+    def _validate_cli_token(value: object) -> str:
+        """Validate command tokens before subprocess invocation.
+
+        This executor always runs with ``shell=False``, and each token is
+        validated to reject empty values, NUL bytes, and whitespace.
+        """
+        token = str(value)
+        if not token:
+            raise SimulationError("Encountered empty command token for SIMIND call.")
+        if "\x00" in token:
+            raise SimulationError("SIMIND command token contains NUL byte.")
+        if any(char.isspace() for char in token):
+            raise SimulationError(
+                f"SIMIND command token contains whitespace: {token!r}"
+            )
+        return token

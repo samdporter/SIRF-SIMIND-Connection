@@ -149,7 +149,16 @@ class SirfSimindAdaptor(BaseConnector):
             voxel_sizes = image.voxel_sizes()
             if len(voxel_sizes) >= 3:
                 return float(voxel_sizes[2])
-        raise ValueError("SIRF source object must expose voxel_sizes().")
+        if hasattr(image, "get_grid_spacing"):
+            spacing = tuple(image.get_grid_spacing())
+            if len(spacing) >= 4:
+                return float(spacing[3])
+            if len(spacing) >= 3:
+                return float(spacing[2])
+            raise ValueError("SIRF get_grid_spacing() returned fewer than 3 entries.")
+        raise ValueError(
+            "SIRF source object must expose voxel_sizes() or get_grid_spacing()."
+        )
 
     def _validate_inputs(self) -> None:
         if self._source is None or self._mu_map is None:

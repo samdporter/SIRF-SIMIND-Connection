@@ -35,6 +35,10 @@ Units
 - STIR/SIRF image geometry is typically expressed in **mm**.
 - Connectors handle conversion internally via voxel-size settings (for example,
   runtime switch ``PX`` is set in cm for SIMIND).
+- STIR/SIRF adaptor voxel size extraction expects z-spacing in mm. It uses
+  ``voxel_sizes()[2]`` when available, and falls back to ``get_grid_spacing()``
+  using the last spatial element (index 3 for 4-element spacing, index 2 for
+  3-element spacing).
 
 Example Configuration Guardrails
 --------------------------------
