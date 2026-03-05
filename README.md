@@ -96,27 +96,36 @@ wire SIMIND paths when the binary exists at `./simind/simind`.
 
 ## Quick Start
 ```python
-from sirf_simind_connection import SimindSimulator, SimulationConfig
+import numpy as np
+from sirf_simind_connection import SimindPythonConnector
 from sirf_simind_connection.configs import get
-from sirf_simind_connection.utils.stir_utils import create_simple_phantom, create_attenuation_map
 
-# Create phantom and attenuation map
-phantom = create_simple_phantom()
-mu_map = create_attenuation_map(phantom)
+source = np.zeros((32, 32, 32), dtype=np.float32)  # z, y, x
+source[12:20, 12:20, 12:20] = 1.0
+mu_map = np.zeros_like(source)
+mu_map[source > 0] = 0.15
 
-# Load pre-configured scanner settings
-config = SimulationConfig(get("AnyScan.yaml"))
-simulator = SimindSimulator(config, output_dir='output')
+connector = SimindPythonConnector(
+    config_source=get("Example.yaml"),
+    output_dir="output/basic",
+    output_prefix="case01",
+    quantization_scale=0.05,
+)
 
-# Set inputs and run
-simulator.set_source(phantom)
-simulator.set_mu_map(mu_map)
-simulator.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
-simulator.run_simulation()
+connector.configure_voxel_phantom(
+    source=source,
+    mu_map=mu_map,
+    voxel_size_mm=4.0,
+)
+connector.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
+connector.add_runtime_switch("FI", "tc99m")
+connector.add_runtime_switch("CC", "ma-lehr")
+connector.add_runtime_switch("NN", 1)
+connector.add_runtime_switch("RR", 12345)
 
-# Access results as native SIRF/STIR objects when needed
-native_outputs = simulator.get_outputs(native=True)
-sirf_tot = simulator.get_total_output(native=True)
+outputs = connector.run()
+total = outputs["tot_w1"].projection
+print(total.shape)
 ```
 
 ### Advanced Density Conversion

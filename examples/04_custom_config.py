@@ -143,9 +143,8 @@ def demonstrate_yaml_workflow():
     print(f"\nAll configurations saved to: {output_dir}")
     print("\nYou can now:")
     print("1. Edit the YAML files directly")
-    print("2. Use them with SimindSimulator:")
-    print("   config = SimulationConfig('lehr_collimator.yaml')")
-    print("   simulator = SimindSimulator(config_source=config, ...)")
+    print("2. Use them with SimindPythonConnector:")
+    print("   connector = SimindPythonConnector(config_source='lehr_collimator.yaml', ...)")
 
 
 def demonstrate_new_api_usage():
@@ -158,40 +157,21 @@ def demonstrate_new_api_usage():
     # Create a custom config
     custom_config = create_custom_lehr_config()
 
-    # Show how it would be used with the new SimindSimulator API
+    # Show how it would be used with the connector-first API
     print("\nWith the new API, you would use this config like:")
     print(
         """
-    from sirf_simind_connection import SimindSimulator
-    from sirf_simind_connection.core import ScoringRoutine
+    from sirf_simind_connection import SimindPythonConnector
 
-    # Option 1: Use the config object directly
-    simulator = SimindSimulator(
-        config_source=custom_config,  # Pass the config object
+    connector = SimindPythonConnector(
+        config_source='lehr_collimator.yaml',
         output_dir='output',
-        output_prefix='lehr_sim',
-        photon_multiplier=10,
-        scoring_routine=ScoringRoutine.SCATTWIN
+        output_prefix='lehr_sim'
     )
 
-    # Set your inputs
-    simulator.set_source(phantom)
-    simulator.set_mu_map(mu_map)
-    simulator.set_energy_windows([126], [154], [0])
-
-    # Run simulation
-    simulator.run_simulation()
-
-    ----------
-
-    # Option 2: Use a saved YAML file
-    simulator = SimindSimulator(
-        config_source='lehr_collimator.yaml',  # Pass YAML path
-        output_dir='output',
-        output_prefix='lehr_sim',
-        photon_multiplier=10,
-        scoring_routine=ScoringRoutine.SCATTWIN
-    )
+    # Configure runtime/config switches and run
+    connector.add_runtime_switch('NN', 10)
+    outputs = connector.run()
     """
     )
 

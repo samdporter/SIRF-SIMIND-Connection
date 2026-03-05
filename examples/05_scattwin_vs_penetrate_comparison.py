@@ -13,10 +13,8 @@ import numpy as np
 from _python_connector_helpers import (
     add_standard_runtime,
     build_small_phantom_zyx,
-    configure_voxel_input,
     projection_view0,
     require_simind,
-    write_windows,
 )
 
 from sirf_simind_connection import SimindPythonConnector, configs
@@ -35,18 +33,18 @@ def _run_case(
         output_prefix=prefix,
         quantization_scale=0.05,
     )
-    configure_voxel_input(
-        connector,
-        source,
-        mu_map,
+    connector.configure_voxel_phantom(
+        source=source,
+        mu_map=mu_map,
         voxel_size_mm=4.0,
         scoring_routine=scoring_routine,
     )
+    connector.add_config_value(1, 140.0)
     # Use full detector-hit acceptance for both SCATTWIN and PENETRATE in this
     # comparison example.
     connector.add_config_value(19, -90)
     connector.add_config_value(53, 1)
-    write_windows(connector, [75.0], [225.0], [0])
+    connector.set_energy_windows([75.0], [225.0], [0])
     add_standard_runtime(connector, photon_multiplier=1, seed=12345)
 
     results = connector.run()
