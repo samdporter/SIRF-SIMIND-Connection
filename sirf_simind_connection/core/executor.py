@@ -29,24 +29,15 @@ class SimindExecutor:
                     mp_value = value
                     break
 
-        if mp_value is not None:
-            command = [
-                "mpirun",
-                "-np",
-                str(mp_value),
-                "simind",
-                output_prefix,
-                output_prefix,
-            ]
-        else:
-            command = ["simind", output_prefix, output_prefix]
+        validated_output_prefix = self._validate_cli_token(output_prefix)
+        validated_orbit_name = (
+            self._validate_cli_token(orbit_file.name) if orbit_file else None
+        )
+        validated_mp_value = (
+            self._validate_cli_token(mp_value) if mp_value is not None else None
+        )
 
-        if orbit_file:
-            command.append(orbit_file.name)
-
-        if mp_value is not None:
-            command.append("-p")
-
+        validated_switch_blob = None
         if runtime_switches:
             switch_parts = []
             for key, value in runtime_switches.items():
@@ -55,14 +46,32 @@ class SimindExecutor:
                 else:
                     switch_parts.append(f"/{key}:{value}")
             if switch_parts:
-                command.append("".join(switch_parts))
+                validated_switch_blob = self._validate_cli_token("".join(switch_parts))
 
-        validated_command = [self._validate_cli_token(part) for part in command]
-        self.logger.info("Running SIMIND: %s", " ".join(validated_command))
+        if validated_mp_value is not None:
+            command = [
+                "mpirun",
+                "-np",
+                validated_mp_value,
+                "simind",
+                validated_output_prefix,
+                validated_output_prefix,
+            ]
+            if validated_orbit_name is not None:
+                command.append(validated_orbit_name)
+            command.append("-p")
+            if validated_switch_blob is not None:
+                command.append(validated_switch_blob)
+        else:
+            command = ["simind", validated_output_prefix, validated_output_prefix]
+            if validated_orbit_name is not None:
+                command.append(validated_orbit_name)
+            if validated_switch_blob is not None:
+                command.append(validated_switch_blob)
+
+        self.logger.info("Running SIMIND: %s", " ".join(command))
         try:
-            # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit
-            # Tokens are validated above and executed with shell=False.
-            subprocess.run(validated_command, check=True, shell=False)
+            subprocess.run(command, check=True, shell=False)
         except OSError as exc:
             raise SimulationError(f"Unable to execute SIMIND command: {exc}") from exc
         except subprocess.CalledProcessError as exc:
