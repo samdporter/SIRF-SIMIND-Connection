@@ -3,7 +3,13 @@
 Introduction
 ============
 
-SIRF-SIMIND-Connection is a Python toolkit for SIMIND SPECT workflows.
+py-smc is a Python toolkit for SIMIND SPECT workflows.
+
+Disclaimer
+----------
+
+This project is independent and is **not affiliated with, endorsed by, or
+maintained by** the SIMIND project or Lund University.
 
 For users, the package provides two core capabilities:
 

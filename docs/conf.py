@@ -1,4 +1,4 @@
-"""Sphinx configuration file for SIRF-SIMIND-Connection documentation."""
+"""Sphinx configuration file for py-smc documentation."""
 
 import os
 import sys
@@ -10,13 +10,16 @@ from importlib import metadata as importlib_metadata
 sys.path.insert(0, os.path.abspath(".."))
 
 # Project information
-project = "SIRF-SIMIND-Connection"
+project = "py-smc"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-try:
-    release = importlib_metadata.version("sirf-simind-connection")
-except importlib_metadata.PackageNotFoundError:
-    release = "0.4.0"
+release = "0.5.0"
+for dist_name in ("py-smc", "sirf-simind-connection"):
+    try:
+        release = importlib_metadata.version(dist_name)
+        break
+    except importlib_metadata.PackageNotFoundError:
+        continue
 version = ".".join(release.split(".")[:2])
 
 # General configuration

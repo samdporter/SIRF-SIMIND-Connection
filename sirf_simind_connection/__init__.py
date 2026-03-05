@@ -1,5 +1,5 @@
 """
-SIRF ⇄ SIMIND connector/adaptor API.
+py-smc connector/adaptor API.
 """
 
 import importlib
@@ -7,10 +7,14 @@ from importlib import metadata as _meta
 from typing import Any
 
 
-try:  # installed (pip/poetry)
-    __version__ = _meta.version(__name__)
-except _meta.PackageNotFoundError:  # editable / source checkout
-    __version__ = "0.4.0"
+for _dist_name in ("py-smc", "sirf-simind-connection", __name__):
+    try:  # installed (pip/poetry)
+        __version__ = _meta.version(_dist_name)
+        break
+    except _meta.PackageNotFoundError:
+        continue
+else:  # editable / source checkout
+    __version__ = "0.5.0"
 
 
 def __getattr__(name: str) -> Any:

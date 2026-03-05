@@ -31,6 +31,12 @@ Install the Python Package
 SIMIND Requirement (External Dependency)
 ----------------------------------------
 
+Disclaimer
+~~~~~~~~~~
+
+This project is independent and is **not affiliated with, endorsed by, or
+maintained by** the SIMIND project or Lund University.
+
 SIMIND is **not** distributed with this package (or on PyPI) and must be
 installed separately.
 

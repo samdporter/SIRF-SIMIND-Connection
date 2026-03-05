@@ -10,6 +10,15 @@ The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`
 Unreleased
 ----------
 
+Changed
+~~~~~~~
+
+- Updated user-facing branding to ``py-smc`` and added explicit non-affiliation
+  and external-SIMIND-install disclaimers in README/docs.
+
+[0.5.0] - 2026-03-05
+--------------------
+
 **Breaking Changes**
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -60,7 +69,9 @@ Fixed
 ~~~~~
 
 - STIR/SIRF voxel-size extraction fallback now supports both 4-element and
-  3-element ``get_grid_spacing()`` outputs (z-spacing extraction).
+  3-element ``get_grid_spacing()`` outputs, plus non-iterable coordinate
+  objects (for example, STIR ``Float3BasicCoordinate``) for z-spacing
+  extraction.
 - ``SimindExecutor`` command invocation hardened with explicit token validation
   and ``shell=False`` execution.
 

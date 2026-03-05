@@ -1,4 +1,6 @@
-# SIRF-SIMIND-Connection
+# py-smc
+
+Python SIMIND Monte Carlo Connector.
 
 [![Tests](https://github.com/samdporter/SIRF-SIMIND-Connection/workflows/Tests/badge.svg)](https://github.com/samdporter/SIRF-SIMIND-Connection/actions)
 [![Documentation Status](https://readthedocs.org/projects/sirf-simind-connection/badge/?version=latest)](https://sirf-simind-connection.readthedocs.io/en/latest/?badge=latest)
@@ -8,9 +10,18 @@
 A Python toolkit that lets you run SIMIND from Python and use the outputs in
 common reconstruction ecosystems (STIR, SIRF, PyTomography).
 
+## Disclaimer
+
+This project is an independent Python connector toolkit and is **not
+affiliated with, endorsed by, or maintained by** the SIMIND project or Lund
+University.
+
+SIMIND is **not distributed** with this package. You must separately obtain and
+install a licensed SIMIND installation.
+
 ## Quick Links
-- [Full Documentation](https://SIRF-SIMIND-Connection.readthedocs.io/)
-- [Installation](https://SIRF-SIMIND-Connection.readthedocs.io/en/latest/installation.html)
+- [Full Documentation](https://sirf-simind-connection.readthedocs.io/)
+- [Installation](https://sirf-simind-connection.readthedocs.io/en/latest/installation.html)
 - [Backend Support](https://sirf-simind-connection.readthedocs.io/en/latest/backends.html) - adaptor dependency matrix
 
 ## What This Package Does
@@ -30,7 +41,13 @@ common reconstruction ecosystems (STIR, SIRF, PyTomography).
 ### Basic Installation
 
 ```bash
-pip install sirf-simind-connection
+pip install py-smc
+```
+
+Import path remains:
+
+```python
+import sirf_simind_connection
 ```
 
 ### Adaptor Dependencies

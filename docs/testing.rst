@@ -3,7 +3,10 @@
 Testing
 =======
 
-This document explains the testing strategy for SIRF-SIMIND-Connection, which handles the challenge of testing code that depends on optional external dependencies (SIRF, STIR, SIMIND, and PyTomography) that may not be available in every environment.
+This document explains the testing strategy for py-smc, which handles the
+challenge of testing code that depends on optional external dependencies (SIRF,
+STIR, SIMIND, and PyTomography) that may not be available in every
+environment.
 
 Test Organization
 -----------------
