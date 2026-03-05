@@ -62,4 +62,3 @@ class SimindExecutor:
             subprocess.run(command, check=True)
         except subprocess.CalledProcessError as exc:
             raise SimulationError(f"SIMIND execution failed: {exc}") from exc
-

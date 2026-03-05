@@ -14,8 +14,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from pytomography.io.SPECT import simind as pytomo_simind
 from pytomography import algorithms, likelihoods
+from pytomography.io.SPECT import simind as pytomo_simind
 from pytomography.projectors.SPECT import SPECTSystemMatrix
 from pytomography.transforms.SPECT import (
     SPECTAttenuationTransform,
@@ -94,9 +94,7 @@ def _build_system_matrix(
     try:
         obj2obj_transforms.append(
             SPECTAttenuationTransform(
-                attenuation_map=attenuation_map_xyz.to(
-                    dtype=torch.float32
-                ).contiguous()
+                attenuation_map=attenuation_map_xyz.to(dtype=torch.float32).contiguous()
             )
         )
     except Exception:

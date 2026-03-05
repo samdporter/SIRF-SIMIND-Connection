@@ -77,9 +77,7 @@ class StirSimindAdaptor(BaseConnector):
     def add_runtime_switch(self, switch: str, value: Any) -> None:
         self.python_connector.add_runtime_switch(switch, value)
 
-    def run(
-        self, runtime_operator: Optional[RuntimeOperator] = None
-    ) -> dict[str, Any]:
+    def run(self, runtime_operator: Optional[RuntimeOperator] = None) -> dict[str, Any]:
         self._validate_inputs()
         assert self._source is not None
         assert self._mu_map is not None
@@ -120,7 +118,9 @@ class StirSimindAdaptor(BaseConnector):
 
     def get_penetrate_output(self, component: PenetrateOutputType | str) -> Any:
         outputs = self.get_outputs()
-        key = component.slug if isinstance(component, PenetrateOutputType) else component
+        key = (
+            component.slug if isinstance(component, PenetrateOutputType) else component
+        )
         if key not in outputs:
             available = ", ".join(sorted(outputs))
             raise KeyError(f"Output {key!r} not available. Available: {available}")

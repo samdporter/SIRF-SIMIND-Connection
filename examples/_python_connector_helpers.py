@@ -30,6 +30,7 @@ def build_small_phantom_zyx() -> tuple[np.ndarray, np.ndarray]:
     mu_map[body] = 0.15
     return source, mu_map
 
+
 def add_standard_runtime(
     connector: SimindPythonConnector,
     photon_multiplier: int = 1,

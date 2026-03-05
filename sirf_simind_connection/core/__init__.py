@@ -5,4 +5,3 @@ from .types import ScoringRoutine
 
 
 __all__ = ["ScoringRoutine", "SimulationConfig"]
-

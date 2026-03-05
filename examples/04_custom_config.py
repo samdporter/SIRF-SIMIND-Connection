@@ -144,7 +144,8 @@ def demonstrate_yaml_workflow():
     print("\nYou can now:")
     print("1. Edit the YAML files directly")
     print("2. Use them with SimindPythonConnector:")
-    print("   connector = SimindPythonConnector(config_source='lehr_collimator.yaml', ...)")
+    print("   connector = SimindPythonConnector(")
+    print("       config_source='lehr_collimator.yaml', ...")
 
 
 def demonstrate_new_api_usage():
