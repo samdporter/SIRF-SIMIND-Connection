@@ -147,6 +147,7 @@ connector.configure_voxel_phantom(
     source=source,
     mu_map=mu_map,
     voxel_size_mm=4.0,
+    mu_map_type="attenuation",  # or "density" / "hu"
 )
 connector.set_energy_windows([126], [154], [0])  # Tc-99m ± 10%
 connector.add_runtime_switch("FI", "tc99m")
@@ -158,6 +159,13 @@ outputs = connector.run()
 total = outputs["tot_w1"].projection
 print(total.shape)
 ```
+
+`mu_map_type` controls how `mu_map` is interpreted before writing SIMIND
+density input:
+
+- `"attenuation"`: linear attenuation coefficients (cm^-1), converted to density
+- `"density"`: density map in g/cm^3, used directly
+- `"hu"`: CT HU map, converted with the Schneider model
 
 ### Advanced Density Conversion
 

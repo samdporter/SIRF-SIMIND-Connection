@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import sirf_simind_connection.connectors.python_connector as connector_mod
 from sirf_simind_connection.configs import get
 from sirf_simind_connection.connectors import RuntimeOperator, SimindPythonConnector
 from sirf_simind_connection.core.types import ScoringRoutine
@@ -352,6 +353,85 @@ def test_python_connector_configure_voxel_phantom_accepts_scoring_routine_enum(
     )
 
     assert int(connector.get_config().get_value(84)) == ScoringRoutine.PENETRATE.value
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_accepts_density_input_type(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.ones((3, 4, 5), dtype=np.float32)
+    density_g_cm3 = np.full_like(source, 1.5, dtype=np.float32)
+
+    _, density_path = connector.configure_voxel_phantom(
+        source=source,
+        mu_map=density_g_cm3,
+        mu_map_type="density",
+    )
+
+    density_u16 = np.fromfile(density_path, dtype=np.uint16)
+    assert density_u16.size == density_g_cm3.size
+    assert np.all(density_u16 == 1500)
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_accepts_hu_input_type(
+    tmp_path: Path, monkeypatch
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.ones((3, 4, 5), dtype=np.float32)
+    hu_map = np.full_like(source, 120.0, dtype=np.float32)
+    converted_density = np.full_like(source, 1.25, dtype=np.float32)
+    captured: dict[str, np.ndarray] = {}
+
+    def fake_hu_to_density_schneider(values: np.ndarray) -> np.ndarray:
+        captured["input"] = values.copy()
+        return converted_density
+
+    monkeypatch.setattr(
+        connector_mod,
+        "hu_to_density_schneider",
+        fake_hu_to_density_schneider,
+    )
+
+    _, density_path = connector.configure_voxel_phantom(
+        source=source,
+        mu_map=hu_map,
+        mu_map_type="hu",
+    )
+
+    density_u16 = np.fromfile(density_path, dtype=np.uint16)
+    assert density_u16.size == hu_map.size
+    assert np.all(density_u16 == 1250)
+    assert np.array_equal(captured["input"], hu_map)
+
+
+@pytest.mark.unit
+def test_python_connector_configure_voxel_phantom_rejects_unknown_mu_map_type(
+    tmp_path: Path,
+):
+    connector = SimindPythonConnector(
+        config_source=get("AnyScan.yaml"),
+        output_dir=tmp_path,
+        output_prefix="case01",
+    )
+    source = np.ones((3, 4, 5), dtype=np.float32)
+    mu_map = np.ones_like(source, dtype=np.float32)
+
+    with pytest.raises(ValueError, match="mu_map_type must be one of"):
+        connector.configure_voxel_phantom(
+            source=source,
+            mu_map=mu_map,
+            mu_map_type="unsupported",
+        )
 
 
 @pytest.mark.unit
