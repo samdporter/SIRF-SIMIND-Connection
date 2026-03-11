@@ -10,11 +10,22 @@ The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`
 Unreleased
 ----------
 
+Added
+~~~~~
+
+- ``mu_map_type`` input selection for SIMIND phantom setup, supporting
+  attenuation maps, density maps, and HU maps in
+  ``SimindPythonConnector.configure_voxel_phantom()``.
+
 Changed
 ~~~~~~~
 
 - Updated user-facing branding to ``py-smc`` and added explicit non-affiliation
   and external-SIMIND-install disclaimers in README/docs.
+- STIR/SIRF/PyTomography adaptors now forward ``mu_map_type`` so input-map
+  interpretation is configurable across connector and adaptor workflows.
+- Usage docs now describe ``mu_map_type`` options and example calls for
+  connector/adaptor setup.
 
 [0.5.0] - 2026-03-05
 --------------------
