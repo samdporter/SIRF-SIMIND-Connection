@@ -1,4 +1,4 @@
-"""Sphinx configuration file for py-smc documentation."""
+"""Sphinx configuration file for PySIMIND documentation."""
 
 import os
 import sys
@@ -10,11 +10,11 @@ from importlib import metadata as importlib_metadata
 sys.path.insert(0, os.path.abspath(".."))
 
 # Project information
-project = "py-smc"
+project = "PySIMIND"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
 release = "0.5.0"
-for dist_name in ("py-smc", "sirf-simind-connection"):
+for dist_name in ("PySIMIND", "py-smc", "sirf-simind-connection"):
     try:
         release = importlib_metadata.version(dist_name)
         break

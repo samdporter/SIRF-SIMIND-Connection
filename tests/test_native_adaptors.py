@@ -146,6 +146,7 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
         output_dir=str(tmp_path),
         output_prefix="case01",
         scoring_routine=ScoringRoutine.PENETRATE,
+        mu_map_type="density",
     )
 
     source_arr = np.arange(2 * 3 * 4, dtype=np.float64).reshape(2, 3, 4)
@@ -157,11 +158,14 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
 
     captured: dict[str, object] = {}
 
-    def fake_configure_voxel_phantom(source, mu_map, voxel_size_mm, scoring_routine):
+    def fake_configure_voxel_phantom(
+        source, mu_map, voxel_size_mm, scoring_routine, mu_map_type
+    ):
         captured["source"] = source
         captured["mu_map"] = mu_map
         captured["voxel_size_mm"] = voxel_size_mm
         captured["scoring_routine"] = scoring_routine
+        captured["mu_map_type"] = mu_map_type
         return (tmp_path / "case01_src.smi", tmp_path / "case01_dns.dmi")
 
     def fake_run(runtime_operator=None):
@@ -185,6 +189,7 @@ def test_stir_adaptor_run_forwards_expected_connector_inputs(
     assert np.asarray(captured["mu_map"]).shape == (2, 3, 4)
     assert captured["voxel_size_mm"] == pytest.approx(4.25)
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
+    assert captured["mu_map_type"] == "density"
     assert captured["runtime_operator"] is runtime_operator
 
 
@@ -294,6 +299,7 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
         output_dir=str(tmp_path),
         output_prefix="case01",
         scoring_routine=ScoringRoutine.PENETRATE,
+        mu_map_type="hu",
     )
 
     source_arr = np.arange(2 * 3 * 4, dtype=np.float64).reshape(2, 3, 4)
@@ -305,11 +311,14 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
 
     captured: dict[str, object] = {}
 
-    def fake_configure_voxel_phantom(source, mu_map, voxel_size_mm, scoring_routine):
+    def fake_configure_voxel_phantom(
+        source, mu_map, voxel_size_mm, scoring_routine, mu_map_type
+    ):
         captured["source"] = source
         captured["mu_map"] = mu_map
         captured["voxel_size_mm"] = voxel_size_mm
         captured["scoring_routine"] = scoring_routine
+        captured["mu_map_type"] = mu_map_type
         return (tmp_path / "case01_src.smi", tmp_path / "case01_dns.dmi")
 
     def fake_run(runtime_operator=None):
@@ -333,6 +342,7 @@ def test_sirf_adaptor_run_forwards_expected_connector_inputs(
     assert np.asarray(captured["mu_map"]).shape == (2, 3, 4)
     assert captured["voxel_size_mm"] == pytest.approx(3.75)
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
+    assert captured["mu_map_type"] == "hu"
     assert captured["runtime_operator"] is runtime_operator
 
 
