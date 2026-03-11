@@ -1,4 +1,4 @@
-# py-smc
+# PySIMIND
 
 Python SIMIND Monte Carlo Connector.
 
@@ -41,7 +41,7 @@ install a licensed SIMIND installation.
 ### Basic Installation
 
 ```bash
-pip install py-smc
+pip install PySIMIND
 ```
 
 Import path remains:

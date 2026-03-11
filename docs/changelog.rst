@@ -20,7 +20,7 @@ Added
 Changed
 ~~~~~~~
 
-- Updated user-facing branding to ``py-smc`` and added explicit non-affiliation
+- Updated user-facing branding to ``PySIMIND`` and added explicit non-affiliation
   and external-SIMIND-install disclaimers in README/docs.
 - STIR/SIRF/PyTomography adaptors now forward ``mu_map_type`` so input-map
   interpretation is configurable across connector and adaptor workflows.

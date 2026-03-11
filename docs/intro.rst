@@ -3,7 +3,7 @@
 Introduction
 ============
 
-py-smc is a Python toolkit for SIMIND SPECT workflows.
+PySIMIND is a Python toolkit for SIMIND SPECT workflows.
 
 Disclaimer
 ----------
