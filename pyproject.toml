@@ -64,7 +64,12 @@ where = ["."]
 include = ["sirf_simind_connection*"]
 
 [tool.setuptools.package-data]
-sirf_simind_connection = ["data/*.atn"]
+sirf_simind_connection = [
+    "configs/*.smc",
+    "configs/*.yaml",
+    "data/*.atn",
+    "data/*.json",
+]
 
 [tool.ruff]
 line-length = 88
