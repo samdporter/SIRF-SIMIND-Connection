@@ -22,7 +22,7 @@ from pytomography.transforms.SPECT import (
     SPECTPSFTransform,
 )
 
-from sirf_simind_connection import PyTomographySimindAdaptor, configs
+from py_smc import PyTomographySimindAdaptor, configs
 
 
 def _build_small_tensors() -> tuple[torch.Tensor, torch.Tensor]:

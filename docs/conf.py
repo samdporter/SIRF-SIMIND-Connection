@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "py-smc"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-release = "0.5.0"
-for dist_name in ("py-smc", "sirf-simind-connection"):
+release = "1.0.0"
+for dist_name in ("py-smc",):
     try:
         release = importlib_metadata.version(dist_name)
         break

@@ -171,7 +171,7 @@ run_example() {
 
 # Header
 echo "======================================"
-echo "Running SIRF-SIMIND-Connection Examples"
+echo "Running py-smc Examples"
 echo "======================================"
 echo ""
 echo "Total examples: ${#EXAMPLES[@]}"

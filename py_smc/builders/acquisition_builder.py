@@ -7,11 +7,11 @@ from typing import Literal, Optional
 import numpy as np
 import pydicom
 
-from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+from py_smc.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
 
 # Conditional import for SIRF types
-from sirf_simind_connection.utils.import_helpers import get_sirf_types
-from sirf_simind_connection.utils.io_utils import temporary_directory
+from py_smc.utils.import_helpers import get_sirf_types
+from py_smc.utils.io_utils import temporary_directory
 
 
 _, AcquisitionData, SIRF_AVAILABLE = get_sirf_types()

@@ -2,7 +2,7 @@
 """
 Run All Examples Script
 
-This script runs all SIRF-SIMIND-Connection examples in sequence,
+This script runs all py-smc examples in sequence,
 providing a comprehensive demonstration of the package capabilities.
 
 Run from the scripts/ directory:
@@ -70,7 +70,7 @@ EXAMPLES = [
 def print_header():
     """Print script header."""
     print("=" * 80)
-    print("SIRF-SIMIND-Connection - Run All Examples")
+    print("py-smc - Run All Examples")
     print("=" * 80)
     print(f"Running from: {os.getcwd()}")
     print(f"Total examples: {len(EXAMPLES)}")
@@ -84,7 +84,7 @@ def check_dependencies():
     """Check if required packages are available."""
     print("\nChecking dependencies...")
 
-    required_modules = ["sirf_simind_connection", "matplotlib", "numpy"]
+    required_modules = ["py_smc", "matplotlib", "numpy"]
 
     missing = []
     for module in required_modules:

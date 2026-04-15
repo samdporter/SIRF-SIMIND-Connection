@@ -16,7 +16,7 @@ Changed
 - Updated user-facing branding to ``py-smc`` and added explicit non-affiliation
   and external-SIMIND-install disclaimers in README/docs.
 
-[0.5.0] - 2026-03-05
+[1.0.0] - 2026-03-05
 --------------------
 
 **Breaking Changes**

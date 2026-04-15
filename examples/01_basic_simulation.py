@@ -19,7 +19,7 @@ from _python_connector_helpers import (
     require_simind,
 )
 
-from sirf_simind_connection import SimindPythonConnector, configs
+from py_smc import SimindPythonConnector, configs
 
 
 def main() -> None:

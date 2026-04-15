@@ -19,8 +19,8 @@ Install the Python Package
 
    .. code-block:: bash
 
-      git clone https://github.com/samdporter/SIRF-SIMIND-Connection.git
-      cd SIRF-SIMIND-Connection
+      git clone https://github.com/samdporter/py-smc.git
+      cd py-smc
 
 2. Install in editable/development mode:
 
@@ -95,7 +95,7 @@ Verify basic Python package import:
 
 .. code-block:: bash
 
-    python -c "import sirf_simind_connection as s; print(s.__version__)"
+    python -c "import py_smc as s; print(s.__version__)"
 
 Verify SIMIND detection from this repo root:
 

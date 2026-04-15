@@ -2,7 +2,7 @@
 
 import pytest
 
-from sirf_simind_connection.utils.stir_utils import create_stir_acqdata
+from py_smc.utils.stir_utils import create_stir_acqdata
 
 
 # Mark as requiring backend

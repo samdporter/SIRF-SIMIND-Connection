@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sirf_simind_connection.configs import get
-from sirf_simind_connection.connectors import RuntimeOperator, SimindPythonConnector
-from sirf_simind_connection.core.types import ScoringRoutine
+from py_smc.configs import get
+from py_smc.connectors import RuntimeOperator, SimindPythonConnector
+from py_smc.core.types import ScoringRoutine
 
 
 @pytest.mark.unit

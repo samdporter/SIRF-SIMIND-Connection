@@ -20,8 +20,8 @@ import pandas as pd
 from matplotlib.gridspec import GridSpec
 from sirf.STIR import AcquisitionData, ImageData, MessageRedirector
 
-from sirf_simind_connection import SimindSimulator, SimulationConfig
-from sirf_simind_connection.core import ScoringRoutine
+from py_smc import SimindSimulator, SimulationConfig
+from py_smc.core import ScoringRoutine
 
 
 msg = MessageRedirector()

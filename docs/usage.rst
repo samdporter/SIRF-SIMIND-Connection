@@ -12,8 +12,8 @@ inputs/outputs without any reconstruction-package dependency.
 .. code-block:: python
 
     import numpy as np
-    from sirf_simind_connection import SimindPythonConnector
-    from sirf_simind_connection.configs import get
+    from py_smc import SimindPythonConnector
+    from py_smc.configs import get
 
     source = np.zeros((32, 32, 32), dtype=np.float32)  # z, y, x
     source[12:20, 12:20, 12:20] = 1.0
@@ -53,8 +53,8 @@ STIR adaptor
 
 .. code-block:: python
 
-    from sirf_simind_connection import StirSimindAdaptor
-    from sirf_simind_connection.configs import get
+    from py_smc import StirSimindAdaptor
+    from py_smc.configs import get
 
     adaptor = StirSimindAdaptor(
         config_source=get("Example.yaml"),
@@ -76,8 +76,8 @@ SIRF adaptor
 
 .. code-block:: python
 
-    from sirf_simind_connection import SirfSimindAdaptor
-    from sirf_simind_connection.configs import get
+    from py_smc import SirfSimindAdaptor
+    from py_smc.configs import get
 
     adaptor = SirfSimindAdaptor(
         config_source=get("Example.yaml"),
@@ -106,8 +106,8 @@ Build the system matrix directly with PyTomography APIs.
     from pytomography.io.SPECT import simind as pytomo_simind
     from pytomography.projectors.SPECT import SPECTSystemMatrix
 
-    from sirf_simind_connection import PyTomographySimindAdaptor
-    from sirf_simind_connection.configs import get
+    from py_smc import PyTomographySimindAdaptor
+    from py_smc.configs import get
 
     adaptor = PyTomographySimindAdaptor(
         config_source=get("Example.yaml"),
@@ -142,7 +142,7 @@ Schneider2000 model.
 .. code-block:: python
 
     import numpy as np
-    from sirf_simind_connection.converters.attenuation import hu_to_density_schneider
+    from py_smc.converters.attenuation import hu_to_density_schneider
 
     hu_image = np.array([[-1000, 0, 500], [800, 1200, 2000]])
     density_map = hu_to_density_schneider(hu_image)

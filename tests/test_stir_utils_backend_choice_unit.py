@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from sirf_simind_connection.utils import stir_utils
+from py_smc.utils import stir_utils
 
 
 pytestmark = pytest.mark.unit
 
 
 def test_create_stir_image_forwards_explicit_backend(monkeypatch):
-    import sirf_simind_connection.builders as builders
+    import py_smc.builders as builders
 
     captured = {}
 
@@ -41,7 +41,7 @@ def test_create_stir_image_forwards_explicit_backend(monkeypatch):
 
 
 def test_create_stir_acqdata_forwards_explicit_backend(monkeypatch):
-    import sirf_simind_connection.builders as builders
+    import py_smc.builders as builders
 
     captured = {}
 

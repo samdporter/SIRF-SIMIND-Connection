@@ -18,4 +18,4 @@ isort .
 
 # 4. Lint check
 echo "Running lint check with Ruff..."
-ruff check ./sirf_simind_connection examples
+ruff check ./py_smc examples

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Setup script for sirf-simind-spect.
+Setup script for py-smc.
 
 This file is included for backwards compatibility with older pip versions.
 The main configuration is in pyproject.toml.

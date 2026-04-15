@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "py-smc"
-version = "0.5.0"
+version = "1.0.0"
 description = "Python SIMIND Monte Carlo connector with STIR/SIRF/PyTomography adaptors"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -53,18 +53,18 @@ examples = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/samdporter/SIRF-SIMIND-Connection"
-Documentation = "https://sirf-simind-connection.readthedocs.io/"
-Repository = "https://github.com/samdporter/SIRF-SIMIND-Connection"
-Issues = "https://github.com/samdporter/SIRF-SIMIND-Connection/issues"
-Changelog = "https://github.com/samdporter/SIRF-SIMIND-Connection/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/samdporter/py-smc"
+Documentation = "https://py-smc.readthedocs.io/"
+Repository = "https://github.com/samdporter/py-smc"
+Issues = "https://github.com/samdporter/py-smc/issues"
+Changelog = "https://github.com/samdporter/py-smc/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["sirf_simind_connection*"]
+include = ["py_smc*"]
 
 [tool.setuptools.package-data]
-sirf_simind_connection = [
+py_smc = [
     "configs/*.smc",
     "configs/*.yaml",
     "data/*.atn",
@@ -81,7 +81,7 @@ select = ["F", "E", "W", "I"]  # Include import sorting (I)
 # Black-compatible import sorting
 force-single-line = false
 lines-after-imports = 2
-known-first-party = ["sirf_simind_connection"]
+known-first-party = ["py_smc"]
 
 [tool.ruff.lint.per-file-ignores]
-"sirf_simind_connection/configs/get_sirf_sinos.ipynb" = ["E501", "E722"]
+"py_smc/configs/get_sirf_sinos.ipynb" = ["E501", "E722"]

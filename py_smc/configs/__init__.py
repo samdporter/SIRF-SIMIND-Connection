@@ -3,10 +3,10 @@ Packaged scanner presets (YAML or SMC).
 
 Example
 -------
->>> from sirf_simind_connection.configs import get
+>>> from py_smc.configs import get
 >>> cfg = get("AnyScan.yaml")          # Path object
 
->>> from sirf_simind_connection.core import SimulationConfig
+>>> from py_smc.core import SimulationConfig
 >>> sim_cfg = SimulationConfig(cfg)    # load file
 """
 

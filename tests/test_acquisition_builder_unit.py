@@ -8,7 +8,7 @@ if "pydicom" not in sys.modules:
 import numpy as np
 import pytest
 
-from sirf_simind_connection.builders.acquisition_builder import (
+from py_smc.builders.acquisition_builder import (
     STIRSPECTAcquisitionDataBuilder,
 )
 
@@ -64,7 +64,7 @@ def fake_create_acquisition(monkeypatch):
         return obj
 
     monkeypatch.setattr(
-        "sirf_simind_connection.builders.acquisition_builder.create_acquisition_data",
+        "py_smc.builders.acquisition_builder.create_acquisition_data",
         _factory,
     )
     return created_objects
@@ -121,7 +121,7 @@ def test_build_multi_energy_splits_windows(tmp_path, fake_create_acquisition):
 
 @pytest.mark.unit
 def test_build_with_explicit_backend_restores_global_backend(monkeypatch, tmp_path):
-    from sirf_simind_connection.builders import acquisition_builder as builder_mod
+    from py_smc.builders import acquisition_builder as builder_mod
 
     wrapped_objects = []
     set_backend_calls = []

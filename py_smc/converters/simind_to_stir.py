@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from sirf_simind_connection.core.types import PenetrateOutputType
-from sirf_simind_connection.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-from sirf_simind_connection.utils.import_helpers import get_sirf_types
-from sirf_simind_connection.utils.interfile_parser import (
+from py_smc.core.types import PenetrateOutputType
+from py_smc.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+from py_smc.utils.import_helpers import get_sirf_types
+from py_smc.utils.interfile_parser import (
     InterfileHeader,
 )
 

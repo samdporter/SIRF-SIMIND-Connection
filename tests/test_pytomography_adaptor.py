@@ -3,15 +3,15 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sirf_simind_connection.configs import get
-from sirf_simind_connection.connectors.python_connector import (
+from py_smc.configs import get
+from py_smc.connectors.python_connector import (
     ProjectionResult,
     RuntimeOperator,
 )
-from sirf_simind_connection.connectors.pytomography_adaptor import (
+from py_smc.connectors.pytomography_adaptor import (
     PyTomographySimindAdaptor,
 )
-from sirf_simind_connection.core.types import ScoringRoutine
+from py_smc.core.types import ScoringRoutine
 
 
 torch = pytest.importorskip("torch")

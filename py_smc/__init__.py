@@ -7,14 +7,14 @@ from importlib import metadata as _meta
 from typing import Any
 
 
-for _dist_name in ("py-smc", "sirf-simind-connection", __name__):
+for _dist_name in ("py-smc", __name__):
     try:  # installed (pip/poetry)
         __version__ = _meta.version(_dist_name)
         break
     except _meta.PackageNotFoundError:
         continue
 else:  # editable / source checkout
-    __version__ = "0.5.0"
+    __version__ = "1.0.0"
 
 
 def __getattr__(name: str) -> Any:

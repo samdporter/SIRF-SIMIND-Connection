@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sirf_simind_connection.utils.interfile_numpy import load_interfile_array
+from py_smc.utils.interfile_numpy import load_interfile_array
 
 
 @pytest.mark.unit

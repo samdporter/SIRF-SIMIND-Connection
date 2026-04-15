@@ -6,7 +6,7 @@ API Documentation
 Top-Level Package
 -----------------
 
-.. automodule:: sirf_simind_connection
+.. automodule:: py_smc
    :members:
    :undoc-members:
    :show-inheritance:
@@ -14,12 +14,12 @@ Top-Level Package
 Core
 ----
 
-.. automodule:: sirf_simind_connection.core.config
+.. automodule:: py_smc.core.config
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.core.executor
+.. automodule:: py_smc.core.executor
    :members:
    :undoc-members:
    :show-inheritance:
@@ -27,27 +27,27 @@ Core
 Connectors and Adaptors
 -----------------------
 
-.. automodule:: sirf_simind_connection.connectors
+.. automodule:: py_smc.connectors
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.connectors.python_connector
+.. automodule:: py_smc.connectors.python_connector
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.connectors.stir_adaptor
+.. automodule:: py_smc.connectors.stir_adaptor
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.connectors.sirf_adaptor
+.. automodule:: py_smc.connectors.sirf_adaptor
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.connectors.pytomography_adaptor
+.. automodule:: py_smc.connectors.pytomography_adaptor
    :members:
    :undoc-members:
    :show-inheritance:
@@ -55,17 +55,17 @@ Connectors and Adaptors
 Converters
 ----------
 
-.. automodule:: sirf_simind_connection.converters.attenuation
+.. automodule:: py_smc.converters.attenuation
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.converters.dicom_to_stir
+.. automodule:: py_smc.converters.dicom_to_stir
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.converters.simind_to_stir
+.. automodule:: py_smc.converters.simind_to_stir
    :members:
    :undoc-members:
    :show-inheritance:
@@ -73,22 +73,22 @@ Converters
 Utilities
 ---------
 
-.. automodule:: sirf_simind_connection.utils.stir_utils
+.. automodule:: py_smc.utils.stir_utils
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.utils.simind_utils
+.. automodule:: py_smc.utils.simind_utils
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.utils.io_utils
+.. automodule:: py_smc.utils.io_utils
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: sirf_simind_connection.utils.interfile_numpy
+.. automodule:: py_smc.utils.interfile_numpy
    :members:
    :undoc-members:
    :show-inheritance:

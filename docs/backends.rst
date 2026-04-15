@@ -29,14 +29,14 @@ system matrix) should be created directly in the target package.
 Backend Abstraction Module
 --------------------------
 
-The ``sirf_simind_connection.backends`` module provides optional helper APIs for
+The ``py_smc.backends`` module provides optional helper APIs for
 working with SIRF/STIR image and acquisition wrapper objects.
 
 Quick example:
 
 .. code-block:: python
 
-    from sirf_simind_connection.backends import get_backend, set_backend
+    from py_smc.backends import get_backend, set_backend
 
     backend = get_backend()  # auto-detect: "sirf" or "stir"
     print(f"Using backend: {backend}")

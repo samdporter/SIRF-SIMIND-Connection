@@ -14,13 +14,13 @@ from typing import Any, Dict, Mapping, Optional, Union
 
 import numpy as np
 
-from sirf_simind_connection.connectors.base import BaseConnector
-from sirf_simind_connection.connectors.python_connector import (
+from py_smc.connectors.base import BaseConnector
+from py_smc.connectors.python_connector import (
     ConfigSource,
     RuntimeOperator,
     SimindPythonConnector,
 )
-from sirf_simind_connection.core.types import (
+from py_smc.core.types import (
     ScoringRoutine,
     ValidationError,
 )

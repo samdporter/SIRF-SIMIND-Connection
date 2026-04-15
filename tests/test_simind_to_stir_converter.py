@@ -2,7 +2,7 @@
 
 import pytest
 
-from sirf_simind_connection.converters.simind_to_stir import (
+from py_smc.converters.simind_to_stir import (
     ConversionConfig,
     DataFileNameRule,
     EnergyWindowRule,
@@ -14,8 +14,8 @@ from sirf_simind_connection.converters.simind_to_stir import (
     SimindToStirConverter,
     StartAngleConversionRule,
 )
-from sirf_simind_connection.core.types import PenetrateOutputType
-from sirf_simind_connection.utils.interfile_parser import parse_interfile_line
+from py_smc.core.types import PenetrateOutputType
+from py_smc.utils.interfile_parser import parse_interfile_line
 
 
 @pytest.mark.unit

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Union
 
-from sirf_simind_connection.backends import (
+from py_smc.backends import (
     AcquisitionDataInterface,
     ImageDataInterface,
     create_acquisition_data,

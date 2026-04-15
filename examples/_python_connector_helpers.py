@@ -4,7 +4,7 @@ import shutil
 
 import numpy as np
 
-from sirf_simind_connection import SimindPythonConnector
+from py_smc import SimindPythonConnector
 
 
 def require_simind() -> None:

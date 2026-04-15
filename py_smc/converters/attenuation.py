@@ -12,18 +12,18 @@ from pathlib import Path
 
 import numpy as np
 
-from sirf_simind_connection.data import data_path
+from py_smc.data import data_path
 
 
 def get_package_data_path(filename):
     """Get the path to a data file in the package."""
     try:
         # Python 3.9+
-        files = pkg_resources.files("sirf_simind_connection.data")
+        files = pkg_resources.files("py_smc.data")
         return files / filename
     except AttributeError:
         # Python 3.8
-        with pkg_resources.path("sirf_simind_connection.data", filename) as path:
+        with pkg_resources.path("py_smc.data", filename) as path:
             return path
 
 

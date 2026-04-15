@@ -13,7 +13,7 @@ pytestmark = pytest.mark.unit
 
 def test_backend_detection():
     """Test that backend auto-detection works."""
-    from sirf_simind_connection.backends import get_backend, reset_backend
+    from py_smc.backends import get_backend, reset_backend
 
     # Reset to force re-detection
     reset_backend()
@@ -32,7 +32,7 @@ def test_backend_manual_selection_sirf():
     """Test manual backend selection for SIRF."""
     pytest.importorskip("sirf.STIR")
 
-    from sirf_simind_connection.backends import get_backend, reset_backend, set_backend
+    from py_smc.backends import get_backend, reset_backend, set_backend
 
     reset_backend()
     set_backend("sirf")
@@ -45,7 +45,7 @@ def test_backend_manual_selection_stir():
     pytest.importorskip("stir")
     pytest.importorskip("stirextra")
 
-    from sirf_simind_connection.backends import get_backend, reset_backend, set_backend
+    from py_smc.backends import get_backend, reset_backend, set_backend
 
     reset_backend()
     set_backend("stir")
@@ -54,7 +54,7 @@ def test_backend_manual_selection_stir():
 
 def test_invalid_backend():
     """Test that invalid backend raises error."""
-    from sirf_simind_connection.backends import set_backend
+    from py_smc.backends import set_backend
 
     with pytest.raises(ValueError, match="Invalid backend"):
         set_backend("invalid")
@@ -62,7 +62,7 @@ def test_invalid_backend():
 
 def test_backend_utility_functions():
     """Test is_sirf_backend and is_stir_backend functions."""
-    from sirf_simind_connection.backends import (
+    from py_smc.backends import (
         get_backend,
         is_sirf_backend,
         is_stir_backend,
@@ -89,7 +89,7 @@ def test_get_array_with_backend():
     # Actual data testing would require test fixtures
     import numpy as np
 
-    from sirf_simind_connection.utils import get_array
+    from py_smc.utils import get_array
 
     # Create a mock object with as_array method
     class MockImage:
@@ -107,8 +107,8 @@ def test_sirf_backend_wrappers():
     """Test SIRF backend wrapper classes."""
     pytest.importorskip("sirf.STIR")
 
-    from sirf_simind_connection.backends import reset_backend, set_backend
-    from sirf_simind_connection.backends.sirf_backend import (
+    from py_smc.backends import reset_backend, set_backend
+    from py_smc.backends.sirf_backend import (
         SirfAcquisitionData,
         SirfImageData,
     )
@@ -129,8 +129,8 @@ def test_stir_backend_wrappers():
     pytest.importorskip("stir")
     pytest.importorskip("stirextra")
 
-    from sirf_simind_connection.backends import reset_backend, set_backend
-    from sirf_simind_connection.backends.stir_backend import (
+    from py_smc.backends import reset_backend, set_backend
+    from py_smc.backends.stir_backend import (
         StirAcquisitionData,
         StirImageData,
     )
@@ -147,7 +147,7 @@ def test_stir_backend_wrappers():
 
 def test_factory_functions():
     """Test factory functions are available."""
-    from sirf_simind_connection.backends import (
+    from py_smc.backends import (
         create_acquisition_data,
         create_image_data,
         load_acquisition_data,
@@ -163,7 +163,7 @@ def test_factory_functions():
 
 def test_load_functions_invalid_backend():
     """Ensure load helpers validate backend argument."""
-    from sirf_simind_connection.backends import (
+    from py_smc.backends import (
         load_acquisition_data,
         load_image_data,
     )
@@ -177,7 +177,7 @@ def test_load_functions_invalid_backend():
 
 def test_unwrap_function():
     """Test unwrap utility function."""
-    from sirf_simind_connection.backends import unwrap
+    from py_smc.backends import unwrap
 
     # Test with mock object
     class MockWrapper:
@@ -196,7 +196,7 @@ def test_unwrap_function():
 @pytest.mark.unit
 def test_detect_image_backend_with_mock(monkeypatch):
     """detect_image_backend should recognise mocked SIRF/STIR types."""
-    import sirf_simind_connection.backends as backends
+    import py_smc.backends as backends
 
     class FakeSirfImage:
         pass
@@ -215,7 +215,7 @@ def test_detect_image_backend_with_mock(monkeypatch):
 @pytest.mark.unit
 def test_detect_acquisition_backend_with_mock(monkeypatch):
     """detect_acquisition_backend should recognise mocked native classes."""
-    import sirf_simind_connection.backends as backends
+    import py_smc.backends as backends
 
     class FakeSirfAcq:
         pass
@@ -234,7 +234,7 @@ def test_detect_acquisition_backend_with_mock(monkeypatch):
 @pytest.mark.unit
 def test_detect_backend_from_interface(monkeypatch):
     """detect_backend_from_interface should unwrap and reuse detection helpers."""
-    import sirf_simind_connection.backends as backends
+    import py_smc.backends as backends
 
     class FakeSirfAcq:
         pass
@@ -257,7 +257,7 @@ def test_detect_backend_from_interface(monkeypatch):
 def test_arithmetic_operations():
     """Test that arithmetic operations work correctly."""
 
-    from sirf_simind_connection.backends import get_backend, reset_backend
+    from py_smc.backends import get_backend, reset_backend
 
     reset_backend()
     try:
@@ -269,7 +269,7 @@ def test_arithmetic_operations():
         pytest.importorskip("sirf.STIR")
         # Create mock SIRF ImageData with arithmetic operations
 
-        from sirf_simind_connection.backends.sirf_backend import SirfImageData
+        from py_smc.backends.sirf_backend import SirfImageData
 
         # We can't easily create real ImageData without files, so skip if imports work
         assert hasattr(SirfImageData, "__add__")
@@ -280,7 +280,7 @@ def test_arithmetic_operations():
     elif backend == "stir":
         pytest.importorskip("stir")
         pytest.importorskip("stirextra")
-        from sirf_simind_connection.backends.stir_backend import StirImageData
+        from py_smc.backends.stir_backend import StirImageData
 
         # Same for STIR
         assert hasattr(StirImageData, "__add__")

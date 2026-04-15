@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sirf.STIR as sirf
 
-from sirf_simind_connection import SirfSimindAdaptor, configs
-from sirf_simind_connection.builders import STIRSPECTImageDataBuilder
+from py_smc import SirfSimindAdaptor, configs
+from py_smc.builders import STIRSPECTImageDataBuilder
 
 
 def _build_small_phantom(output_dir: Path) -> tuple[sirf.ImageData, sirf.ImageData]:
