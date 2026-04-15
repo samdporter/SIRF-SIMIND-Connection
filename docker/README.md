@@ -85,8 +85,8 @@ Notes
 - For mixed host/runtime architectures, the runner scripts auto-detect SIMIND
   binary architecture (`x86_64`/`aarch64`) and set Docker platform automatically;
   use `--docker-platform` to override.
-- `input.smc` is bundled in `sirf_simind_connection/configs`; SIMIND runtime checks
+- `input.smc` is bundled in `py_smc/configs`; SIMIND runtime checks
   only gate external executable availability.
-- The toy adaptor examples use `sirf_simind_connection/configs/Example.yaml`,
+- The toy adaptor examples use `py_smc/configs/Example.yaml`,
   a reduced projection-space profile derived from `AnyScan.yaml`.
 - These images are intended to run examples and interactive exploration.

@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: docker/python/Dockerfile
-    image: sirf-simind/python:dev
+    image: py-smc/python:dev
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: python
@@ -21,7 +21,7 @@ services:
     build:
       context: ..
       dockerfile: docker/stir/Dockerfile
-    image: sirf-simind/stir:dev
+    image: py-smc/stir:dev
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: stir
@@ -39,7 +39,7 @@ services:
     build:
       context: ..
       dockerfile: docker/sirf/Dockerfile
-    image: sirf-simind/sirf:dev
+    image: py-smc/sirf:dev
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: sirf
@@ -58,7 +58,7 @@ services:
     build:
       context: ..
       dockerfile: docker/pytomography/Dockerfile
-    image: sirf-simind/pytomography:dev
+    image: py-smc/pytomography:dev
     working_dir: /workspace
     environment:
       SIMIND_CONNECTOR_BACKEND: pytomography
