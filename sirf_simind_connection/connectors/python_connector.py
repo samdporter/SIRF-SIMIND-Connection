@@ -10,12 +10,15 @@ import os
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import numpy as np
 
 from sirf_simind_connection.connectors.base import BaseConnector
-from sirf_simind_connection.converters.attenuation import attenuation_to_density
+from sirf_simind_connection.converters.attenuation import (
+    attenuation_to_density,
+    hu_to_density_schneider,
+)
 from sirf_simind_connection.converters.simind_to_stir import SimindToStirConverter
 from sirf_simind_connection.core.config import RuntimeSwitches, SimulationConfig
 from sirf_simind_connection.core.executor import SimindExecutor
@@ -31,6 +34,7 @@ from sirf_simind_connection.utils.simind_utils import create_window_file
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]
 PathLike = Union[str, os.PathLike[str]]
+MuMapType = Literal["attenuation", "density", "hu"]
 
 
 @dataclass(frozen=True)
@@ -108,15 +112,31 @@ class SimindPythonConnector(BaseConnector):
         mu_map: np.ndarray,
         voxel_size_mm: float = 4.0,
         scoring_routine: Union[ScoringRoutine, int] = ScoringRoutine.SCATTWIN,
+        mu_map_type: MuMapType = "attenuation",
     ) -> tuple[Path, Path]:
         """
         Configure voxel geometry and write source/density input files.
+
+        Args:
+            source: Source activity array in SIMIND image axes (z, y, x).
+            mu_map: Input volume interpreted according to ``mu_map_type``.
+            voxel_size_mm: Isotropic voxel size in mm.
+            scoring_routine: SIMIND scoring routine identifier.
+            mu_map_type: Interpretation of ``mu_map`` values:
+                - ``"attenuation"``: linear attenuation (cm^-1), converted to density.
+                - ``"density"``: density (g/cm^3), written directly.
+                - ``"hu"``: CT Hounsfield Units, converted via Schneider model.
 
         Returns:
             Tuple of (source_file_path, density_file_path).
         """
         source_array = np.asarray(source, dtype=np.float32)
         mu_map_array = np.asarray(mu_map, dtype=np.float32)
+        normalized_map_type = str(mu_map_type).strip().lower()
+        if normalized_map_type not in {"attenuation", "density", "hu"}:
+            raise ValueError(
+                "mu_map_type must be one of: 'attenuation', 'density', 'hu'"
+            )
 
         if source_array.ndim != 3 or mu_map_array.ndim != 3:
             raise ValueError("source and mu_map must both be 3D arrays")
@@ -176,8 +196,11 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_data_file(6, src_prefix)
 
         if cfg.get_flag(11):
-            photon_energy = float(cfg.get_value("photon_energy"))
-            density = attenuation_to_density(mu_map_array, photon_energy) * 1000.0
+            density = self._convert_mu_input_to_density(
+                mu_map_array=mu_map_array,
+                mu_map_type=normalized_map_type,
+                photon_energy=float(cfg.get_value("photon_energy")),
+            )
         else:
             density = np.zeros_like(mu_map_array)
 
@@ -190,6 +213,21 @@ class SimindPythonConnector(BaseConnector):
         cfg.set_data_file(5, dns_prefix)
 
         return source_path, density_path
+
+    @staticmethod
+    def _convert_mu_input_to_density(
+        mu_map_array: np.ndarray,
+        mu_map_type: MuMapType,
+        photon_energy: float,
+    ) -> np.ndarray:
+        """Convert attenuation/HU/density map input to density in mg/cm^3."""
+        if mu_map_type == "attenuation":
+            density_g_cm3 = attenuation_to_density(mu_map_array, photon_energy)
+        elif mu_map_type == "density":
+            density_g_cm3 = mu_map_array
+        else:  # mu_map_type == "hu"
+            density_g_cm3 = hu_to_density_schneider(mu_map_array)
+        return density_g_cm3 * 1000.0
 
     def set_energy_windows(
         self,

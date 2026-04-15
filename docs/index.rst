@@ -1,5 +1,5 @@
-py-smc Documentation
-====================
+PySIMIND Documentation
+======================
 
 .. toctree::
    :maxdepth: 2

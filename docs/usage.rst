@@ -42,6 +42,26 @@ inputs/outputs without any reconstruction-package dependency.
     total = outputs["tot_w1"].projection
     print(total.shape)
 
+Map Input Types
+---------------
+
+``configure_voxel_phantom()`` supports three ``mu_map`` input conventions via
+``mu_map_type``:
+
+- ``"attenuation"``: linear attenuation coefficients (cm^-1), converted to
+  density before SIMIND input writing.
+- ``"density"``: density map in g/cm^3, passed through directly.
+- ``"hu"``: CT HU map, converted to density with the Schneider model.
+
+.. code-block:: python
+
+    connector.configure_voxel_phantom(
+        source=source,
+        mu_map=mu_map,
+        voxel_size_mm=4.0,
+        mu_map_type="attenuation",  # or "density" / "hu"
+    )
+
 Adaptor Workflows
 -----------------
 
@@ -60,6 +80,7 @@ STIR adaptor
         config_source=get("Example.yaml"),
         output_dir="output/stir_adaptor",
         output_prefix="stir_case01",
+        mu_map_type="attenuation",  # or "density" / "hu"
     )
     adaptor.set_source(stir_source)
     adaptor.set_mu_map(stir_mu_map)
@@ -83,6 +104,7 @@ SIRF adaptor
         config_source=get("Example.yaml"),
         output_dir="output/sirf_adaptor",
         output_prefix="sirf_case01",
+        mu_map_type="attenuation",  # or "density" / "hu"
     )
     adaptor.set_source(sirf_source)
     adaptor.set_mu_map(sirf_mu_map)
@@ -113,6 +135,7 @@ Build the system matrix directly with PyTomography APIs.
         config_source=get("Example.yaml"),
         output_dir="output/pytomo_adaptor",
         output_prefix="pytomo_case01",
+        mu_map_type="attenuation",  # or "density" / "hu"
     )
     adaptor.set_source(source_tensor_xyz)
     adaptor.set_mu_map(mu_tensor_xyz)

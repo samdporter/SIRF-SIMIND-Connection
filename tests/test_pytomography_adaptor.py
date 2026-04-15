@@ -84,6 +84,7 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
         output_prefix="case01",
         voxel_size_mm=3.5,
         scoring_routine=ScoringRoutine.PENETRATE,
+        mu_map_type="hu",
     )
 
     source_xyz = torch.arange(2 * 3 * 4, dtype=torch.float32).reshape(2, 3, 4)
@@ -99,11 +100,13 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
         mu_map,
         voxel_size_mm,
         scoring_routine,
+        mu_map_type,
     ):
         captured["source"] = np.asarray(source)
         captured["mu_map"] = np.asarray(mu_map)
         captured["voxel_size_mm"] = voxel_size_mm
         captured["scoring_routine"] = scoring_routine
+        captured["mu_map_type"] = mu_map_type
         return (tmp_path / "case01_src.smi", tmp_path / "case01_dns.dmi")
 
     def fake_set_energy_windows(lower_bounds, upper_bounds, scatter_orders):
@@ -170,6 +173,7 @@ def test_pytomography_adaptor_forwards_connector_wiring_and_axis_order(
     assert np.array_equal(captured["mu_map"], expected_mu_zyx)
     assert captured["voxel_size_mm"] == pytest.approx(3.5)
     assert captured["scoring_routine"] == ScoringRoutine.PENETRATE
+    assert captured["mu_map_type"] == "hu"
     assert captured["windows"] == ([75.0, 120.0], [85.0, 140.0], [0, 1])
     assert captured["runtime_operator"] is runtime_operator
 

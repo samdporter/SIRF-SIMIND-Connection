@@ -3,7 +3,7 @@
 Testing
 =======
 
-This document explains the testing strategy for py-smc, which handles the
+This document explains the testing strategy for PySIMIND, which handles the
 challenge of testing code that depends on optional external dependencies (SIRF,
 STIR, SIMIND, and PyTomography) that may not be available in every
 environment.

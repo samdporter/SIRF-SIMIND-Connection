@@ -10,6 +10,7 @@ from sirf_simind_connection.connectors._spacing import extract_voxel_size_mm
 from sirf_simind_connection.connectors.base import BaseConnector
 from sirf_simind_connection.connectors.python_connector import (
     ConfigSource,
+    MuMapType,
     RuntimeOperator,
     SimindPythonConnector,
 )
@@ -35,6 +36,7 @@ class SirfSimindAdaptor(BaseConnector):
         photon_multiplier: int = 1,
         quantization_scale: float = 1.0,
         scoring_routine: ScoringRoutine | int = ScoringRoutine.SCATTWIN,
+        mu_map_type: MuMapType = "attenuation",
     ) -> None:
         if sirf is None:
             raise ImportError("SirfSimindAdaptor requires the SIRF Python package.")
@@ -53,6 +55,7 @@ class SirfSimindAdaptor(BaseConnector):
         self._source: Any = None
         self._mu_map: Any = None
         self._outputs: Optional[dict[str, Any]] = None
+        self._mu_map_type: MuMapType = mu_map_type
 
         self.add_runtime_switch("NN", photon_multiplier)
 
@@ -92,6 +95,7 @@ class SirfSimindAdaptor(BaseConnector):
             mu_map=mu_arr,
             voxel_size_mm=voxel_size_mm,
             scoring_routine=self._scoring_routine,
+            mu_map_type=self._mu_map_type,
         )
         raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
         self._outputs = {
