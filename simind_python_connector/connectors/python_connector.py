@@ -14,19 +14,19 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 
-from py_smc.connectors.base import BaseConnector
-from py_smc.converters.attenuation import attenuation_to_density
-from py_smc.converters.simind_to_stir import SimindToStirConverter
-from py_smc.core.config import RuntimeSwitches, SimulationConfig
-from py_smc.core.executor import SimindExecutor
-from py_smc.core.types import (
+from simind_python_connector.connectors.base import BaseConnector
+from simind_python_connector.converters.attenuation import attenuation_to_density
+from simind_python_connector.converters.simind_to_stir import SimindToStirConverter
+from simind_python_connector.core.config import RuntimeSwitches, SimulationConfig
+from simind_python_connector.core.executor import SimindExecutor
+from simind_python_connector.core.types import (
     MAX_SOURCE,
     SIMIND_VOXEL_UNIT_CONVERSION,
     PenetrateOutputType,
     ScoringRoutine,
 )
-from py_smc.utils.interfile_numpy import load_interfile_array
-from py_smc.utils.simind_utils import create_window_file
+from simind_python_connector.utils.interfile_numpy import load_interfile_array
+from simind_python_connector.utils.simind_utils import create_window_file
 
 
 ConfigSource = Union[str, os.PathLike[str], SimulationConfig]

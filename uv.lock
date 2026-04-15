@@ -2361,7 +2361,7 @@ wheels = [
 ]
 
 [[package]]
-name = "py-smc"
+name = "simind-python-connector"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [

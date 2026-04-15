@@ -17,7 +17,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from py_smc.converters.attenuation import (
+from simind_python_connector.converters.attenuation import (
     compare_density_methods,
     get_schneider_tissue_info,
     hu_to_density,

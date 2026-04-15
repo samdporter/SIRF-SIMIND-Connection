@@ -9,7 +9,7 @@ from typing import Tuple, Union
 
 import numpy as np
 
-from py_smc.utils.import_helpers import get_sirf_types
+from simind_python_connector.utils.import_helpers import get_sirf_types
 
 from .base import AcquisitionDataInterface, ImageDataInterface
 

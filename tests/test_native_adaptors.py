@@ -6,13 +6,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-import py_smc.connectors.sirf_adaptor as sirf_mod
-import py_smc.connectors.stir_adaptor as stir_mod
-from py_smc.configs import get
-from py_smc.connectors.python_connector import RuntimeOperator
-from py_smc.connectors.sirf_adaptor import SirfSimindAdaptor
-from py_smc.connectors.stir_adaptor import StirSimindAdaptor
-from py_smc.core.types import ScoringRoutine
+import simind_python_connector.connectors.sirf_adaptor as sirf_mod
+import simind_python_connector.connectors.stir_adaptor as stir_mod
+from simind_python_connector.configs import get
+from simind_python_connector.connectors.python_connector import RuntimeOperator
+from simind_python_connector.connectors.sirf_adaptor import SirfSimindAdaptor
+from simind_python_connector.connectors.stir_adaptor import StirSimindAdaptor
+from simind_python_connector.core.types import ScoringRoutine
 
 
 pytestmark = pytest.mark.unit

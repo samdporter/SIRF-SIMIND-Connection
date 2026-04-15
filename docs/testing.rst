@@ -3,7 +3,7 @@
 Testing
 =======
 
-This document explains the testing strategy for py-smc, which handles the
+This document explains the testing strategy for simind-python-connector, which handles the
 challenge of testing code that depends on optional external dependencies (SIRF,
 STIR, SIMIND, and PyTomography) that may not be available in every
 environment.
@@ -55,7 +55,7 @@ Local Development (All Tests)
     pytest -m requires_sirf
 
     # Run with coverage
-    pytest --cov=py_smc --cov-report=html
+    pytest --cov=simind_python_connector --cov-report=html
 
 CI Environment (GitHub Actions)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -102,7 +102,7 @@ To include SIMIND-dependent integration/example checks in the validation run:
 The container scripts check for a repo-local SIMIND executable at
 ``./simind/simind`` before running SIMIND-dependent checks. If missing, they
 skip those checks by default. Use ``--require-simind`` to fail fast instead.
-``input.smc`` remains packaged in ``py_smc/configs`` and is not
+``input.smc`` remains packaged in ``simind_python_connector/configs`` and is not
 part of the SIMIND runtime availability check.
 
 SIMIND itself is not bundled with this package; install it separately from

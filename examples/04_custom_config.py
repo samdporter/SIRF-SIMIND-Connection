@@ -9,11 +9,11 @@ including exporting to YAML for easy editing and version control.
 import argparse
 from pathlib import Path
 
-from py_smc import SimulationConfig, configs
+from simind_python_connector import SimulationConfig, configs
 
 
 try:
-    from py_smc.backends import get_backend, set_backend
+    from simind_python_connector.backends import get_backend, set_backend
 except ImportError:  # backend libraries intentionally absent in core container
     get_backend = None
     set_backend = None
@@ -162,7 +162,7 @@ def demonstrate_new_api_usage():
     print("\nWith the new API, you would use this config like:")
     print(
         """
-    from py_smc import SimindPythonConnector
+    from simind_python_connector import SimindPythonConnector
 
     connector = SimindPythonConnector(
         config_source='lehr_collimator.yaml',

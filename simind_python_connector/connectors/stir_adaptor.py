@@ -1,4 +1,4 @@
-"""SIRF adaptor implemented on top of the connector-first NumPy pipeline."""
+"""STIR adaptor implemented on top of the connector-first NumPy pipeline."""
 
 from __future__ import annotations
 
@@ -6,26 +6,26 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from py_smc.connectors._spacing import extract_voxel_size_mm
-from py_smc.connectors.base import BaseConnector
-from py_smc.connectors.python_connector import (
+from simind_python_connector.connectors._spacing import extract_voxel_size_mm
+from simind_python_connector.connectors.base import BaseConnector
+from simind_python_connector.connectors.python_connector import (
     ConfigSource,
     RuntimeOperator,
     SimindPythonConnector,
 )
-from py_smc.core.config import SimulationConfig
-from py_smc.core.types import PenetrateOutputType, ScoringRoutine
-from py_smc.utils import get_array
+from simind_python_connector.core.config import SimulationConfig
+from simind_python_connector.core.types import PenetrateOutputType, ScoringRoutine
+from simind_python_connector.utils import get_array
 
 
 try:
-    import sirf.STIR as sirf
+    import stir
 except ImportError:  # pragma: no cover - optional dependency
-    sirf = None  # type: ignore[assignment]
+    stir = None  # type: ignore[assignment]
 
 
-class SirfSimindAdaptor(BaseConnector):
-    """Adaptor consuming/returning SIRF-native objects."""
+class StirSimindAdaptor(BaseConnector):
+    """Adaptor consuming/returning STIR-native objects."""
 
     def __init__(
         self,
@@ -36,8 +36,8 @@ class SirfSimindAdaptor(BaseConnector):
         quantization_scale: float = 1.0,
         scoring_routine: ScoringRoutine | int = ScoringRoutine.SCATTWIN,
     ) -> None:
-        if sirf is None:
-            raise ImportError("SirfSimindAdaptor requires the SIRF Python package.")
+        if stir is None:
+            raise ImportError("StirSimindAdaptor requires the STIR Python package.")
 
         self.python_connector = SimindPythonConnector(
             config_source=config_source,
@@ -95,7 +95,7 @@ class SirfSimindAdaptor(BaseConnector):
         )
         raw_outputs = self.python_connector.run(runtime_operator=runtime_operator)
         self._outputs = {
-            key: sirf.AcquisitionData(str(result.header_path))
+            key: stir.ProjData.read_from_file(str(result.header_path))
             for key, result in raw_outputs.items()
         }
         return self._outputs
@@ -146,7 +146,7 @@ class SirfSimindAdaptor(BaseConnector):
 
     @staticmethod
     def _extract_voxel_size_mm(image: Any) -> float:
-        return extract_voxel_size_mm(image=image, backend_name="SIRF")
+        return extract_voxel_size_mm(image=image, backend_name="STIR")
 
     def _validate_inputs(self) -> None:
         if self._source is None or self._mu_map is None:
@@ -161,4 +161,4 @@ class SirfSimindAdaptor(BaseConnector):
             )
 
 
-__all__ = ["SirfSimindAdaptor"]
+__all__ = ["StirSimindAdaptor"]

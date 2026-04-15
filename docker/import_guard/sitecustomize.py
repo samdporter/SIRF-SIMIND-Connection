@@ -1,7 +1,7 @@
 """
 Import guard used by backend-isolated Docker environments.
 
-Set PY_SMC_BLOCK_IMPORTS to a comma-separated list of top-level module
+Set SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS to a comma-separated list of top-level module
 names. Any import matching one of those module roots will raise ImportError.
 """
 
@@ -15,7 +15,7 @@ import sys
 
 BLOCKED_IMPORTS = {
     entry.strip()
-    for entry in os.environ.get("PY_SMC_BLOCK_IMPORTS", "").split(",")
+    for entry in os.environ.get("SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS", "").split(",")
     if entry.strip()
 }
 

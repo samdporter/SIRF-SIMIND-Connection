@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from py_smc.builders.image_builder import STIRSPECTImageDataBuilder
+from simind_python_connector.builders.image_builder import STIRSPECTImageDataBuilder
 
 
 class DummyWrappedImage:
@@ -18,7 +18,7 @@ class DummyWrappedImage:
 
 @pytest.mark.unit
 def test_image_builder_explicit_backend_restores_global_backend(monkeypatch, tmp_path):
-    from py_smc.builders import image_builder as builder_mod
+    from simind_python_connector.builders import image_builder as builder_mod
 
     created = []
     set_backend_calls = []
@@ -53,7 +53,7 @@ def test_image_builder_explicit_backend_restores_global_backend(monkeypatch, tmp
 
 @pytest.mark.unit
 def test_image_builder_autodetect_backend_when_not_specified(monkeypatch, tmp_path):
-    from py_smc.builders import image_builder as builder_mod
+    from simind_python_connector.builders import image_builder as builder_mod
 
     created = []
     set_backend_calls = []

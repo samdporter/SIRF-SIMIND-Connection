@@ -12,7 +12,7 @@ from typing import Optional
 
 import numpy as np
 
-from py_smc.utils.backend_access import BACKENDS
+from simind_python_connector.utils.backend_access import BACKENDS
 
 from . import get_array
 from .import_helpers import get_sirf_types
@@ -374,7 +374,7 @@ def create_stir_image(
         Backend image object created by ``STIRSPECTImageDataBuilder``.
     """
     try:
-        from py_smc.builders import STIRSPECTImageDataBuilder
+        from simind_python_connector.builders import STIRSPECTImageDataBuilder
     except ImportError as exc:
         raise ImportError(
             "STIRSPECTImageDataBuilder requires SIRF/STIR to be installed"
@@ -413,7 +413,7 @@ def create_stir_acqdata(
         Backend acquisition object created by ``STIRSPECTAcquisitionDataBuilder``.
     """
     try:
-        from py_smc.builders import STIRSPECTAcquisitionDataBuilder
+        from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
     except ImportError as exc:
         raise ImportError(
             "STIRSPECTAcquisitionDataBuilder requires SIRF/STIR to be installed"

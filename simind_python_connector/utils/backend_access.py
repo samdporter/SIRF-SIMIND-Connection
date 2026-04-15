@@ -36,7 +36,7 @@ def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
         >>>     data = create_acq('template.hs')
     """
     try:
-        from py_smc.backends import (
+        from simind_python_connector.backends import (
             AcquisitionDataInterface,
             ImageDataInterface,
             create_acquisition_data,
@@ -47,7 +47,7 @@ def get_backend_interfaces() -> tuple[bool, Dict[str, Any]]:
             get_backend,
             set_backend,
         )
-        from py_smc.utils.sirf_stir_utils import (
+        from simind_python_connector.utils.sirf_stir_utils import (
             ensure_acquisition_interface,
             ensure_image_interface,
             to_native_acquisition,

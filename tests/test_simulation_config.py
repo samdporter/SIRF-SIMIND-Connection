@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from py_smc import SimulationConfig
-from py_smc.configs import get
+from simind_python_connector import SimulationConfig
+from simind_python_connector.configs import get
 
 
 # Most tests here are unit tests that don't require SIRF

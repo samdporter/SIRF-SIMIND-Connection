@@ -9,7 +9,7 @@ ENV SIMIND_MPI_BIN=${SIMIND_ROOT}/simind_mpi
 ENV SIMIND_SMC_DIR=${SIMIND_ROOT}/smc_dir/
 ENV SIMIND_DATA_DIR=${SIMIND_ROOT}/smc_dir/
 ENV SMC_DIR=${SIMIND_ROOT}/smc_dir/
-ENV PY_SMC_BLOCK_IMPORTS=sirf,stir,stirextra,pytomography
+ENV SIMIND_PYTHON_CONNECTOR_BLOCK_IMPORTS=sirf,stir,stirextra,pytomography
 ENV PYTHONPATH=/workspace/docker/import_guard:${PYTHONPATH}
 ENV PATH=${SIMIND_ROOT}/bin:${SIMIND_ROOT}:${PATH}
 

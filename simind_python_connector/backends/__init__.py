@@ -7,13 +7,13 @@ SIRF and STIR Python interfaces.
 
 Usage:
     # Automatic detection
-    from py_smc.backends import get_backend, create_image_data
+    from simind_python_connector.backends import get_backend, create_image_data
 
     print(f"Using backend: {get_backend()}")
     img = create_image_data("phantom.hv")
 
     # Manual selection
-    from py_smc.backends import set_backend
+    from simind_python_connector.backends import set_backend
     set_backend("stir")  # Force STIR Python
 """
 

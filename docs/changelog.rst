@@ -13,7 +13,7 @@ Unreleased
 Changed
 ~~~~~~~
 
-- Updated user-facing branding to ``py-smc`` and added explicit non-affiliation
+- Updated user-facing branding to ``simind-python-connector`` and added explicit non-affiliation
   and external-SIMIND-install disclaimers in README/docs.
 
 [1.0.0] - 2026-03-05

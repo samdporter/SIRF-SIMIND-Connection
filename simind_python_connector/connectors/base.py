@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Mapping
 
-from py_smc.core.config import SimulationConfig
+from simind_python_connector.core.config import SimulationConfig
 
 
 class BaseConnector(ABC):

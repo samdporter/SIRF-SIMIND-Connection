@@ -5,7 +5,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CONNECTORS_DIR = ROOT / "py_smc" / "connectors"
+CONNECTORS_DIR = ROOT / "simind_python_connector" / "connectors"
 
 
 def _import_roots(path: Path) -> set[str]:

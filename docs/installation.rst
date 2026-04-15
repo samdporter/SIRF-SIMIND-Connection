@@ -19,8 +19,8 @@ Install the Python Package
 
    .. code-block:: bash
 
-      git clone https://github.com/samdporter/py-smc.git
-      cd py-smc
+      git clone https://github.com/samdporter/simind-python-connector.git
+      cd simind-python-connector
 
 2. Install in editable/development mode:
 
@@ -95,7 +95,7 @@ Verify basic Python package import:
 
 .. code-block:: bash
 
-    python -c "import py_smc as s; print(s.__version__)"
+    python -c "import simind_python_connector as s; print(s.__version__)"
 
 Verify SIMIND detection from this repo root:
 

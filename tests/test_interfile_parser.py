@@ -1,6 +1,6 @@
 import pytest
 
-from py_smc.utils.interfile_parser import InterfileHeader
+from simind_python_connector.utils.interfile_parser import InterfileHeader
 
 
 @pytest.mark.unit

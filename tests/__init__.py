@@ -1,1 +1,1 @@
-"""Test package for py-smc."""
+"""Test package for simind-python-connector."""

@@ -3,7 +3,7 @@
 Introduction
 ============
 
-py-smc is a Python toolkit for SIMIND SPECT workflows.
+simind-python-connector is a Python toolkit for SIMIND SPECT workflows.
 
 Disclaimer
 ----------

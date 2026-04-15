@@ -15,4 +15,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Helper utilities for configuring and running SIMIND Monte Carlo simulations from Python.
 - Comprehensive test suite using `pytest`.
 - Documentation hosted on ReadTheDocs.
-- PyPI packaging (`py-smc`) with optional `dev` and `examples` dependency groups.
+- PyPI packaging (`simind-python-connector`) with optional `dev` and `examples` dependency groups.

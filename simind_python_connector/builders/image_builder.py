@@ -5,9 +5,9 @@ from typing import Literal, Optional
 
 import numpy as np
 
-from py_smc.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
-from py_smc.utils.import_helpers import get_sirf_types
-from py_smc.utils.io_utils import temporary_directory
+from simind_python_connector.utils.backend_access import BACKEND_AVAILABLE, BACKENDS
+from simind_python_connector.utils.import_helpers import get_sirf_types
+from simind_python_connector.utils.io_utils import temporary_directory
 
 
 ImageData, _, SIRF_AVAILABLE = get_sirf_types()

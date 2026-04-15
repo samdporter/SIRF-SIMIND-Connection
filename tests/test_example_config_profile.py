@@ -1,7 +1,7 @@
 import pytest
 
-from py_smc.configs import get
-from py_smc.core.config import SimulationConfig
+from simind_python_connector.configs import get
+from simind_python_connector.core.config import SimulationConfig
 
 
 pytestmark = pytest.mark.unit

@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from py_smc.utils import get_array
-from py_smc.utils.stir_utils import (
+from simind_python_connector.utils import get_array
+from simind_python_connector.utils.stir_utils import (
     create_attenuation_map,
     create_simple_phantom,
     create_stir_acqdata,

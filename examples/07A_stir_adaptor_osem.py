@@ -23,8 +23,8 @@ import numpy as np
 import stir
 import stirextra
 
-from py_smc import StirSimindAdaptor, configs
-from py_smc.builders import STIRSPECTImageDataBuilder
+from simind_python_connector import StirSimindAdaptor, configs
+from simind_python_connector.builders import STIRSPECTImageDataBuilder
 
 
 def _build_small_phantom(

@@ -1,8 +1,8 @@
 import pytest
 
-from py_smc.utils.io_utils import temporary_directory
-from py_smc.utils.simind_utils import create_window_file
-from py_smc.utils.stir_utils import parse_sinogram
+from simind_python_connector.utils.io_utils import temporary_directory
+from simind_python_connector.utils.simind_utils import create_window_file
+from simind_python_connector.utils.stir_utils import parse_sinogram
 
 
 @pytest.mark.unit

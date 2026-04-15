@@ -1,9 +1,9 @@
-# py-smc
+# simind-python-connector
 
 Python SIMIND Monte Carlo Connector.
 
-[![Tests](https://github.com/samdporter/py-smc/workflows/Tests/badge.svg)](https://github.com/samdporter/py-smc/actions)
-[![Documentation Status](https://readthedocs.org/projects/py-smc/badge/?version=latest)](https://py-smc.readthedocs.io/en/latest/?badge=latest)
+[![Tests](https://github.com/samdporter/simind-python-connector/workflows/Tests/badge.svg)](https://github.com/samdporter/simind-python-connector/actions)
+[![Documentation Status](https://readthedocs.org/projects/simind-python-connector/badge/?version=latest)](https://simind-python-connector.readthedocs.io/en/latest/?badge=latest)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 
@@ -20,9 +20,9 @@ SIMIND is **not distributed** with this package. You must separately obtain and
 install a licensed SIMIND installation.
 
 ## Quick Links
-- [Full Documentation](https://py-smc.readthedocs.io/)
-- [Installation](https://py-smc.readthedocs.io/en/latest/installation.html)
-- [Backend Support](https://py-smc.readthedocs.io/en/latest/backends.html) - adaptor dependency matrix
+- [Full Documentation](https://simind-python-connector.readthedocs.io/)
+- [Installation](https://simind-python-connector.readthedocs.io/en/latest/installation.html)
+- [Backend Support](https://simind-python-connector.readthedocs.io/en/latest/backends.html) - adaptor dependency matrix
 
 ## What This Package Does
 1. Runs SIMIND from Python with a minimal, explicit API.
@@ -41,13 +41,13 @@ install a licensed SIMIND installation.
 ### Basic Installation
 
 ```bash
-pip install py-smc
+pip install simind-python-connector
 ```
 
 Import path remains:
 
 ```python
-import py_smc
+import simind_python_connector
 ```
 
 ### Adaptor Dependencies
@@ -128,8 +128,8 @@ when the binary exists at `./simind/simind`.
 ## Quick Start
 ```python
 import numpy as np
-from py_smc import SimindPythonConnector
-from py_smc.configs import get
+from simind_python_connector import SimindPythonConnector
+from simind_python_connector.configs import get
 
 source = np.zeros((32, 32, 32), dtype=np.float32)  # z, y, x
 source[12:20, 12:20, 12:20] = 1.0
@@ -162,7 +162,7 @@ print(total.shape)
 ### Advanced Density Conversion
 
 ```python
-from py_smc.converters.attenuation import hu_to_density_schneider
+from simind_python_connector.converters.attenuation import hu_to_density_schneider
 import numpy as np
 
 # Convert HU image to densities using Schneider2000 model
@@ -173,8 +173,8 @@ density_map = hu_to_density_schneider(hu_image)  # 44-segment clinical model
 ### Pure Python Connector (NumPy Outputs)
 
 ```python
-from py_smc import RuntimeOperator, SimindPythonConnector
-from py_smc.configs import get
+from simind_python_connector import RuntimeOperator, SimindPythonConnector
+from simind_python_connector.configs import get
 
 connector = SimindPythonConnector(
     config_source=get("AnyScan.yaml"),

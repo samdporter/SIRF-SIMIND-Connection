@@ -1,4 +1,4 @@
-py-smc Documentation
+simind-python-connector Documentation
 ====================
 
 .. toctree::

@@ -2,9 +2,9 @@ include README.md
 include LICENSE
 include requirements.txt
 include requirements-dev.txt
-recursive-include py_smc/data *.atn
-recursive-include py_smc/data *.json
-recursive-include py_smc/configs *.smc *.yaml
+recursive-include simind_python_connector/data *.atn
+recursive-include simind_python_connector/data *.json
+recursive-include simind_python_connector/configs *.smc *.yaml
 recursive-include docs *.rst *.py
 recursive-include tests *.py
 recursive-include examples *.py

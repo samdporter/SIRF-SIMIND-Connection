@@ -1,5 +1,5 @@
 """
-py-smc connector/adaptor API.
+simind-python-connector connector/adaptor API.
 """
 
 import importlib
@@ -7,7 +7,7 @@ from importlib import metadata as _meta
 from typing import Any
 
 
-for _dist_name in ("py-smc", __name__):
+for _dist_name in ("simind-python-connector", __name__):
     try:  # installed (pip/poetry)
         __version__ = _meta.version(_dist_name)
         break

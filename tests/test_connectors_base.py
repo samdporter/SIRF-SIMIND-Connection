@@ -2,7 +2,7 @@ import inspect
 
 import pytest
 
-from py_smc.connectors import (
+from simind_python_connector.connectors import (
     BaseConnector,
     PyTomographySimindAdaptor,
     SimindPythonConnector,

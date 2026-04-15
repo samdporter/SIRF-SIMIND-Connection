@@ -17,7 +17,7 @@ from _python_connector_helpers import (
     require_simind,
 )
 
-from py_smc import SimindPythonConnector, configs
+from simind_python_connector import SimindPythonConnector, configs
 
 
 def _run_case(

@@ -1,6 +1,6 @@
 import pytest
 
-from py_smc.utils import sirf_stir_utils as utils
+from simind_python_connector.utils import sirf_stir_utils as utils
 
 
 @pytest.mark.unit

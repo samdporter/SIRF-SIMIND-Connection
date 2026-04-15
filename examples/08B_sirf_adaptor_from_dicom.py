@@ -12,8 +12,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from py_smc.builders import STIRSPECTAcquisitionDataBuilder
-from py_smc.utils import get_array
+from simind_python_connector.builders import STIRSPECTAcquisitionDataBuilder
+from simind_python_connector.utils import get_array
 
 
 def _view0(projection):
