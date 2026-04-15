@@ -57,6 +57,7 @@ Homepage = "https://github.com/samdporter/SIRF-SIMIND-Connection"
 Documentation = "https://sirf-simind-connection.readthedocs.io/"
 Repository = "https://github.com/samdporter/SIRF-SIMIND-Connection"
 Issues = "https://github.com/samdporter/SIRF-SIMIND-Connection/issues"
+Changelog = "https://github.com/samdporter/SIRF-SIMIND-Connection/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["."]
