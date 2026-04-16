@@ -1,5 +1,5 @@
 simind-python-connector Documentation
-====================
+=====================================
 
 .. toctree::
    :maxdepth: 2
