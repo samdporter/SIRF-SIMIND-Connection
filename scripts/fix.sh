@@ -1,21 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
-# 1. Remove unused imports & variables
-echo "Removing unused imports and variables with autoflake..."
-autoflake --in-place \
-          --remove-all-unused-imports \
-          --remove-unused-variables \
-          --recursive .
+# 1. Apply Ruff lint fixes, including import sorting.
+echo "Applying Ruff lint fixes..."
+ruff check . --fix
 
-# 2. Black formatting
-echo "Running Black formatter..."
-black .
+# 2. Format with Ruff.
+echo "Formatting with Ruff..."
+ruff format .
 
-# 3. Sort imports
-echo "Sorting imports with isort..."
-isort .
-
-# 4. Lint check
+# 3. Lint check
 echo "Running lint check with Ruff..."
-ruff check ./simind_python_connector examples
+ruff check .

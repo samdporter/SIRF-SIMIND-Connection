@@ -32,10 +32,9 @@ Before submitting:
     # Run all tests
     python -m pytest tests/ -v
 
-    # Check code formatting
-    black --check .
+    # Check linting and formatting
     ruff check .
-    isort --check-only .
+    ruff format --check .
 
 Documentation Updates
 ---------------------
@@ -44,5 +43,4 @@ If you make changes that affect the documentation:
 
 .. code-block:: bash
 
-    cd docs/
-    make html  # Build documentation locally
+    sphinx-build -b html docs docs/_build/html

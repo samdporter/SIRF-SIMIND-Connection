@@ -14,7 +14,7 @@ for _dist_name in ("simind-python-connector", __name__):
     except _meta.PackageNotFoundError:
         continue
 else:  # editable / source checkout
-    __version__ = "1.0.0"
+    __version__ = "1.0.1"
 
 
 def __getattr__(name: str) -> Any:

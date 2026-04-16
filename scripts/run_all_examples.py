@@ -2,8 +2,7 @@
 """
 Run All Examples Script
 
-This script runs all simind-python-connector examples in sequence,
-providing a comprehensive demonstration of the package capabilities.
+This script runs the core simind-python-connector examples in sequence.
 
 Run from the scripts/ directory:
     cd scripts/
@@ -26,7 +25,7 @@ sys.path.insert(0, str(parent_dir))
 # Change to parent directory so relative paths work correctly
 os.chdir(parent_dir)
 
-# List of examples to run (now in ../examples from scripts/)
+# List of core examples to run (now in ../examples from scripts/)
 EXAMPLES = [
     {
         "name": "01_basic_simulation.py",
@@ -70,12 +69,12 @@ EXAMPLES = [
 def print_header():
     """Print script header."""
     print("=" * 80)
-    print("simind-python-connector - Run All Examples")
+    print("simind-python-connector - Run Core Examples")
     print("=" * 80)
     print(f"Running from: {os.getcwd()}")
     print(f"Total examples: {len(EXAMPLES)}")
     print("Estimated total runtime: 10-25 minutes (depending on system)")
-    print("\nThis script will run all examples in sequence.")
+    print("\nThis script will run the core examples in sequence.")
     print("Each example creates output in its own directory under 'output/'")
     print("=" * 80)
 

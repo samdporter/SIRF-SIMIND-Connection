@@ -7,17 +7,24 @@ All notable changes to this project are documented in this file.
 
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_, and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-Unreleased
-----------
+1.0.1 - 2026-04-16
+------------------
 
-Changed
-~~~~~~~
+Fixed
+~~~~~
 
-- Updated user-facing branding to ``simind-python-connector`` and added explicit non-affiliation
-  and external-SIMIND-install disclaimers in README/docs.
+- Corrected installation documentation to lead with the PyPI package install
+  path instead of editable development installs.
+- Clarified that SIMIND is an external runtime dependency and must be available
+  as ``simind`` on ``PATH`` for local connector runs.
+- Updated contributing and testing documentation to use Ruff for linting,
+  import sorting, and formatting checks.
+- Updated examples documentation to include the DICOM-driven adaptor examples.
+- Fixed the GitHub Actions coverage target after the import package rename.
+- Fixed README links and release metadata for the patch release.
 
-[1.0.0] - 2026-03-05
---------------------
+1.0.0 - 2026-04-16
+------------------
 
 **Breaking Changes**
 ~~~~~~~~~~~~~~~~~~~~
@@ -56,6 +63,10 @@ Added
 Changed
 ~~~~~~~
 
+- Renamed the PyPI distribution to ``simind-python-connector``.
+- Renamed the import package to ``simind_python_connector``.
+- Updated user-facing branding to ``simind-python-connector`` and added explicit non-affiliation
+  and external-SIMIND-install disclaimers in README/docs.
 - ``SimindPythonConnector`` is now the central execution path for adaptor
   workflows.
 - ``StirSimindAdaptor`` and ``SirfSimindAdaptor`` now delegate SIMIND setup/run

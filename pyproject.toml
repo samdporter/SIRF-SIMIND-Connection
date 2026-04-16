@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "simind-python-connector"
-version = "1.0.0"
+version = "1.0.1"
 description = "Python SIMIND Monte Carlo connector with STIR/SIRF/PyTomography adaptors"
 readme = "README.md"
 requires-python = ">=3.9"

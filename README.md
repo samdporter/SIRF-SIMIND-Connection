@@ -44,10 +44,16 @@ install a licensed SIMIND installation.
 pip install simind-python-connector
 ```
 
-Import path remains:
+Import with:
 
 ```python
 import simind_python_connector
+```
+
+For example plotting dependencies:
+
+```bash
+pip install "simind-python-connector[examples]"
 ```
 
 ### Adaptor Dependencies
@@ -124,6 +130,9 @@ and ensure SIMIND data files are available under:
 
 The Docker helper scripts use this layout and automatically wire SIMIND paths
 when the binary exists at `./simind/simind`.
+
+For direct local runs outside the repository helpers, make sure the SIMIND
+executable is available as `simind` on `PATH`.
 
 ## Quick Start
 ```python
@@ -225,7 +234,7 @@ bash scripts/run_container_examples.sh
 ```
 
 ## Contributing
-Please see our [Contributing Guide](CONTRIBUTING.md).
+Please see the [Contributing Guide](docs/contributing.rst).
 
 ## License
 Apache License 2.0

@@ -56,6 +56,18 @@ See the following examples for comprehensive use:
    Simulate with the PyTomography adaptor and run PyTomography OSEM in one Python workflow.
    Uses ``configs/Example.yaml`` plus Y-90 runtime switches (``FI`` and ``CC``).
 
+8A. **STIR Adaptor from DICOM** - ``examples/08A_stir_adaptor_from_dicom.py``
+
+   Build a STIR adaptor workflow from DICOM-derived scanner/input data.
+
+8B. **SIRF Adaptor from DICOM** - ``examples/08B_sirf_adaptor_from_dicom.py``
+
+   Build a SIRF adaptor workflow from DICOM-derived scanner/input data.
+
+8C. **PyTomography Adaptor from DICOM** - ``examples/08C_pytomography_adaptor_from_dicom.py``
+
+   Build a PyTomography adaptor workflow from DICOM-derived scanner/input data.
+
 Running Examples
 ----------------
 
@@ -72,13 +84,16 @@ Each example can be run individually:
     python examples/07A_stir_adaptor_osem.py
     python examples/07B_sirf_adaptor_osem.py
     python examples/07C_pytomography_adaptor_osem.py
+    python examples/08A_stir_adaptor_from_dicom.py
+    python examples/08B_sirf_adaptor_from_dicom.py
+    python examples/08C_pytomography_adaptor_from_dicom.py
 
-Or run all examples sequentially:
+Or run all core Python connector examples sequentially:
 
 .. code-block:: bash
 
     cd scripts/
-    python run_all_examples.py  # Run all examples sequentially
+    python run_all_examples.py
 
 Or run one backend-specific adaptor example inside each isolated Docker image:
 
@@ -100,6 +115,9 @@ Each example creates output in its own directory under ``output/``:
 - ``output/stir_adaptor_osem/`` - STIR adaptor simulation + STIR OSEM reconstruction
 - ``output/sirf_adaptor_osem/`` - SIRF adaptor simulation + SIRF OSEM reconstruction
 - ``output/pytomography_adaptor_osem/`` - PyTomography adaptor simulation + PyTomography OSEM reconstruction
+- ``output/dicom_projection_objects/stir/`` - STIR adaptor setup from DICOM-derived inputs
+- ``output/dicom_projection_objects/sirf/`` - SIRF adaptor setup from DICOM-derived inputs
+- ``output/dicom_projection_objects/pytomography/`` - PyTomography adaptor setup from DICOM-derived inputs
 
 Each OSEM example also writes a summary plot with:
 - input source slice

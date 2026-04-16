@@ -137,31 +137,36 @@ The default CI job runs the tests that avoid heavyweight dependencies. These foc
 
 * **Conversion maths** – ``tests/test_schneider_density.py`` exercises the HU-to-density pipelines.
 * **Configuration & builders** – ``tests/test_simulation_config.py`` and ``tests/test_acquisition_builder_unit.py`` validate YAML/SMC handling plus Interfile header generation without a SIRF runtime.
-* **Utility helpers** – ``tests/test_components.py``, ``tests/test_utils.py``, and ``tests/test_utils_small.py`` cover enums, file parsing, and temporary-directory/energy-window helpers.
-* **Backend guards** – ``tests/test_backends.py`` ensures the dynamic backend selection code behaves without importing SIRF.
+* **Connector behavior** – ``tests/test_python_connector.py``, ``tests/test_connectors_base.py``, and ``tests/test_connector_backend_separation.py`` cover the connector-first API without requiring reconstruction packages.
+* **Utility helpers** – ``tests/test_utils.py``, ``tests/test_utils_small.py``, ``tests/test_interfile_parser.py``, and ``tests/test_interfile_numpy.py`` cover file parsing and small helper functions.
+* **Backend guards** – ``tests/test_backends.py``, ``tests/test_marker_policy.py``, and ``tests/test_examples_backend_separation.py`` ensure optional backend imports remain isolated.
 
-SIRF-Dependent Suites
-~~~~~~~~~~~~~~~~~~~~~
+Backend-Dependent Suites
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Tests that construct real SIRF/STIR objects carry the ``requires_sirf`` marker and are skipped in CI. These include:
+Tests that construct real STIR/SIRF/PyTomography objects carry dependency
+markers and are skipped when those packages are unavailable. These include:
 
-* ``tests/test_simind_simulator.py`` and ``tests/test_simind_projector.py`` for the legacy projector/simulator path.
-* ``tests/test_arithmetic_operations.py`` for wrapped acquisition arithmetic.
-* ``tests/test_coordinator.py`` for the SIMIND coordinator.
-* SIRF-backed helpers in ``tests/test_utils.py`` and ``tests/test_components.py``.
+* ``tests/test_native_adaptors.py`` for STIR/SIRF adaptor behavior.
+* ``tests/test_pytomography_adaptor.py`` for PyTomography tensor and output adaptation.
+* ``tests/test_arithmetic_operations.py`` and ``tests/test_sirf_stir_utils.py`` for backend wrapper/helper behavior.
 
-CIL and Hybrid Dependencies
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SIMIND and Container Diagnostics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Two suites rely on additional packages:
+SIMIND-dependent tests use ``requires_simind`` and are skipped unless the
+``simind`` command is available. Container and geometry diagnostics include:
 
-* ``tests/test_cil_partitioner.py`` (``requires_sirf`` + ``requires_cil``) exercises the CIL partitioner adapter.
-* ``tests/test_step_size_rules.py`` (``requires_cil``) checks Armijo step-size helpers with lightweight stand-ins.
+* ``tests/test_integration.py`` for full workflow checks.
+* ``tests/test_container_library_isolation.py`` for backend container import isolation.
+* ``tests/test_geometry_isolation_forward_projection.py`` and ``tests/test_osem_geometry_diagnostics.py`` for backend geometry diagnostics.
 
 Integration Test
 ~~~~~~~~~~~~~~~~
 
-``tests/test_integration.py`` orchestrates a full example run and needs both SIMIND and SIRF. It is marked with ``integration``, ``requires_simind``, and ``requires_sirf``.
+``tests/test_integration.py`` orchestrates a full example run and needs
+external runtime dependencies. It is marked with dependency markers so it is
+skipped in lightweight CI environments.
 
 Configuration Files
 -------------------
@@ -223,7 +228,7 @@ Continuous Integration
 GitHub Actions is used to run tests automatically. The CI workflow:
 
 1. **Installs only basic Python dependencies** (no SIRF/SIMIND)
-2. **Runs code quality checks** (black, isort, ruff)
+2. **Runs code quality checks** (``ruff check`` and ``ruff format --check``)
 3. **Executes CI-friendly tests** using dependency markers
 4. **Generates coverage reports** for the tested code
 5. **Builds and validates the package**

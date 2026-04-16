@@ -7,6 +7,8 @@ Prerequisites
 -------------
 
 - Python 3.9+
+- A separate SIMIND installation for running simulations. SIMIND is not
+  distributed with this package or installed by pip.
 - Optional backend libraries depending on workflow:
   - STIR Python for STIR-based paths
   - SIRF for SIRF-based paths
@@ -15,18 +17,34 @@ Prerequisites
 Install the Python Package
 --------------------------
 
-1. Clone the repository:
+Install the released package from PyPI:
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      git clone https://github.com/samdporter/simind-python-connector.git
-      cd simind-python-connector
+    pip install simind-python-connector
 
-2. Install in editable/development mode:
+Import it with:
 
-   .. code-block:: bash
+.. code-block:: python
 
-      pip install -e ".[dev]"
+    import simind_python_connector
+
+Install the examples extra if you want to run the plotting examples:
+
+.. code-block:: bash
+
+    pip install "simind-python-connector[examples]"
+
+Development Install
+-------------------
+
+For local development from a checkout:
+
+.. code-block:: bash
+
+    git clone https://github.com/samdporter/simind-python-connector.git
+    cd simind-python-connector
+    pip install -e ".[dev,examples]"
 
 SIMIND Requirement (External Dependency)
 ----------------------------------------
@@ -48,10 +66,10 @@ documentation:
 - SIMIND manual page:
   https://www.msf.lu.se/en/research/simind-monte-carlo-program/manual
 
-Recommended Local Layout
-~~~~~~~~~~~~~~~~~~~~~~~~
+Repo/Docker Layout
+~~~~~~~~~~~~~~~~~~
 
-For the package scripts and Docker setup, place SIMIND under:
+For the repository helper scripts and Docker setup, place SIMIND under:
 
 .. code-block:: text
 
@@ -70,11 +88,19 @@ If needed, make the binary executable:
 
     chmod +x ./simind/simind
 
-Local (Non-Docker) Runtime Environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Local Runtime Environment
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For direct local runs, ensure SIMIND is on ``PATH`` and ``SMC_DIR`` points to
-the SIMIND data directory:
+For direct local runs, ensure the SIMIND executable is available as ``simind``
+on ``PATH``. If your SIMIND installation needs ``SMC_DIR``, set it to the
+SIMIND data directory:
+
+.. code-block:: bash
+
+    export PATH="/path/to/simind/bin:$PATH"
+    export SMC_DIR="/path/to/simind/smc_dir/"
+
+When working from this repository with the layout above, those commands become:
 
 .. code-block:: bash
 

@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath(".."))
 project = "simind-python-connector"
 copyright = f"{datetime.now().year}, Sam Porter, Efstathios Varzakis"
 author = "Sam Porter, Efstathios Varzakis"
-release = "1.0.0"
+release = "1.0.1"
 for dist_name in ("simind-python-connector",):
     try:
         release = importlib_metadata.version(dist_name)

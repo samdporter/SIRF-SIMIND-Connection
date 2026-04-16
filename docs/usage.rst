@@ -9,6 +9,10 @@ Quick Start
 Use ``SimindPythonConnector`` when you want direct Python control of SIMIND
 inputs/outputs without any reconstruction-package dependency.
 
+The Python package does not bundle SIMIND. Before calling ``run()``, make sure
+the SIMIND executable is available as ``simind`` on ``PATH``; see
+:doc:`installation`.
+
 .. code-block:: python
 
     import numpy as np
